@@ -64,16 +64,115 @@ const getMe = async (req, res) => {
     const user = await User.findById(req.user.id).select('-password');
     if (!user) return res.status(404).json({ message: 'User not found' });
 
-    // For PARENT role: attach the linked child student record
-    if (user.role === 'PARENT' && user.mappedStudentId) {
-      const { Student } = require('../models/coreModels');
-      const mappedStudent = await Student.findById(user.mappedStudentId).select(
-        'firstName lastName classId sectionId rollNo admissionNo attendancePercentage gender'
-      );
-      return res.json({ ...user.toObject(), mappedStudent: mappedStudent || null });
+    let userObj = user.toObject();
+    const { School, Student } = require('../models/coreModels');
+
+    if (userObj.schoolId) {
+      const school = await School.findById(userObj.schoolId);
+      if (school) userObj.schoolName = school.name.trim();
     }
 
-    res.json(user);
+    if (!userObj.schoolName) {
+      const activeSchool = await School.findOne({ status: 'ACTIVE' });
+      if (activeSchool) userObj.schoolName = activeSchool.name.trim();
+    }
+
+    if (!userObj.schoolName) {
+      userObj.schoolName = 'SVM School';
+    }
+
+    // Attach mapped student details for STUDENT or PARENT roles
+    let studentRecord = null;
+    if (user.role === 'STUDENT') {
+      if (user._id) studentRecord = await Student.findOne({ studentUserId: user._id });
+      if (!studentRecord) studentRecord = await Student.findOne({ studentEmail: user.email });
+      if (!studentRecord) studentRecord = await Student.findOne({ email: user.email });
+    } else if (user.role === 'PARENT') {
+      if (user.mappedStudentId) studentRecord = await Student.findById(user.mappedStudentId);
+      if (!studentRecord) studentRecord = await Student.findOne({ parentId: user._id });
+      if (!studentRecord) studentRecord = await Student.findOne({ parentEmail: user.email });
+    }
+
+    if (studentRecord) {
+      userObj.mappedStudent = {
+        _id: studentRecord._id,
+        firstName: studentRecord.firstName,
+        lastName: studentRecord.lastName,
+        classId: studentRecord.classId,
+        sectionId: studentRecord.sectionId,
+        rollNo: studentRecord.rollNo,
+        admissionNo: studentRecord.admissionNo,
+        attendancePercentage: studentRecord.attendancePercentage,
+        gender: studentRecord.gender,
+        parentName: studentRecord.parentName,
+        parentPhone: studentRecord.parentPhone,
+        parentEmail: studentRecord.parentEmail,
+      };
+    } else {
+      userObj.mappedStudent = null;
+    }
+
+    res.json(userObj);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { name, phone, avatar, designation, bio, currentPassword, newPassword } = req.body;
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User account not found' });
+
+    // Students and Parents have read-only profiles
+    if (['STUDENT', 'PARENT'].includes(user.role) && (name || phone || avatar || designation || bio)) {
+      return res.status(403).json({ message: 'Profile details for Students and Parents are read-only and managed by School Administration.' });
+    }
+
+    if (name) user.name = name.trim();
+    if (phone !== undefined) user.phone = phone.trim();
+    if (avatar !== undefined) user.avatar = avatar.trim();
+    if (designation !== undefined) user.designation = designation.trim();
+    if (bio !== undefined) user.bio = bio.trim();
+
+    // Ensure schoolName is set if missing
+    if (!user.schoolName && user.schoolId) {
+      const { School } = require('../models/coreModels');
+      const school = await School.findById(user.schoolId);
+      if (school) user.schoolName = school.name.trim();
+    }
+
+    // Optional password change
+    if (newPassword) {
+      if (currentPassword) {
+        const isMatch = await bcrypt.compare(currentPassword, user.password);
+        if (!isMatch) {
+          return res.status(400).json({ message: 'Current password does not match.' });
+        }
+      }
+      if (newPassword.length < 6) {
+        return res.status(400).json({ message: 'New password must be at least 6 characters long.' });
+      }
+      user.password = await bcrypt.hash(newPassword, 10);
+    }
+
+    await user.save();
+
+    const updatedUser = await User.findById(userId).select('-password');
+    let userObj = updatedUser.toObject();
+
+    if (!userObj.schoolName && userObj.schoolId) {
+      const { School } = require('../models/coreModels');
+      const school = await School.findById(userObj.schoolId);
+      if (school) userObj.schoolName = school.name.trim();
+    }
+
+    res.json({
+      message: 'Profile updated successfully!',
+      user: userObj
+    });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -241,6 +340,7 @@ const updateAdmissionStatus = async (req, res) => {
 module.exports = {
   login,
   getMe,
+  updateProfile,
   getSchoolUsers,
   createSchoolUser,
   deleteSchoolUser,

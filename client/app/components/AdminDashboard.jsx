@@ -9,7 +9,8 @@ import {
   AlertTriangle, Stethoscope, Library, Bus, Home, Megaphone, Ticket,
   FileBadge2, BarChart3, Settings, ChevronDown, UserCog, TrendingUp,
   Building2, BookMarked, Calculator, Scroll, MapPin, ShieldCheck,
-  HeartHandshake, ClipboardList, Eye, XCircle, CheckCircle, Loader2
+  HeartHandshake, ClipboardList, Eye, XCircle, CheckCircle, Loader2,
+  User, Mail, Phone, Shield, Lock, Camera
 } from 'lucide-react';
 
 const API = 'http://127.0.0.1:5000/api';
@@ -27,8 +28,15 @@ async function apiFetch(path, options = {}) {
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...options.headers },
     ...options,
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || 'API error');
+  const text = await res.text();
+  let data = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch (e) {
+    if (!res.ok) throw new Error(`Server returned error (${res.status}). Please try again.`);
+    throw new Error('Invalid JSON server response');
+  }
+  if (!res.ok) throw new Error(data.message || `API error (${res.status})`);
   return data;
 }
 
@@ -808,7 +816,7 @@ function StudentsTab() {
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead><tr className="border-b border-slate-800">
-                      {['Roll No', 'Name', 'Section', 'Gender', 'Attendance', 'Student Email', 'Parent Phone', 'Actions'].map(h => (
+                      {['Roll No', 'Name', 'Section', 'Gender', 'Attendance', 'Student Email', 'Parent Name', 'Parent Phone', 'Actions'].map(h => (
                         <th key={h} className="px-4 py-3 text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider">{h}</th>
                       ))}
                     </tr></thead>
@@ -825,6 +833,7 @@ function StudentsTab() {
                             </span>
                           </td>
                           <td className="px-4 py-3 text-xs font-mono text-slate-400">{s.studentEmail || '—'}</td>
+                          <td className="px-4 py-3 text-xs text-slate-200 font-semibold">{s.parentName || '—'}</td>
                           <td className="px-4 py-3 text-xs text-slate-300">{s.parentPhone || '—'}</td>
                           <td className="px-4 py-3 text-right whitespace-nowrap">
                             <button onClick={() => setEditStudentModal(s)} className="p-1.5 rounded-lg hover:bg-indigo-500/20 text-slate-400 hover:text-indigo-400 transition-colors mr-1">
@@ -2137,16 +2146,127 @@ function MarksTab() {
 // Parents Tab — full CRUD for PARENT role users with linked student
 function ParentsTab() {
   const [rows, setRows] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [selectedClassFilter, setSelectedClassFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
   const showMsg = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg(null), 3500); };
 
-  const load = () => apiFetch('/users')
-    .then(d => { setRows((Array.isArray(d) ? d : []).filter(u => u.role === 'PARENT')); setLoading(false); })
-    .catch(() => setLoading(false));
+  const load = async () => {
+    setLoading(true);
+    try {
+      const [uData, sData, cData] = await Promise.all([
+        apiFetch('/users').catch(() => []),
+        apiFetch('/students').catch(() => []),
+        apiFetch('/classes').catch(() => [])
+      ]);
+      setRows(Array.isArray(uData) ? uData.filter(u => u.role === 'PARENT') : []);
+      setStudents(Array.isArray(sData) ? sData : []);
+      setClasses(Array.isArray(cData) ? cData : []);
+    } catch (e) {
+      showMsg('error', 'Failed to load parent data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => { load(); }, []);
+
+  // Helpers to clean duplicate "Class" or "Section" prefixes
+  const cleanClass = (classId) => {
+    if (!classId) return '';
+    return String(classId).replace(/^Class\s+/i, '').trim();
+  };
+
+  const cleanSection = (secId) => {
+    if (!secId || secId === '-') return '';
+    return String(secId).replace(/^Section\s+/i, '').trim();
+  };
+
+  // Collect all unique available classes from students and classes collection
+  const availableClasses = React.useMemo(() => {
+    const set = new Set();
+    classes.forEach(c => {
+      if (c.className) set.add(cleanClass(c.className));
+    });
+    students.forEach(s => {
+      if (s.classId) set.add(cleanClass(s.classId));
+    });
+    return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [classes, students]);
+
+  // Merge Parents with their linked Student child details
+  const mergedParents = React.useMemo(() => {
+    const map = new Map();
+
+    rows.forEach(p => {
+      // 1. Priority check: Exact ObjectId link (mappedStudentId or parentId)
+      let child = students.find(s => 
+        (p.mappedStudentId && String(s._id) === String(p.mappedStudentId)) ||
+        (s.parentId && String(s.parentId) === String(p._id))
+      );
+
+      // 2. Fallback check: Parent email match
+      if (!child) {
+        child = students.find(s => 
+          s.parentEmail && s.parentEmail.toLowerCase() === p.email.toLowerCase()
+        );
+      }
+
+      // 3. Fallback check: Phone number match
+      if (!child && p.phone && p.phone.length > 5) {
+        child = students.find(s => 
+          s.parentPhone && s.parentPhone.replace(/\D/g,'') === p.phone.replace(/\D/g,'')
+        );
+      }
+
+      const clsName = cleanClass(child?.classId);
+      const secName = cleanSection(child?.sectionId);
+
+      map.set(p.email.toLowerCase(), {
+        _id: p._id,
+        parentName: p.name,
+        email: p.email,
+        phone: p.phone || child?.parentPhone || '—',
+        status: p.status || 'ACTIVE',
+        childName: child ? `${child.firstName} ${child.lastName}` : 'Unlinked',
+        childClass: child ? `Class ${clsName}${secName ? ` — Section ${secName}` : ''}` : 'N/A',
+        rawClassId: clsName,
+        createdAt: p.createdAt
+      });
+    });
+
+    students.forEach(s => {
+      const pEmail = s.parentEmail ? s.parentEmail.toLowerCase() : null;
+      if (pEmail && !map.has(pEmail)) {
+        const clsName = cleanClass(s.classId);
+        const secName = cleanSection(s.sectionId);
+        map.set(pEmail, {
+          _id: `st-parent-${s._id}`,
+          parentName: s.parentName || 'Parent / Guardian',
+          email: s.parentEmail,
+          phone: s.parentPhone || '—',
+          status: 'ACTIVE',
+          childName: `${s.firstName} ${s.lastName}`,
+          childClass: `Class ${clsName}${secName ? ` — Section ${secName}` : ''}`,
+          rawClassId: clsName,
+          createdAt: s.createdAt
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [rows, students]);
+
+  const filteredParents = React.useMemo(() => {
+    if (!selectedClassFilter) return mergedParents;
+    return mergedParents.filter(p => 
+      p.rawClassId && p.rawClassId.toLowerCase() === selectedClassFilter.toLowerCase()
+    );
+  }, [mergedParents, selectedClassFilter]);
 
   const handleSave = async (form) => {
     setSaving(true);
@@ -2161,7 +2281,12 @@ function ParentsTab() {
       setModal(null); load();
     } catch (e) { showMsg('error', `❌ ${e.message}`); } finally { setSaving(false); }
   };
+
   const handleDelete = async (id) => {
+    if (String(id).startsWith('st-parent-')) {
+      showMsg('error', 'Delete the student record to remove this parent entry.');
+      return;
+    }
     if (!confirm('Delete this parent account?')) return;
     try { await apiFetch(`/users/${id}`, { method: 'DELETE' }); showMsg('success', '✅ Deleted.'); load(); }
     catch (e) { showMsg('error', e.message); }
@@ -2178,22 +2303,75 @@ function ParentsTab() {
   return (
     <div className="space-y-4">
       {msg && <div className={`p-3 rounded-xl text-xs font-semibold ${msg.type === 'success' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/20' : 'bg-rose-500/15 text-rose-300 border border-rose-500/20'}`}>{msg.text}</div>}
-      <div className="flex items-start gap-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
-        <HeartHandshake className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-        <p className="text-[11px] text-slate-300 leading-relaxed">
-          <span className="text-indigo-300 font-bold">Parent accounts </span>
-          are automatically created when you enroll a student via the <span className="text-white font-semibold">Students → Enroll Student</span> flow. You can also manually create or edit parent accounts here. Parents log in to view their child's homework, marks, attendance and messages.
-        </p>
+      
+      <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+        <div className="flex items-center gap-3">
+          <HeartHandshake className="w-5 h-5 text-indigo-400 shrink-0" />
+          <div>
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider">Parent Directory & Child Linkages</h3>
+            <p className="text-[11px] text-slate-400">Class-wise parent contacts and student enrollment links</p>
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-slate-400 font-semibold">Filter by Class:</span>
+          <select 
+            className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+            value={selectedClassFilter} 
+            onChange={e => setSelectedClassFilter(e.target.value)}
+          >
+            <option value="">All Classes ({mergedParents.length})</option>
+            {availableClasses.map(c => <option key={c} value={c}>Class {c}</option>)}
+          </select>
+        </div>
       </div>
+
+      {/* QUICK CLASS PILL BUTTONS */}
+      {availableClasses.length > 0 && (
+        <div className="flex items-center gap-2 overflow-x-auto pb-1">
+          <button
+            onClick={() => setSelectedClassFilter('')}
+            className={`px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
+              !selectedClassFilter 
+                ? 'gradient-primary text-white border-indigo-400/40 shadow-md shadow-indigo-500/20' 
+                : 'bg-slate-900 text-slate-400 hover:text-white border-slate-800'
+            }`}
+          >
+            All Classes ({mergedParents.length})
+          </button>
+          {availableClasses.map(c => {
+            const count = mergedParents.filter(p => p.rawClassId && p.rawClassId.toLowerCase() === c.toLowerCase()).length;
+            const isSel = selectedClassFilter.toLowerCase() === c.toLowerCase();
+            return (
+              <button
+                key={c}
+                onClick={() => setSelectedClassFilter(c)}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition-all border flex items-center gap-1.5 shrink-0 ${
+                  isSel 
+                    ? 'gradient-primary text-white border-indigo-400/40 shadow-md shadow-indigo-500/20' 
+                    : 'bg-slate-900 text-slate-400 hover:text-white border-slate-800'
+                }`}
+              >
+                <span>Class {c}</span>
+                <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${isSel ? 'bg-indigo-400/30 text-white' : 'bg-slate-800 text-slate-400'}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <ModuleTable
         title="Parent Directory" icon={HeartHandshake} color="amber"
-        loading={loading} rows={rows}
+        loading={loading} rows={filteredParents}
         columns={[
-          { key: 'name', label: 'Parent Name' },
+          { key: 'parentName', label: 'Parent Name' },
+          { key: 'childName', label: 'Child (Student)', render: v => <span className="font-semibold text-indigo-300">{v}</span> },
+          { key: 'childClass', label: 'Class & Section', render: v => <span className="px-2.5 py-0.5 rounded-lg text-[11px] font-bold bg-slate-800 text-slate-300 border border-slate-700">{v}</span> },
           { key: 'email', label: 'Login Email' },
-          { key: 'phone', label: 'Phone' },
+          { key: 'phone', label: 'Parent Phone' },
           { key: 'status', label: 'Status', badge: true },
-          { key: 'createdAt', label: 'Created', render: v => v ? new Date(v).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—' },
         ]}
         onAdd={() => setModal({ editing: null })}
         onEdit={(row) => setModal({ editing: row })}
@@ -2202,9 +2380,9 @@ function ParentsTab() {
       />
       {modal && (
         <CrudModal
-          title={modal.editing ? `Edit Parent — ${modal.editing.name}` : '➕ Add Parent Account'}
+          title={modal.editing ? `Edit Parent — ${modal.editing.parentName}` : '➕ Add Parent Account'}
           fields={fields}
-          initial={modal.editing || {}}
+          initial={modal.editing ? { name: modal.editing.parentName, email: modal.editing.email, phone: modal.editing.phone, status: modal.editing.status } : {}}
           onSave={handleSave}
           onClose={() => setModal(null)}
           loading={saving}
@@ -2349,6 +2527,510 @@ function StaffAttendanceTab() {
   );
 }
 
+// ── USER PROFILE TAB ──
+function AdminProfileTab() {
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [savingInfo, setSavingInfo] = useState(false);
+  const [savingPass, setSavingPass] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const showMsg = (type, text) => {
+    setMsg({ type, text });
+    setTimeout(() => setMsg(null), 4000);
+  };
+
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    designation: '',
+    bio: '',
+    avatar: '',
+  });
+
+  const [passForm, setPassForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  });
+
+  useEffect(() => {
+    apiFetch('/auth/me')
+      .then(d => {
+        setProfile(d);
+        const defaultDesignation = d.designation || (
+          d.role === 'STUDENT' ? 'Enrolled Student' :
+          d.role === 'TEACHER' ? 'Faculty Member' :
+          d.role === 'PARENT' ? 'Parent / Guardian' :
+          d.role === 'ACCOUNTANT' ? 'Finance Officer' :
+          d.role === 'SAAS_SUPER_ADMIN' ? 'SaaS Super Admin' :
+          'Principal & Campus Director'
+        );
+        setForm({
+          name: d.name || 'User',
+          email: d.email || '',
+          phone: d.phone || '',
+          designation: defaultDesignation,
+          bio: d.bio || '',
+          avatar: d.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=300&auto=format&fit=crop',
+        });
+        setLoading(false);
+      })
+      .catch(() => {
+        const demo = {
+          name: 'User Account',
+          email: 'user@school.edu.in',
+          phone: '+91 98765 43210',
+          role: 'SCHOOL_ADMIN',
+          schoolName: 'School ERP Campus',
+          designation: 'Campus Administrator',
+          bio: 'Managing academic operations.',
+          avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=300&auto=format&fit=crop',
+        };
+        setProfile(demo);
+        setForm(demo);
+        setLoading(false);
+      });
+  }, []);
+
+  const handleUpdateInfo = async () => {
+    setSavingInfo(true);
+    try {
+      const res = await apiFetch('/auth/profile', {
+        method: 'PUT',
+        body: JSON.stringify({
+          name: form.name,
+          phone: form.phone,
+          avatar: form.avatar,
+          designation: form.designation,
+          bio: form.bio,
+        }),
+      });
+      showMsg('success', res.message || 'Profile updated successfully!');
+      if (res.user) {
+        setProfile(prev => ({ ...prev, ...res.user }));
+        setForm(prev => ({
+          ...prev,
+          name: res.user.name || prev.name,
+          phone: res.user.phone || prev.phone,
+          avatar: res.user.avatar || prev.avatar,
+          designation: res.user.designation !== undefined ? res.user.designation : prev.designation,
+          bio: res.user.bio !== undefined ? res.user.bio : prev.bio,
+        }));
+        try {
+          const stored = localStorage.getItem('erp_user');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            localStorage.setItem('erp_user', JSON.stringify({ ...parsed, ...res.user }));
+          }
+        } catch (e) {}
+      }
+    } catch (err) {
+      showMsg('error', err.message || 'Failed to update profile');
+    } finally {
+      setSavingInfo(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!passForm.newPassword) {
+      showMsg('error', 'Please enter a new password.');
+      return;
+    }
+    if (passForm.newPassword !== passForm.confirmPassword) {
+      showMsg('error', 'New passwords do not match.');
+      return;
+    }
+    setSavingPass(true);
+    try {
+      const res = await apiFetch('/auth/profile', {
+        method: 'PUT',
+        body: JSON.stringify({
+          currentPassword: passForm.currentPassword,
+          newPassword: passForm.newPassword,
+        }),
+      });
+      showMsg('success', 'Password updated successfully!');
+      setPassForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (err) {
+      showMsg('error', err.message || 'Failed to update password');
+    } finally {
+      setSavingPass(false);
+    }
+  };
+
+  const getRoleControls = (role) => {
+    switch (role) {
+      case 'STUDENT':
+        return [
+          'Academic LMS & Homework Access',
+          'Examination Results & Report Cards',
+          'Class Timetable & Schedule Attendance',
+          'Student Profile & Document Repository',
+        ];
+      case 'TEACHER':
+        return [
+          'Student Daily Attendance Marking',
+          'LMS Course Content & Homework Uploads',
+          'Exam Marks & Evaluation Input',
+          'Class Academic Timetable View',
+        ];
+      case 'PARENT':
+        return [
+          'Child Academic Performance Monitoring',
+          'Online Fee Payment & Ledger History',
+          'Live Student Bus Transport Tracking',
+          'School Noticeboard & Broadcast Announcements',
+        ];
+      case 'ACCOUNTANT':
+        return [
+          'Student Fee Collection & Receipt Management',
+          'Ledger Records & Financial Reporting',
+          'Payroll Processing & Expense Tracking',
+          'Fee Defaulter List Management',
+        ];
+      case 'SAAS_SUPER_ADMIN':
+        return [
+          'Full Multi-Tenant SaaS Overseer',
+          'Tenant School Onboarding & Licensing',
+          'Global User & Subscription Management',
+          'Security Audit & Feature Flag Engine',
+        ];
+      default:
+        return [
+          'Full Student & Parent Lifecycle Management',
+          'Academic Timetable & Course Authoring',
+          'Fee Category & Ledger Record Control',
+          'Staff HRMS, Payroll & Leave Approvals',
+          'AI Early Warning Risk Detector Access',
+          'Campus Assets & Inventory Overseer',
+        ];
+    }
+  };
+
+  const inputCls = 'w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30';
+  const labelCls = 'block text-[11px] font-semibold text-slate-400 mb-1.5';
+
+  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 text-indigo-400 animate-spin" /></div>;
+
+  const currentRole = profile?.role || 'SCHOOL_ADMIN';
+  const displayRole = currentRole.replace(/_/g, ' ');
+  const isReadOnlyRole = ['STUDENT', 'PARENT'].includes(currentRole);
+
+  return (
+    <div className="space-y-6 max-w-5xl">
+      {/* Toast Feedback */}
+      {msg && (
+        <div className={`p-4 rounded-xl text-xs font-semibold flex items-center justify-between border ${msg.type === 'success' ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30' : 'bg-rose-500/15 text-rose-300 border-rose-500/30'}`}>
+          <span>{msg.type === 'success' ? '✅' : '⚠️'} {msg.text}</span>
+          <button onClick={() => setMsg(null)} className="text-slate-400 hover:text-white"><X className="w-4 h-4" /></button>
+        </div>
+      )}
+
+      {/* HERO BANNER CARD */}
+      <div className="relative bg-[#0d1117] border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
+        <div className="h-32 bg-gradient-to-r from-indigo-900/60 via-purple-900/40 to-slate-900 border-b border-slate-800/80 relative">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.15),transparent_50%)]" />
+        </div>
+
+        <div className="px-6 pb-6 pt-0 relative flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 -mt-12 sm:-mt-10">
+          <div className="flex items-end gap-4">
+            <div className="relative group">
+              <img
+                src={form.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=300&auto=format&fit=crop'}
+                alt="Profile Avatar"
+                className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-4 border-[#0d1117] shadow-xl bg-slate-900"
+              />
+              {!isReadOnlyRole && (
+                <div className="absolute inset-0 bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                     onClick={() => {
+                       const url = prompt('Enter Avatar Image URL:', form.avatar);
+                       if (url !== null) setForm(f => ({ ...f, avatar: url }));
+                     }}>
+                  <Camera className="w-6 h-6 text-white" />
+                </div>
+              )}
+            </div>
+
+            <div className="mb-1">
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg sm:text-xl font-black text-white">{form.name}</h1>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1 uppercase">
+                  <ShieldCheck className="w-3 h-3 text-indigo-400" /> {displayRole}
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 font-semibold">
+                {form.designation || (
+                  currentRole === 'STUDENT' ? 'Enrolled Student' :
+                  currentRole === 'TEACHER' ? 'Faculty Member' :
+                  currentRole === 'PARENT' ? 'Parent / Guardian' :
+                  currentRole === 'ACCOUNTANT' ? 'Finance Officer' :
+                  'Campus Administrator'
+                )}
+              </p>
+              <p className="text-[11px] text-slate-500">{profile?.schoolName || 'School ERP Campus'}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 self-stretch sm:self-auto">
+            <span className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> Active Session
+            </span>
+            {currentRole === 'SCHOOL_ADMIN' && (
+              <button
+                onClick={() => window.location.href = '/admin/dashboard?tab=settings'}
+                className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-semibold text-white flex items-center gap-1.5 transition-colors"
+              >
+                <Settings className="w-3.5 h-3.5 text-slate-400" /> School Settings
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* MAIN TWO-COLUMN SECTION */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        {/* LEFT COLUMN: EDIT PERSONAL DETAILS */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-[#0d1117] border border-slate-800 rounded-2xl p-6 space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-indigo-500/15 flex items-center justify-center text-indigo-400 border border-indigo-500/20">
+                  <User className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-white">Personal Profile Details</h2>
+                  <p className="text-[11px] text-slate-500">
+                    {isReadOnlyRole ? 'Official record managed by School Administration (Read-only)' : 'Update your official contact & profile information'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {isReadOnlyRole && (
+              <div className="p-3.5 rounded-xl bg-slate-900/80 border border-slate-800 text-xs text-slate-400 flex items-center gap-2.5">
+                <Lock className="w-4 h-4 text-amber-400 shrink-0" />
+                <span>Profile details for Students and Parents are read-only. Contact your school administrator to request record updates.</span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className={labelCls}>Full Name {isReadOnlyRole ? '(Read-only)' : '*'}</label>
+                <div className="relative">
+                  <User className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input 
+                    className={`${inputCls} pl-9 ${isReadOnlyRole ? 'bg-slate-950 text-slate-400 cursor-not-allowed' : ''}`} 
+                    value={form.name} 
+                    onChange={e => setForm({ ...form, name: e.target.value })} 
+                    placeholder="Full Name" 
+                    disabled={isReadOnlyRole}
+                    readOnly={isReadOnlyRole}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>Designation / Role Title {isReadOnlyRole ? '(Read-only)' : ''}</label>
+                <div className="relative">
+                  <Award className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input 
+                    className={`${inputCls} pl-9 ${isReadOnlyRole ? 'bg-slate-950 text-slate-400 cursor-not-allowed' : ''}`} 
+                    value={form.designation} 
+                    onChange={e => setForm({ ...form, designation: e.target.value })} 
+                    placeholder="Role Title" 
+                    disabled={isReadOnlyRole}
+                    readOnly={isReadOnlyRole}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>Email Address (Read-only)</label>
+                <div className="relative">
+                  <Mail className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input className={`${inputCls} pl-9 bg-slate-950 text-slate-400 cursor-not-allowed`} value={form.email} disabled readOnly />
+                </div>
+              </div>
+
+              <div>
+                <label className={labelCls}>Contact Phone Number {isReadOnlyRole ? '(Read-only)' : ''}</label>
+                <div className="relative">
+                  <Phone className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input 
+                    className={`${inputCls} pl-9 ${isReadOnlyRole ? 'bg-slate-950 text-slate-400 cursor-not-allowed' : ''}`} 
+                    value={form.phone} 
+                    onChange={e => setForm({ ...form, phone: e.target.value })} 
+                    placeholder="+91 98765 43210" 
+                    disabled={isReadOnlyRole}
+                    readOnly={isReadOnlyRole}
+                  />
+                </div>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className={labelCls}>Avatar Image URL {isReadOnlyRole ? '(Read-only)' : ''}</label>
+                <div className="relative">
+                  <Camera className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                  <input 
+                    className={`${inputCls} pl-9 ${isReadOnlyRole ? 'bg-slate-950 text-slate-400 cursor-not-allowed' : ''}`} 
+                    value={form.avatar} 
+                    onChange={e => setForm({ ...form, avatar: e.target.value })} 
+                    placeholder="https://images.unsplash.com/..." 
+                    disabled={isReadOnlyRole}
+                    readOnly={isReadOnlyRole}
+                  />
+                </div>
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className={labelCls}>Personal Statement / Bio {isReadOnlyRole ? '(Read-only)' : ''}</label>
+                <textarea 
+                  className={`${inputCls} ${isReadOnlyRole ? 'bg-slate-950 text-slate-400 cursor-not-allowed' : ''}`} 
+                  rows={3} 
+                  value={form.bio} 
+                  onChange={e => setForm({ ...form, bio: e.target.value })} 
+                  placeholder="Describe your profile statement..." 
+                  disabled={isReadOnlyRole}
+                  readOnly={isReadOnlyRole}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              {isReadOnlyRole ? (
+                <div className="px-4 py-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-500 text-xs font-semibold flex items-center gap-2">
+                  <Lock className="w-3.5 h-3.5 text-amber-400" /> Read-Only Record
+                </div>
+              ) : (
+                <button
+                  onClick={handleUpdateInfo}
+                  disabled={savingInfo}
+                  className="px-6 py-2.5 rounded-xl gradient-primary text-white text-xs font-bold shadow-lg shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-60 flex items-center gap-2"
+                >
+                  {savingInfo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                  Save Profile Details
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* SECURITY & PASSWORD CHANGE */}
+          <div className="bg-[#0d1117] border border-slate-800 rounded-2xl p-6 space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/15 flex items-center justify-center text-amber-400 border border-amber-500/20">
+                  <Lock className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-bold text-white">Security & Password</h2>
+                  <p className="text-[11px] text-slate-500">Update your account password and security credentials</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className={labelCls}>Current Password</label>
+                <input className={inputCls} type="password" placeholder="••••••••" value={passForm.currentPassword} onChange={e => setPassForm({ ...passForm, currentPassword: e.target.value })} />
+              </div>
+              <div>
+                <label className={labelCls}>New Password</label>
+                <input className={inputCls} type="password" placeholder="Min. 6 characters" value={passForm.newPassword} onChange={e => setPassForm({ ...passForm, newPassword: e.target.value })} />
+              </div>
+              <div>
+                <label className={labelCls}>Confirm New Password</label>
+                <input className={inputCls} type="password" placeholder="Confirm password" value={passForm.confirmPassword} onChange={e => setPassForm({ ...passForm, confirmPassword: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <p className="text-[10px] text-slate-500">Must contain at least 6 characters</p>
+              <button
+                onClick={handleChangePassword}
+                disabled={savingPass}
+                className="px-5 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-xs font-bold transition-all disabled:opacity-60 flex items-center gap-2"
+              >
+                {savingPass ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Key className="w-3.5 h-3.5" />}
+                Update Password
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: ACCOUNT CAPABILITIES & SYSTEM INFO */}
+        <div className="space-y-6">
+          {/* SYSTEM ROLE CARD */}
+          <div className="bg-[#0d1117] border border-slate-800 rounded-2xl p-5 space-y-4">
+            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+              <Shield className="w-3.5 h-3.5 text-indigo-400" /> Account Privileges
+            </h3>
+
+            <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400 font-medium">Role</span>
+                <span className="font-bold text-indigo-300 uppercase">{displayRole}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400 font-medium">School Tenant</span>
+                <span className="font-semibold text-white truncate max-w-[140px]">{profile?.schoolName || 'School ERP Campus'}</span>
+              </div>
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400 font-medium">Access Scope</span>
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300">ACTIVE ACCESS</span>
+              </div>
+            </div>
+
+            <div className="space-y-2 pt-1">
+              <p className="text-[11px] font-bold text-slate-400">Granted Operational Controls:</p>
+              {getRoleControls(currentRole).map(cap => (
+                <div key={cap} className="flex items-start gap-2 text-[11px] text-slate-300">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                  <span>{cap}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* QUICK LINKS & PREFERENCES */}
+          <div className="bg-[#0d1117] border border-slate-800 rounded-2xl p-5 space-y-3">
+            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+              <Building2 className="w-3.5 h-3.5 text-amber-400" /> Dashboard Navigation
+            </h3>
+
+            <div className="space-y-2 pt-1">
+              {[
+                currentRole === 'STUDENT' && { label: 'Academic LMS & Homework', href: '/student' },
+                currentRole === 'TEACHER' && { label: 'Teacher Classroom Portal', href: '/teacher' },
+                currentRole === 'PARENT' && { label: 'Parent Portal', href: '/parent' },
+                currentRole === 'ACCOUNTANT' && { label: 'Accountant Portal', href: '/accountant' },
+                currentRole === 'SCHOOL_ADMIN' && { label: 'Manage Staff & Roles', href: '/admin/dashboard?tab=users' },
+                currentRole === 'SCHOOL_ADMIN' && { label: 'Admissions Pipeline', href: '/admin/dashboard?tab=admissions' },
+                currentRole === 'SCHOOL_ADMIN' && { label: 'Configure School Settings', href: '/admin/dashboard?tab=settings' },
+              ].filter(Boolean).map(link => (
+                <button
+                  key={link.label}
+                  onClick={() => window.location.href = link.href}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-xs text-slate-300 font-medium transition-colors"
+                >
+                  <div className="flex items-center gap-2">
+                    <Building2 className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>{link.label}</span>
+                  </div>
+                  <span className="text-slate-500 text-[10px]">→</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 // School Settings Tab
 function SchoolSettingsTab() {
   const [form, setForm] = useState({
@@ -2459,10 +3141,10 @@ function SchoolSettingsTab() {
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN DASHBOARD COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
-export default function AdminDashboard() {
+function DashboardContent({ initialTab }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const tab = searchParams.get('tab') || 'overview';
+  const tab = searchParams.get('tab') || initialTab || 'overview';
 
   const tabs = {
     overview: OverviewTab,
@@ -2484,7 +3166,7 @@ export default function AdminDashboard() {
     'staff-attendance': () => (
       <div className="bg-[#0d1117] rounded-2xl border border-slate-800 p-8 text-center">
         <Clock className="w-12 h-12 text-slate-600 mx-auto mb-3" />
-        <h3 className="text-sm font-bold text-white mb-1">Staff Attendance â€” GPS Clock-In</h3>
+        <h3 className="text-sm font-bold text-white mb-1">Staff Attendance — GPS Clock-In</h3>
         <p className="text-slate-500 text-xs">Staff mark their own attendance via GPS-verified mobile check-in. Corrections and approvals managed here.</p>
       </div>
     ),
@@ -2512,7 +3194,7 @@ export default function AdminDashboard() {
             { key: 'userName', label: 'User' },
             { key: 'action', label: 'Action', badge: true },
             { key: 'module', label: 'Module' },
-            { key: 'createdAt', label: 'Timestamp', render: v => v ? new Date(v).toLocaleString() : 'â€”' },
+            { key: 'createdAt', label: 'Timestamp', render: v => v ? new Date(v).toLocaleString() : '—' },
           ]}
         />
       );
@@ -2541,7 +3223,7 @@ export default function AdminDashboard() {
                 <span className="text-sm font-bold text-white">{s.name}</span>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${statusColor(s.risk)}`}>{s.risk} RISK</span>
               </div>
-              <p className="text-[11px] text-slate-400">{s.class} Â· {s.reason}</p>
+              <p className="text-[11px] text-slate-400">{s.class} · {s.reason}</p>
               <p className="text-[11px] text-indigo-300 mt-1">Suggested action: {s.action}</p>
             </div>
           ))}
@@ -2550,6 +3232,7 @@ export default function AdminDashboard() {
     ),
     enquiry: AdmissionsTab,
     settings: SchoolSettingsTab,
+    profile: AdminProfileTab,
   };
 
   const ActiveTab = tabs[tab] || OverviewTab;
@@ -2558,5 +3241,13 @@ export default function AdminDashboard() {
     <div className="flex-1 min-h-screen bg-[#070a10] p-6 overflow-y-auto">
       <ActiveTab />
     </div>
+  );
+}
+
+export default function AdminDashboard(props) {
+  return (
+    <React.Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-[#070a10] text-slate-400 text-xs"><Loader2 className="w-6 h-6 animate-spin text-indigo-400" /></div>}>
+      <DashboardContent {...props} />
+    </React.Suspense>
   );
 }

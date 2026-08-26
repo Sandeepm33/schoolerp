@@ -1,5 +1,7 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import React, { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from './context/AuthContext';
@@ -28,7 +30,7 @@ export default function Home() {
           router.push('/parent');
           break;
         case 'STUDENT':
-          router.push('/parent');
+          router.push('/student');
           break;
         default:
           router.push('/login');

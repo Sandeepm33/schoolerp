@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { useAuth, API_BASE } from '../context/AuthContext';
 
-export default function SaaSAdminDashboard() {
+function SaaSAdminContent(props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') || 'overview';
@@ -859,43 +859,37 @@ export default function SaaSAdminDashboard() {
         </div>
       )}
 
-      {/* ULTRA-MODERN ONBOARD NEW SCHOOL MODAL */}
+      {/* MODALS */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-xl p-4 animate-fade-in">
-          <div className="w-full max-w-2xl glass-panel rounded-3xl border border-indigo-500/40 p-6 lg:p-8 space-y-5 shadow-2xl bg-[#0c1018]/95 relative overflow-hidden">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/40 text-indigo-400 flex items-center justify-center">
-                  <Building2 className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-extrabold text-white tracking-tight">Onboard New Tenant School</h3>
-                  <p className="text-[11px] text-slate-400">Live MongoDB Atlas Tenant Provisioning Engine</p>
-                </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
+          <div className="w-full max-w-2xl glass-panel rounded-3xl border border-indigo-500/40 p-6 space-y-5 bg-slate-950/90 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <div>
+                <h3 className="text-lg font-extrabold text-white flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-indigo-400" /> Onboard New Tenant School
+                </h3>
+                <p className="text-xs text-slate-400">Creates School Tenant & School Admin account in MongoDB Atlas</p>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="p-2 rounded-2xl bg-slate-900 text-slate-400 hover:text-white transition">
+              <button onClick={() => setIsModalOpen(false)} className="p-1 rounded-xl bg-slate-900 text-slate-400 hover:text-white">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {message && (
-              <div className={`p-3.5 rounded-2xl text-xs font-semibold flex items-center gap-2 ${
-                message.type === 'success' ? 'bg-emerald-950/70 text-emerald-300 border border-emerald-500/40' : 'bg-rose-950/70 text-rose-300 border border-rose-500/40'
-              }`}>
-                {message.type === 'success' ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <AlertCircle className="w-4 h-4 text-rose-400" />}
-                <span>{message.text}</span>
+              <div className={`p-3.5 rounded-2xl text-xs font-bold border ${message.type === 'success' ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' : 'bg-rose-500/10 border-rose-500/30 text-rose-400'}`}>
+                {message.text}
               </div>
             )}
 
-            <form onSubmit={handleCreateSchool} className="space-y-5 text-xs">
+            <form onSubmit={handleCreateSchool} className="space-y-4 text-xs">
               <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800/80 space-y-3">
                 <h4 className="font-extrabold text-indigo-300 uppercase text-[10px] tracking-wider flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-indigo-400" /> Step 1: School Identity & Plan
+                  <Building2 className="w-3.5 h-3.5 text-indigo-400" /> Step 1: School Profile & Subscription
                 </h4>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-slate-200 font-bold block mb-1.5">School Full Name</label>
-                    <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. St. Xavier Academy" required className="w-full bg-[#06080d] border border-slate-700/80 rounded-xl p-3 text-white font-medium focus:border-indigo-500 outline-none" />
+                    <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. St. Xavier International" required className="w-full bg-[#06080d] border border-slate-700/80 rounded-xl p-3 text-white font-medium focus:border-indigo-500 outline-none" />
                   </div>
                   <div>
                     <label className="text-slate-200 font-bold block mb-1.5">School Code (Unique ID)</label>
@@ -962,5 +956,13 @@ export default function SaaSAdminDashboard() {
       )}
 
     </div>
+  );
+}
+
+export default function SaaSAdminDashboard(props) {
+  return (
+    <React.Suspense fallback={<div className="flex items-center justify-center min-h-screen text-slate-400 text-xs">Loading SaaS Control Panel...</div>}>
+      <SaaSAdminContent {...props} />
+    </React.Suspense>
   );
 }

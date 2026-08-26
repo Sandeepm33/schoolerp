@@ -26,6 +26,8 @@ const UserSchema = new mongoose.Schema({
     required: true 
   },
   phone: { type: String },
+  designation: { type: String },
+  bio: { type: String },
   avatar: { type: String, default: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop' },
   status: { type: String, enum: ['ACTIVE', 'INACTIVE'], default: 'ACTIVE' },
   // Parent-Student link: PARENT users store their child's Student _id here

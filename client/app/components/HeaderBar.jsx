@@ -113,6 +113,19 @@ export default function HeaderBar() {
           <Sparkles className="w-3.5 h-3.5 text-amber-300" />
           <span>AI Assistant</span>
         </button>
+
+        {/* Admin Profile Pill */}
+        <a
+          href="/admin/dashboard?tab=profile"
+          className="flex items-center gap-2 p-1.5 pr-3 rounded-xl bg-[rgba(17,24,39,0.5)] border border-[rgba(255,255,255,0.06)] hover:border-indigo-500/30 text-white text-xs font-semibold hover:bg-slate-900 transition-all"
+        >
+          <img
+            src={currentUser?.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop'}
+            alt="User Avatar"
+            className="w-6 h-6 rounded-lg object-cover border border-indigo-500/30"
+          />
+          <span className="hidden sm:inline text-[11px] max-w-[100px] truncate">{currentUser?.name || 'Admin Profile'}</span>
+        </a>
       </div>
 
       <AIChatModal isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />

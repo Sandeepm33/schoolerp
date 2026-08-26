@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
-export default function AppSidebar() {
+function SidebarContent() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -128,6 +128,7 @@ export default function AppSidebar() {
             { label: 'Audit Logs', href: '/admin/dashboard?tab=audit-logs', tab: 'audit-logs', icon: ShieldCheck },
           ]},
           { label: '📊 Intelligence', items: [
+            { label: 'Admin Profile', href: '/admin/dashboard?tab=profile', tab: 'profile', icon: UserCog },
             { label: 'Reports & Analytics', href: '/admin/dashboard?tab=reports', tab: 'reports', icon: BarChart3 },
             { label: 'User Roles & Logins', href: '/admin/dashboard?tab=users', tab: 'users', icon: Key },
             { label: 'School Settings', href: '/admin/dashboard?tab=settings', tab: 'settings', icon: Settings },
@@ -149,16 +150,17 @@ export default function AppSidebar() {
         ];
 
       case 'PARENT':
-        return [
-          { label: 'Portal', items: [
-            { label: 'Parent App', href: '/parent', icon: Users },
-          ]}
-        ];
-
       case 'STUDENT':
         return [
-          { label: 'Learning', items: [
-            { label: 'Student Portal', href: '/parent', icon: GraduationCap },
+          { label: '🎓 Academic Modules', items: [
+            { label: 'Dashboard Overview', href: '/student?tab=overview', tab: 'overview', icon: LayoutDashboard },
+            { label: 'Assigned Homework', href: '/student?tab=homework', tab: 'homework', icon: BookOpen },
+            { label: 'Exam Results', href: '/student?tab=results', tab: 'results', icon: Award },
+            { label: 'Class Timetable', href: '/student?tab=timetable', tab: 'timetable', icon: Clock },
+            { label: 'Live Bus Tracker', href: '/student?tab=transport', tab: 'transport', icon: Bus },
+            { label: 'Attendance Meter', href: '/student?tab=attendance', tab: 'attendance', icon: Calendar },
+            { label: 'Apply Sick Leave', href: '/student?tab=leave', tab: 'leave', icon: FileText },
+            { label: 'My Official Profile', href: '/admin/dashboard?tab=profile', tab: 'profile', icon: UserCog },
           ]}
         ];
 
@@ -174,7 +176,7 @@ export default function AppSidebar() {
   const navSections = getNavSections();
 
   const handleNavClick = (e, item) => {
-    if ((activeRole === 'SAAS_SUPER_ADMIN' || activeRole === 'SCHOOL_ADMIN') && item.href) {
+    if (item.href) {
       e.preventDefault();
       router.push(item.href);
     }
@@ -196,20 +198,27 @@ export default function AppSidebar() {
         <div>
           <h1 className="text-sm font-black text-white tracking-wide">AI SCHOOL ERP</h1>
           <p className="text-[10px] text-indigo-400 font-extrabold uppercase tracking-widest">
-            {activeRole === 'SAAS_SUPER_ADMIN' ? 'SaaS Master Control' : 'Campus OS v2.0'}
+            {activeRole === 'SAAS_SUPER_ADMIN' ? 'SaaS Master Control' : activeRole === 'STUDENT' ? 'Student Portal' : activeRole === 'PARENT' ? 'Parent Portal' : 'Campus OS v2.0'}
           </p>
         </div>
       </div>
 
       {/* USER BADGE CARD */}
-      <div className="p-4 mx-3 my-3 rounded-2xl bg-slate-900/60 border border-slate-800 flex items-center space-x-3">
+      <Link 
+        href="/admin/dashboard?tab=profile"
+        onClick={(e) => {
+          e.preventDefault();
+          router.push('/admin/dashboard?tab=profile');
+        }}
+        className="p-4 mx-3 my-3 rounded-2xl bg-slate-900/60 border border-slate-800 hover:border-indigo-500/50 hover:bg-slate-900 flex items-center space-x-3 transition-all cursor-pointer group"
+      >
         <img 
           src={currentUser?.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop'} 
           alt="User Avatar"
-          className="w-9 h-9 rounded-xl object-cover border border-indigo-500/30"
+          className="w-9 h-9 rounded-xl object-cover border border-indigo-500/30 group-hover:scale-105 transition-transform"
         />
         <div className="flex-1 min-w-0">
-          <h4 className="text-xs font-bold text-white truncate">{currentUser?.name || 'School Principal'}</h4>
+          <h4 className="text-xs font-bold text-white truncate group-hover:text-indigo-300 transition-colors">{currentUser?.name || 'User Account'}</h4>
           <span className="text-[10px] font-extrabold text-indigo-400 block truncate uppercase">
             {currentUser?.role || activeRole}
           </span>
@@ -217,7 +226,7 @@ export default function AppSidebar() {
             <span className="text-[9px] text-slate-500 block truncate">{currentUser.schoolName}</span>
           )}
         </div>
-      </div>
+      </Link>
 
       {/* NAVIGATION ITEMS */}
       <div className="flex-1 overflow-y-auto px-3 py-2 space-y-4 custom-scrollbar">
@@ -231,7 +240,7 @@ export default function AppSidebar() {
                 const Icon = item.icon;
                 let isActive = false;
 
-                if (activeRole === 'SAAS_SUPER_ADMIN' || activeRole === 'SCHOOL_ADMIN') {
+                if (item.tab) {
                   isActive = currentTab === item.tab;
                 } else {
                   isActive = pathname === item.href;
@@ -270,5 +279,13 @@ export default function AppSidebar() {
       </div>
 
     </aside>
+  );
+}
+
+export default function AppSidebar(props) {
+  return (
+    <React.Suspense fallback={<aside className="w-64 bg-[#06080d] border-r border-slate-800/80 h-screen shrink-0" />}>
+      <SidebarContent {...props} />
+    </React.Suspense>
   );
 }

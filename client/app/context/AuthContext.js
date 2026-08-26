@@ -57,6 +57,19 @@ export const AuthProvider = ({ children }) => {
       if (savedUser && savedToken) {
         setUser(JSON.parse(savedUser));
         setToken(savedToken);
+
+        // Sync fresh profile data from backend
+        fetch(`${API_BASE}/auth/me`, {
+          headers: { 'Authorization': `Bearer ${savedToken}` }
+        })
+          .then(res => res.ok ? res.json() : null)
+          .then(meData => {
+            if (meData && meData._id) {
+              setUser(meData);
+              localStorage.setItem('erp_user', JSON.stringify(meData));
+            }
+          })
+          .catch(() => {});
       }
     } catch (e) {
       console.warn('Session restore error:', e);

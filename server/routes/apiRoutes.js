@@ -14,6 +14,7 @@ const admin = require('../controllers/schoolAdminController');
 // ─────────────────────────────────────────────────────────────────────────────
 router.post('/auth/login', authAndAdmission.login);
 router.get('/auth/me', authMiddleware, authAndAdmission.getMe);
+router.put('/auth/profile', authMiddleware, authAndAdmission.updateProfile);
 
 // School Admin User Role Creator Routes
 router.get('/users', authMiddleware, authAndAdmission.getSchoolUsers);
