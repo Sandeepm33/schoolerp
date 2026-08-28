@@ -84,13 +84,34 @@ const getMe = async (req, res) => {
     // Attach mapped student details for STUDENT or PARENT roles
     let studentRecord = null;
     if (user.role === 'STUDENT') {
-      if (user._id) studentRecord = await Student.findOne({ studentUserId: user._id });
-      if (!studentRecord) studentRecord = await Student.findOne({ studentEmail: user.email });
-      if (!studentRecord) studentRecord = await Student.findOne({ email: user.email });
+      if (user._id) {
+        studentRecord = await Student.findOne({
+          $or: [
+            { studentUserId: user._id },
+            { studentUserId: String(user._id) },
+            { studentEmail: user.email },
+            { email: user.email }
+          ]
+        });
+      }
+      if (!studentRecord && user.name) {
+        const parts = user.name.trim().split(' ');
+        const fName = parts[0];
+        studentRecord = await Student.findOne({ firstName: { $regex: new RegExp(`^${fName}$`, 'i') } });
+      }
     } else if (user.role === 'PARENT') {
-      if (user.mappedStudentId) studentRecord = await Student.findById(user.mappedStudentId);
-      if (!studentRecord) studentRecord = await Student.findOne({ parentId: user._id });
-      if (!studentRecord) studentRecord = await Student.findOne({ parentEmail: user.email });
+      if (user.mappedStudentId) {
+        studentRecord = await Student.findById(user.mappedStudentId);
+      }
+      if (!studentRecord && user._id) {
+        studentRecord = await Student.findOne({
+          $or: [
+            { parentId: user._id },
+            { parentId: String(user._id) },
+            { parentEmail: user.email }
+          ]
+        });
+      }
     }
 
     if (studentRecord) {
@@ -172,6 +193,30 @@ const updateProfile = async (req, res) => {
     res.json({
       message: 'Profile updated successfully!',
       user: userObj
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateThemePreference = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { themeConfig } = req.body;
+
+    if (!themeConfig) {
+      return res.status(400).json({ message: 'themeConfig object is required' });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: 'User account not found' });
+
+    user.themePreference = themeConfig;
+    await user.save();
+
+    res.json({
+      message: 'Theme preference saved successfully!',
+      themePreference: user.themePreference
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -341,6 +386,7 @@ module.exports = {
   login,
   getMe,
   updateProfile,
+  updateThemePreference,
   getSchoolUsers,
   createSchoolUser,
   deleteSchoolUser,

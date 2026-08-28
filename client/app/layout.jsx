@@ -1,5 +1,6 @@
 import './globals.css';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import AppLayoutWrapper from './components/AppLayoutWrapper';
 
 export const metadata = {
@@ -15,11 +16,13 @@ export default function RootLayout({ children }) {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600;800&display=swap" rel="stylesheet" />
       </head>
-      <body className="antialiased min-h-screen bg-[#06080d]">
+      <body className="antialiased min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors">
         <AuthProvider>
-          <AppLayoutWrapper>
-            {children}
-          </AppLayoutWrapper>
+          <ThemeProvider>
+            <AppLayoutWrapper>
+              {children}
+            </AppLayoutWrapper>
+          </ThemeProvider>
         </AuthProvider>
       </body>
     </html>

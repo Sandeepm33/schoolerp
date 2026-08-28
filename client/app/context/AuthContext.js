@@ -91,11 +91,23 @@ export const AuthProvider = ({ children }) => {
 
       if (res.ok) {
         const data = await res.json();
-        setUser(data.user);
+        let fullUser = data.user;
+        
+        try {
+          const meRes = await fetch(`${API_BASE}/auth/me`, {
+            headers: { 'Authorization': `Bearer ${data.token}` }
+          });
+          if (meRes.ok) {
+            const meData = await meRes.json();
+            if (meData && meData._id) fullUser = meData;
+          }
+        } catch (e) {}
+
+        setUser(fullUser);
         setToken(data.token);
-        localStorage.setItem('erp_user', JSON.stringify(data.user));
+        localStorage.setItem('erp_user', JSON.stringify(fullUser));
         localStorage.setItem('erp_token', data.token);
-        return data.user;
+        return fullUser;
       } else {
         if (DEMO_PRESETS[cleanEmail]) {
           const demoUser = DEMO_PRESETS[cleanEmail];

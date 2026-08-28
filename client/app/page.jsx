@@ -18,8 +18,13 @@ export default function Home() {
           router.push('/saas-admin');
           break;
         case 'SCHOOL_ADMIN':
+        case 'PRINCIPAL':
+        case 'VICE_PRINCIPAL':
+        case 'HEADMASTER':
+        case 'HEAD_MASTER':
           router.push('/admin/dashboard');
           break;
+
         case 'ACCOUNTANT':
           router.push('/accountant');
           break;

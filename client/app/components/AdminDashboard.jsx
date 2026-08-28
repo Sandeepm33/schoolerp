@@ -10,14 +10,17 @@ import {
   FileBadge2, BarChart3, Settings, ChevronDown, UserCog, TrendingUp,
   Building2, BookMarked, Calculator, Scroll, MapPin, ShieldCheck,
   HeartHandshake, ClipboardList, Eye, XCircle, CheckCircle, Loader2,
-  User, Mail, Phone, Shield, Lock, Camera
+  User, Mail, Phone, Shield, Lock, Camera, Save, Coffee, History,
+  Wallet, CalendarCheck, MessageSquare
 } from 'lucide-react';
+import AllServicesPanel from './AllServicesPanel';
+import { useTheme } from '../context/ThemeContext';
+import { useAuth } from '../context/AuthContext';
+
 
 const API = 'http://127.0.0.1:5000/api';
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// HELPERS
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
 function getToken() {
   try { return localStorage.getItem('erp_token') || 'demo_token_school_admin'; } catch { return 'demo_token_school_admin'; }
 }
@@ -41,12 +44,12 @@ async function apiFetch(path, options = {}) {
 }
 
 const BADGE = {
-  green: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/20',
-  red: 'bg-rose-500/15 text-rose-400 border border-rose-500/20',
-  amber: 'bg-amber-500/15 text-amber-400 border border-amber-500/20',
-  blue: 'bg-blue-500/15 text-blue-400 border border-blue-500/20',
-  indigo: 'bg-indigo-500/15 text-indigo-400 border border-indigo-500/20',
-  slate: 'bg-slate-800 text-slate-300 border border-slate-700',
+  green: 'bg-emerald-50 text-emerald-800 border border-emerald-200 font-bold',
+  red: 'bg-rose-50 text-rose-800 border border-rose-200 font-bold',
+  amber: 'bg-amber-50 text-amber-800 border border-amber-200 font-bold',
+  blue: 'bg-blue-50 text-blue-800 border border-blue-200 font-bold',
+  indigo: 'bg-indigo-50 text-indigo-800 border border-indigo-200 font-bold',
+  slate: 'bg-slate-100 text-slate-800 border border-slate-200 font-bold',
 };
 const statusColor = (s) => {
   if (!s) return BADGE.slate;
@@ -241,8 +244,8 @@ function ModuleTable({ title, icon: Icon, color = 'indigo', columns, rows, onAdd
                       <td key={c.key} className="px-4 py-3 text-xs text-slate-300">
                         {c.render ? c.render(row[c.key], row) : (
                           c.badge ? (
-                            <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${statusColor(row[c.key])}`}>{row[c.key] || 'â€”'}</span>
-                          ) : (String(row[c.key] ?? 'â€”').slice(0, 80))
+                            <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${statusColor(row[c.key])}`}>{row[c.key] || '—'}</span>
+                          ) : (String(row[c.key] ?? '—').slice(0, 80))
                         )}
                       </td>
                     ))}
@@ -277,30 +280,37 @@ function ModuleTable({ title, icon: Icon, color = 'indigo', columns, rows, onAdd
 // Stat Card
 function StatCard({ label, value, icon: Icon, color = 'indigo', sub }) {
   const colors = {
-    indigo: { bg: 'from-indigo-500/10 to-indigo-500/5', border: 'border-indigo-500/20', icon: 'bg-indigo-500/20 text-indigo-400', text: 'text-indigo-400' },
-    emerald: { bg: 'from-emerald-500/10 to-emerald-500/5', border: 'border-emerald-500/20', icon: 'bg-emerald-500/20 text-emerald-400', text: 'text-emerald-400' },
-    amber: { bg: 'from-amber-500/10 to-amber-500/5', border: 'border-amber-500/20', icon: 'bg-amber-500/20 text-amber-400', text: 'text-amber-400' },
-    rose: { bg: 'from-rose-500/10 to-rose-500/5', border: 'border-rose-500/20', icon: 'bg-rose-500/20 text-rose-400', text: 'text-rose-400' },
-    blue: { bg: 'from-blue-500/10 to-blue-500/5', border: 'border-blue-500/20', icon: 'bg-blue-500/20 text-blue-400', text: 'text-blue-400' },
+    indigo: { bg: 'bg-blue-50/70 border-blue-200/60', icon: 'bg-blue-100 text-blue-600', text: 'text-blue-600' },
+    emerald: { bg: 'bg-emerald-50/70 border-emerald-200/60', icon: 'bg-emerald-100 text-emerald-600', text: 'text-emerald-600' },
+    amber: { bg: 'bg-amber-50/70 border-amber-200/60', icon: 'bg-amber-100 text-amber-600', text: 'text-amber-600' },
+    rose: { bg: 'bg-rose-50/70 border-rose-200/60', icon: 'bg-rose-100 text-rose-600', text: 'text-rose-600' },
+    blue: { bg: 'bg-sky-50/70 border-sky-200/60', icon: 'bg-sky-100 text-sky-600', text: 'text-sky-600' },
+    violet: { bg: 'bg-purple-50/70 border-purple-200/60', icon: 'bg-purple-100 text-purple-600', text: 'text-purple-600' },
+    teal: { bg: 'bg-teal-50/70 border-teal-200/60', icon: 'bg-teal-100 text-teal-600', text: 'text-teal-600' },
   };
   const c = colors[color] || colors.indigo;
   return (
-    <div className={`rounded-2xl border bg-gradient-to-br ${c.bg} ${c.border} p-4 flex items-center gap-4`}>
-      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${c.icon}`}>
+    <div className={`rounded-2xl border ${c.bg} bg-white p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition-all group`}>
+      <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${c.icon} shrink-0 shadow-sm group-hover:scale-105 transition-transform`}>
         <Icon className="w-5 h-5" />
       </div>
       <div>
-        <p className="text-[11px] text-slate-400 font-semibold">{label}</p>
-        <p className={`text-2xl font-black ${c.text}`}>{value ?? 'â€”'}</p>
-        {sub && <p className="text-[10px] text-slate-500">{sub}</p>}
+        <p className="text-[11px] font-bold text-slate-600">{label}</p>
+        <p className={`text-2xl font-black ${c.text}`}>{value ?? '—'}</p>
+        {sub && <p className="text-[10px] text-slate-500 font-medium">{sub}</p>}
       </div>
     </div>
   );
 }
 
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// —————————————————————————————————————————————————————————————————————————————
 // MODULE VIEWS
-// â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// —————————————————————————————————————————————————————————————————————————————
+
+// 0. ALL SERVICES — uses shared role-aware panel
+function AllServicesTab() {
+  return <AllServicesPanel role="SCHOOL_ADMIN" />;
+}
 
 // 1. OVERVIEW DASHBOARD
 function OverviewTab({ token }) {
@@ -317,40 +327,43 @@ function OverviewTab({ token }) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-black text-white">Executive Dashboard</h2>
-        <p className="text-slate-400 text-xs mt-0.5">Real-time school operations overview</p>
+        <h2 className="text-lg font-black text-slate-900">Executive Dashboard</h2>
+        <p className="text-slate-600 text-xs mt-0.5 font-medium">Real-time school operations overview</p>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard label="Total Students" value={stats.totalStudents} icon={GraduationCap} color="indigo" />
         <StatCard label="Total Staff" value={stats.totalStaff} icon={Users} color="emerald" />
         <StatCard label="Active Exams" value={stats.totalExams} icon={ClipboardList} color="blue" />
         <StatCard label="Library Books" value={stats.totalLibraryBooks} icon={Library} color="amber" />
-        <StatCard label="Transport Vehicles" value={stats.totalTransport} icon={Bus} color="indigo" />
+        <StatCard label="Transport Vehicles" value={stats.totalTransport} icon={Bus} color="violet" />
         <StatCard label="Pending Leaves" value={stats.pendingLeaves} icon={Calendar} color="amber" sub="Awaiting approval" />
         <StatCard label="Open Tickets" value={stats.openTickets} icon={Ticket} color="rose" sub="Helpdesk" />
-        <StatCard label="Payroll Pending" value={stats.pendingPayrolls} icon={TrendingUp} color="emerald" sub="To approve" />
+        <StatCard label="Payroll Pending" value={stats.pendingPayrolls} icon={TrendingUp} color="teal" sub="To approve" />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
-        <div className="md:col-span-2 bg-[#0d1117] rounded-2xl border border-slate-800 p-5">
-          <h3 className="text-xs font-bold text-white mb-3">Quick Actions</h3>
+        <div className="md:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+          <h3 className="text-xs font-bold text-slate-900 mb-3">Quick Actions</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {[
-              { label: 'New Admission', color: 'indigo', tab: 'admissions' },
-              { label: 'Mark Attendance', color: 'emerald', tab: 'attendance' },
-              { label: 'Create Exam', color: 'blue', tab: 'exams' },
-              { label: 'Collect Fee', color: 'amber', tab: 'student-fees' },
-              { label: 'Issue Book', color: 'violet', tab: 'library' },
-              { label: 'Add Employee', color: 'rose', tab: 'employees' },
+              { label: 'New Admission', tab: 'admissions' },
+              { label: 'Mark Attendance', tab: 'attendance' },
+              { label: 'Create Exam', tab: 'exams' },
+              { label: 'Collect Fee', tab: 'student-fees' },
+              { label: 'Issue Book', tab: 'library' },
+              { label: 'Add Employee', tab: 'employees' },
             ].map(a => (
-              <button key={a.label} onClick={() => window.location.href = `/admin/dashboard?tab=${a.tab}`}
-                className={`text-xs font-semibold py-2 px-3 rounded-xl border text-center transition-all hover:scale-105 bg-${a.color}-500/10 border-${a.color}-500/20 text-${a.color}-400 hover:bg-${a.color}-500/20`}>
-                {a.label}
+              <button 
+                key={a.label} 
+                onClick={() => window.location.href = `/admin/dashboard?tab=${a.tab}`}
+                className="text-xs font-bold py-2.5 px-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-[var(--accent-primary)] hover:text-white hover:border-[var(--accent-primary)] transition-all shadow-sm flex items-center justify-center gap-2 group cursor-pointer"
+              >
+                <span>{a.label}</span>
               </button>
             ))}
           </div>
         </div>
-        <div className="bg-[#0d1117] rounded-2xl border border-slate-800 p-5">
-          <h3 className="text-xs font-bold text-white mb-3">System Status</h3>
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+          <h3 className="text-xs font-bold text-slate-900 mb-3">System Status</h3>
           <div className="space-y-3">
             {[
               { label: 'Database', status: 'ONLINE' },
@@ -359,8 +372,8 @@ function OverviewTab({ token }) {
               { label: 'Email SMTP', status: 'ACTIVE' },
             ].map(s => (
               <div key={s.label} className="flex items-center justify-between text-xs">
-                <span className="text-slate-400">{s.label}</span>
-                <span className={`px-2 py-0.5 rounded-full font-semibold text-[10px] ${statusColor(s.status)}`}>{s.status}</span>
+                <span className="text-slate-600 font-medium">{s.label}</span>
+                <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${statusColor(s.status)}`}>{s.status}</span>
               </div>
             ))}
           </div>
@@ -1139,55 +1152,102 @@ function StudentsTab() {
 
 // 4. EMPLOYEES / HRMS
 function EmployeesTab() {
+  const { user } = useAuth();
   const [rows, setRows] = useState([]);
+  const [classList, setClassList] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [saving, setSaving] = useState(false);
 
-  const load = () => apiFetch('/admin/employees').then(d => { setRows(Array.isArray(d) ? d : []); setLoading(false); }).catch(() => setLoading(false));
+  const userRole = (user?.role || '').toUpperCase();
+  const userDesig = (user?.designation || '').toUpperCase();
+
+  // Role hierarchy restriction:
+  // Headmaster can only create roles below Headmaster (Teacher, Admin, HR, Accountant, Staff)
+  // Vice Principal can create Headmaster and staff, but NOT Principal or Vice Principal
+  // Principal / School Admin can create ALL roles
+  let allowedEmployeeTypes = ['PRINCIPAL', 'VICE_PRINCIPAL', 'HEADMASTER', 'TEACHER', 'ADMIN', 'HR', 'ACCOUNTANT', 'DRIVER', 'SECURITY', 'LIBRARIAN', 'SUPPORT'];
+  if (userDesig.includes('HEADMASTER') || userRole === 'HEADMASTER') {
+    allowedEmployeeTypes = ['TEACHER', 'ADMIN', 'HR', 'ACCOUNTANT', 'DRIVER', 'SECURITY', 'LIBRARIAN', 'SUPPORT'];
+  } else if (userDesig.includes('VICE') || userRole === 'VICE_PRINCIPAL') {
+    allowedEmployeeTypes = ['HEADMASTER', 'TEACHER', 'ADMIN', 'HR', 'ACCOUNTANT', 'DRIVER', 'SECURITY', 'LIBRARIAN', 'SUPPORT'];
+  }
+
+  const load = () => {
+    apiFetch('/admin/employees').then(d => { setRows(Array.isArray(d) ? d : []); setLoading(false); }).catch(() => setLoading(false));
+    apiFetch('/admin/classes').then(d => setClassList(Array.isArray(d) ? d : [])).catch(() => {});
+  };
   useEffect(() => { load(); }, []);
 
   const handleSave = async (form) => {
     setSaving(true);
     try {
-      if (modal.editing) await apiFetch(`/admin/employees/${modal.editing._id}`, { method: 'PUT', body: JSON.stringify(form) });
-      else await apiFetch('/admin/employees', { method: 'POST', body: JSON.stringify(form) });
+      const payload = { ...form };
+      if (!payload.designation || payload.designation === 'Teacher') {
+        if (payload.employeeType === 'HEADMASTER') payload.designation = 'Headmaster';
+        else if (payload.employeeType === 'PRINCIPAL') payload.designation = 'Principal';
+        else if (payload.employeeType === 'VICE_PRINCIPAL') payload.designation = 'Vice Principal';
+      }
+      if (modal.editing) await apiFetch(`/admin/employees/${modal.editing._id}`, { method: 'PUT', body: JSON.stringify(payload) });
+      else await apiFetch('/admin/employees', { method: 'POST', body: JSON.stringify(payload) });
       setModal(null); load();
     } catch (e) { alert(e.message); } finally { setSaving(false); }
   };
+
   const handleDelete = async (id) => {
-    if (!confirm('Archive employee?')) return;
+    if (!confirm('Archive employee and deactivate login?')) return;
     await apiFetch(`/admin/employees/${id}`, { method: 'DELETE' });
     load();
   };
 
+  // Build dynamic class options from MongoDB Atlas
+  const dynamicClassOptions = ['None'];
+  if (classList.length > 0) {
+    classList.forEach(c => {
+      const clsName = c.className.startsWith('Class') ? c.className : `Class ${c.className}`;
+      const secs = Array.isArray(c.sections) ? c.sections : (c.sections ? String(c.sections).split(',').map(s => s.trim()).filter(Boolean) : ['A']);
+      secs.forEach(s => {
+        const secName = s.startsWith('Section') ? s : `Section ${s}`;
+        dynamicClassOptions.push(`${clsName} - ${secName}`);
+      });
+    });
+  } else {
+    ['LKG', 'UKG', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'].forEach(c => {
+      dynamicClassOptions.push(`Class ${c} - Section A`);
+    });
+  }
+
   const fields = [
     { key: 'name', label: 'Full Name', required: true },
-    { key: 'email', label: 'Email', type: 'email', required: true },
-    { key: 'phone', label: 'Phone' },
-    { key: 'department', label: 'Department', required: true },
-    { key: 'designation', label: 'Designation', required: true },
-    { key: 'employeeType', label: 'Employee Type', type: 'select', options: ['TEACHER', 'ADMIN', 'HR', 'ACCOUNTANT', 'DRIVER', 'SECURITY', 'LIBRARIAN', 'SUPPORT'] },
+    { key: 'email', label: 'Login Email (Creates Teacher Account)', type: 'email', required: true },
+    { key: 'password', label: 'Login Password (default: teacher123)', type: 'password' },
+    { key: 'phone', label: 'Phone Number' },
+    { key: 'department', label: 'Department (e.g. Academics, Science)', required: true },
+    { key: 'designation', label: 'Designation (e.g. Senior Teacher, PGT, TGT)', required: true },
+    { key: 'employeeType', label: 'Employee Type', type: 'select', options: allowedEmployeeTypes },
+
+
+    { key: 'qualification', label: 'Qualification (e.g. M.Sc Mathematics, B.Ed)' },
+    { key: 'assignedClass', label: 'Assign as Class Teacher', type: 'select', options: dynamicClassOptions },
     { key: 'joiningDate', label: 'Joining Date', type: 'date' },
-    { key: 'qualification', label: 'Qualification' },
-    { key: 'basicSalary', label: 'Basic Salary', type: 'number', required: true },
-    { key: 'allowances', label: 'Allowances', type: 'number' },
-    { key: 'deductions', label: 'Deductions', type: 'number' },
-    { key: 'status', label: 'Status', type: 'select', options: ['ACTIVE', 'INACTIVE', 'ON_LEAVE'] },
+    { key: 'basicSalary', label: 'Basic Salary (₹)', type: 'number', required: true },
+    { key: 'status', label: 'Account Status', type: 'select', options: ['ACTIVE', 'INACTIVE', 'ON_LEAVE'] },
   ];
 
   return (
     <>
       <ModuleTable
-        title="Employee Directory" icon={UserCog} color="emerald" searchable
+        title="Teacher & Staff Directory (With User Logins)" icon={UserCog} color="emerald" searchable
         loading={loading} rows={rows}
         columns={[
           { key: 'employeeId', label: 'Emp ID' },
           { key: 'name', label: 'Name' },
-          { key: 'department', label: 'Department' },
+          { key: 'email', label: 'Login Email' },
           { key: 'designation', label: 'Designation' },
+          { key: 'assignedClass', label: 'Class Teacher', render: v => v && v !== 'None' ? <span className="px-2.5 py-0.5 rounded-lg text-[11px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">🏫 {v}</span> : <span className="text-slate-500">—</span> },
+          { key: 'qualification', label: 'Qualification' },
           { key: 'employeeType', label: 'Type', badge: true },
-          { key: 'basicSalary', label: 'Basic Salary', render: v => `â‚¹${(v || 0).toLocaleString()}` },
+          { key: 'basicSalary', label: 'Salary', render: v => `₹${(v || 0).toLocaleString()}` },
           { key: 'status', label: 'Status', badge: true },
         ]}
         onAdd={() => setModal({ editing: null })}
@@ -1196,9 +1256,9 @@ function EmployeesTab() {
       />
       {modal && (
         <CrudModal
-          title={modal.editing ? 'Edit Employee' : 'Add Employee'}
+          title={modal.editing ? `Edit Staff Member — ${modal.editing.name}` : '➕ Add Teacher / Staff Member'}
           fields={fields}
-          initial={modal.editing || {}}
+          initial={modal.editing || { employeeType: 'TEACHER', department: 'Academics', designation: 'Teacher', basicSalary: 35000, assignedClass: 'None' }}
           onSave={handleSave}
           onClose={() => setModal(null)}
           loading={saving}
@@ -1334,6 +1394,998 @@ const DepartmentsTab = makeSimpleCRUDTab({
   ]
 });
 
+// FULL FEATURED ATTENDANCE MANAGEMENT MODULE
+function AttendanceTab() {
+  const [activeSubTab, setActiveSubTab] = useState('dashboard');
+
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedClass, setSelectedClass] = useState('LKG');
+  const [selectedSection, setSelectedSection] = useState('A');
+  const [classList, setClassList] = useState([]);
+
+  const [dashData, setDashData] = useState(null);
+  const [dashLoading, setDashLoading] = useState(true);
+
+  const [session, setSession] = useState(null);
+  const [regStudents, setRegStudents] = useState([]);
+  const [regLoading, setRegLoading] = useState(false);
+  const [regType, setRegType] = useState('DAILY'); // 'DAILY' | 'PERIOD'
+  const [regPeriod, setRegPeriod] = useState(1);
+  const [regSubject, setRegSubject] = useState('Mathematics');
+
+  const [calMonth, setCalMonth] = useState(new Date().getMonth() + 1);
+  const [calYear, setCalYear] = useState(new Date().getFullYear());
+  const [calData, setCalData] = useState(null);
+
+  const [allStudents, setAllStudents] = useState([]);
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [studentHistory, setStudentHistory] = useState(null);
+  const [adminStudentPeriodLogs, setAdminStudentPeriodLogs] = useState([]);
+  const [adminAttFilterDate, setAdminAttFilterDate] = useState('');
+  const [adminAttMode, setAdminAttMode] = useState('period'); // 'period' | 'daily'
+  const [historyClass, setHistoryClass] = useState('ALL');
+  const [historySection, setHistorySection] = useState('ALL');
+
+  // Pure Dynamic School Class & Section Resolution (from DB & enrolled students)
+  const dynamicClasses = Array.from(new Set([
+    ...classList.map(c => typeof c === 'object' ? c.className || c.name || c.classId : String(c)),
+    ...allStudents.map(s => String(s.classId || '').replace(/^Class\s+/i, '').trim())
+  ])).filter(Boolean);
+  const classes = dynamicClasses;
+
+  const dynamicSections = Array.from(new Set([
+    ...classList.flatMap(c => Array.isArray(c?.sections) ? c.sections : [c?.sectionId || c?.section]),
+    ...allStudents.map(s => String(s.sectionId || '').replace(/^Section\s+/i, '').trim())
+  ])).filter(Boolean);
+  const sections = dynamicSections;
+
+
+
+
+  const filteredHistoryStudents = allStudents.filter(s => {
+    const matchClass = historyClass === 'ALL' || String(s.classId || '').replace(/^Class\s+/i, '').trim() === String(historyClass).replace(/^Class\s+/i, '').trim();
+    const matchSec = historySection === 'ALL' || String(s.sectionId || '').replace(/^Section\s+/i, '').trim() === String(historySection).replace(/^Section\s+/i, '').trim();
+    return matchClass && matchSec;
+  });
+
+
+  const [corrections, setCorrections] = useState([]);
+  const [corrLoading, setCorrLoading] = useState(false);
+  const [reviewModal, setReviewModal] = useState(null);
+  const [adminNote, setAdminNote] = useState('');
+
+  const [settings, setSettings] = useState({ mode: 'HYBRID', lowAttendanceThreshold: 75, lockAfterSubmit: true, schoolStartTime: '08:30', schoolEndTime: '16:30' });
+  const [settingsSaving, setSettingsSaving] = useState(false);
+
+  const [reportData, setReportData] = useState(null);
+  const [reportLoading, setReportLoading] = useState(false);
+
+  const loadSettings = useCallback(() => {
+    try {
+      const saved = localStorage.getItem('erp_attendance_settings');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed?.mode) {
+          setSettings(parsed);
+          if (parsed.mode === 'PERIOD') setRegType('PERIOD');
+        }
+      }
+    } catch (e) {}
+    apiFetch('/admin/attendance/settings').then(d => {
+      if (d && d.mode) {
+        setSettings(d);
+        localStorage.setItem('erp_attendance_settings', JSON.stringify(d));
+        if (d.mode === 'PERIOD') setRegType('PERIOD');
+      }
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    apiFetch('/admin/classes').then(d => setClassList(Array.isArray(d) ? d : [])).catch(() => {});
+    apiFetch('/admin/students').then(d => {
+      const arr = Array.isArray(d) ? d : [];
+      setAllStudents(arr);
+      if (arr.length > 0) setSelectedStudentId(arr[0]._id);
+    }).catch(() => {});
+    loadDashboard();
+    loadSettings();
+    window.addEventListener('erp_attendance_settings_updated', loadSettings);
+    return () => window.removeEventListener('erp_attendance_settings_updated', loadSettings);
+  }, [loadSettings]);
+
+  const loadDashboard = () => {
+    setDashLoading(true);
+    apiFetch(`/attendance/dashboard?date=${selectedDate}`)
+      .then(d => { setDashData(d); setDashLoading(false); })
+      .catch(() => setDashLoading(false));
+  };
+
+  useEffect(() => {
+    if (activeSubTab === 'dashboard') loadDashboard();
+    else if (activeSubTab === 'register') loadRegisterSession();
+    else if (activeSubTab === 'calendar') loadCalendar();
+    else if (activeSubTab === 'corrections') loadCorrections();
+    else if (activeSubTab === 'reports') loadReport();
+  }, [activeSubTab, selectedDate, selectedClass, selectedSection, calMonth, calYear, regType, regPeriod, regSubject]);
+
+  useEffect(() => {
+    if (activeSubTab === 'history' && selectedStudentId) loadStudentHistory();
+  }, [activeSubTab, selectedStudentId]);
+
+  const loadRegisterSession = async () => {
+    setRegLoading(true);
+    try {
+      const sRes = await apiFetch(`/admin/students?classId=${encodeURIComponent(selectedClass)}&sectionId=${encodeURIComponent(selectedSection)}`);
+      const studentList = Array.isArray(sRes) ? sRes : [];
+      setRegStudents(studentList);
+
+      const extractId = (id) => typeof id === 'object' ? String(id?._id || id?.id || id) : String(id);
+
+      if (regType === 'PERIOD') {
+        // STRICT PERIOD ISOLATION: Fetch ONLY session for date + class + section + type=PERIOD + periodNo + subject
+        const sessUrl = `/attendance/sessions?date=${selectedDate}&classId=${encodeURIComponent(selectedClass)}&sectionId=${encodeURIComponent(selectedSection)}&type=PERIOD&periodNo=${regPeriod}&subject=${encodeURIComponent(regSubject)}`;
+        const sessRes = await apiFetch(sessUrl).catch(() => []);
+        const sessList = Array.isArray(sessRes) ? sessRes : [];
+        const foundSession = sessList.find(s => String(s.periodNo) === String(regPeriod)) || null;
+
+        let cachedMap = {};
+        try {
+          const cacheKey = `erp_att_${selectedDate}_${selectedClass}_${selectedSection}_PERIOD_${regPeriod}_${regSubject}`;
+          const cached = localStorage.getItem(cacheKey);
+          if (cached) cachedMap = JSON.parse(cached);
+        } catch (e) {}
+
+        const entryMap = {};
+        Object.keys(cachedMap).forEach(k => {
+          if (cachedMap[k] && cachedMap[k] !== 'NM') {
+            entryMap[k] = { studentId: k, status: cachedMap[k] };
+          }
+        });
+
+        if (foundSession && Array.isArray(foundSession.entries)) {
+          foundSession.entries.forEach(e => {
+            const sid = extractId(e.studentId);
+            const stCode = e.status === 'PRESENT' ? 'P' : e.status === 'ABSENT' ? 'A' : e.status === 'LATE' ? 'L' : e.status === 'LEAVE' ? 'LV' : (e.status || 'NM');
+            if (sid) entryMap[sid] = { studentId: sid, studentName: e.studentName, rollNo: e.rollNo, status: stCode, remarks: e.remarks };
+            if (e.rollNo) entryMap[`roll_${String(e.rollNo).trim()}`] = { studentId: sid, rollNo: e.rollNo, status: stCode };
+            if (e.studentName) entryMap[`name_${String(e.studentName).trim().toLowerCase()}`] = { studentId: sid, studentName: e.studentName, status: stCode };
+          });
+        }
+
+        const mergedEntries = Object.values(entryMap);
+        const finalSession = foundSession ? {
+          ...foundSession,
+          entries: Object.keys(entryMap).length > (foundSession.entries?.length || 0) ? mergedEntries : foundSession.entries
+        } : {
+          isLocked: false,
+          status: mergedEntries.length > 0 ? 'DRAFT' : 'UNMARKED',
+          entries: mergedEntries
+        };
+
+        setSession(finalSession);
+      } else {
+        // DAILY MODE
+        const sessUrl = `/attendance/sessions?date=${selectedDate}&classId=${encodeURIComponent(selectedClass)}&sectionId=${encodeURIComponent(selectedSection)}&type=DAILY`;
+        const sessRes = await apiFetch(sessUrl).catch(() => []);
+        const sessList = Array.isArray(sessRes) ? sessRes : [];
+        let foundSession = sessList.length > 0 ? sessList[0] : null;
+
+        const recRes = await apiFetch(`/admin/attendance/students?classId=${encodeURIComponent(selectedClass)}&sectionId=${encodeURIComponent(selectedSection)}&date=${selectedDate}`).catch(() => []);
+        const recList = Array.isArray(recRes) ? recRes : [];
+
+        let cachedMap = {};
+        try {
+          const cached = localStorage.getItem(`erp_att_${selectedDate}_${selectedClass}_${selectedSection}`);
+          if (cached) cachedMap = JSON.parse(cached);
+        } catch (e) {}
+
+        const entryMap = {};
+        recList.forEach(r => {
+          const sid = extractId(r.studentId);
+          const stCode = r.status === 'PRESENT' ? 'P' : r.status === 'ABSENT' ? 'A' : r.status === 'LATE' ? 'L' : r.status === 'LEAVE' ? 'LV' : (r.status || 'NM');
+          if (sid) entryMap[sid] = { studentId: sid, studentName: r.studentName, status: stCode };
+        });
+
+        Object.keys(cachedMap).forEach(k => {
+          if (cachedMap[k] && cachedMap[k] !== 'NM') {
+            entryMap[k] = { studentId: k, status: cachedMap[k] };
+          }
+        });
+
+        if (foundSession && Array.isArray(foundSession.entries)) {
+          foundSession.entries.forEach(e => {
+            const sid = extractId(e.studentId);
+            const stCode = e.status === 'PRESENT' ? 'P' : e.status === 'ABSENT' ? 'A' : e.status === 'LATE' ? 'L' : e.status === 'LEAVE' ? 'LV' : (e.status || 'NM');
+            if (sid) entryMap[sid] = { studentId: sid, studentName: e.studentName, rollNo: e.rollNo, status: stCode, remarks: e.remarks };
+            if (e.rollNo) entryMap[`roll_${String(e.rollNo).trim()}`] = { studentId: sid, rollNo: e.rollNo, status: stCode };
+            if (e.studentName) entryMap[`name_${String(e.studentName).trim().toLowerCase()}`] = { studentId: sid, studentName: e.studentName, status: stCode };
+          });
+        }
+
+        const mergedEntries = Object.values(entryMap);
+        if (!foundSession) {
+          foundSession = {
+            isLocked: recList.length > 0,
+            status: recList.length > 0 ? 'LOCKED' : (mergedEntries.length > 0 ? 'DRAFT' : 'UNMARKED'),
+            entries: mergedEntries
+          };
+        } else {
+          foundSession = {
+            ...foundSession,
+            entries: Object.keys(entryMap).length > (foundSession.entries?.length || 0) ? mergedEntries : foundSession.entries
+          };
+        }
+
+        setSession(foundSession);
+      }
+    } catch (e) {} finally { setRegLoading(false); }
+  };
+
+  const loadCalendar = () => {
+    apiFetch(`/attendance/calendar?month=${calMonth}&year=${calYear}&classId=${encodeURIComponent(selectedClass)}&sectionId=${encodeURIComponent(selectedSection)}`)
+      .then(d => setCalData(d.calendar || {}))
+      .catch(() => setCalData({}));
+  };
+
+  const loadStudentHistory = async () => {
+    if (!selectedStudentId || filteredHistoryStudents.length === 0) {
+      setStudentHistory(null);
+      setAdminStudentPeriodLogs([]);
+      return;
+    }
+    try {
+      const d = await apiFetch(`/attendance/student/${selectedStudentId}/history`).catch(() => null);
+      setStudentHistory(d);
+
+      const selStudent = allStudents.find(s => String(s._id) === String(selectedStudentId));
+      if (selStudent) {
+        const cleanC = String(selStudent.classId || '').replace(/^Class\s+/i, '').trim();
+        const cleanS = String(selStudent.sectionId || 'A').replace(/^Section\s+/i, '').trim();
+        const sessions = await apiFetch(`/attendance/sessions?classId=${encodeURIComponent(cleanC)}&sectionId=${encodeURIComponent(cleanS)}&type=PERIOD`).catch(() => []);
+        if (Array.isArray(sessions)) {
+          const logs = [];
+          const extractId = (id) => typeof id === 'object' ? String(id?._id || id?.id || id) : String(id);
+          sessions.forEach(sess => {
+            if (Array.isArray(sess.entries)) {
+              const entry = sess.entries.find(e => {
+                const eSid = extractId(e.studentId);
+                return eSid === String(selectedStudentId) ||
+                  (e.rollNo && selStudent.rollNo && String(e.rollNo).trim() === String(selStudent.rollNo).trim()) ||
+                  (e.studentName && selStudent.firstName && String(e.studentName).toLowerCase().includes(String(selStudent.firstName).toLowerCase()));
+              });
+              if (entry) {
+                const st = entry.status === 'P' || entry.status === 'PRESENT' ? 'PRESENT' : entry.status === 'A' || entry.status === 'ABSENT' ? 'ABSENT' : entry.status === 'L' || entry.status === 'LATE' ? 'LATE' : 'LEAVE';
+                logs.push({
+                  _id: `${sess._id}_${entry.studentId || entry.rollNo}`,
+                  date: sess.date,
+                  type: sess.type || 'PERIOD',
+                  periodNo: sess.periodNo || 1,
+                  subject: sess.subject || 'Subject',
+                  status: st,
+                  classId: sess.classId,
+                  sectionId: sess.sectionId,
+                  markedBy: sess.markedByName || sess.teacherName || 'Faculty'
+                });
+              }
+            }
+          });
+          setAdminStudentPeriodLogs(logs);
+        }
+      }
+    } catch (e) {}
+  };
+
+  const loadCorrections = () => {
+    setCorrLoading(true);
+    apiFetch('/attendance/corrections')
+      .then(d => { setCorrections(Array.isArray(d) ? d : []); setCorrLoading(false); })
+      .catch(() => setCorrLoading(false));
+  };
+
+  const handleReviewCorrection = async (action) => {
+    if (!reviewModal) return;
+    try {
+      await apiFetch(`/attendance/corrections/${reviewModal._id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ action, adminRemarks: adminNote })
+      });
+      setReviewModal(null);
+      setAdminNote('');
+      loadCorrections();
+    } catch (e) { alert(e.message); }
+  };
+
+  const loadReport = () => {
+    setReportLoading(true);
+    apiFetch(`/attendance/reports/monthly?classId=${encodeURIComponent(selectedClass)}&sectionId=${encodeURIComponent(selectedSection)}&month=${calMonth}&year=${calYear}`)
+      .then(d => { setReportData(d); setReportLoading(false); })
+      .catch(() => setReportLoading(false));
+  };
+
+  const handleSaveSettings = async () => {
+    setSettingsSaving(true);
+    try {
+      await apiFetch('/admin/attendance/settings', { method: 'PUT', body: JSON.stringify(settings) });
+      localStorage.setItem('erp_attendance_settings', JSON.stringify(settings));
+      if (settings.mode === 'PERIOD') setRegType('PERIOD');
+      window.dispatchEvent(new Event('erp_attendance_settings_updated'));
+      alert('Attendance mode & settings saved! Synchronized across all dashboards & roles.');
+    } catch (e) { alert(e.message); }
+    finally { setSettingsSaving(false); }
+  };
+
+  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-2xl gradient-primary flex items-center justify-center text-white font-black shadow-lg shadow-indigo-500/20">
+            <CheckSquare className="w-5 h-5" />
+          </div>
+          <div>
+            <h1 className="text-lg font-black text-white">School Attendance Architecture</h1>
+            <p className="text-xs text-slate-400">Class, Section, Calendar, Corrections, History & Analytics</p>
+          </div>
+        </div>
+        {dashData?.pendingCorrections > 0 && (
+          <div className="px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold flex items-center gap-2 animate-pulse">
+            <AlertTriangle className="w-4 h-4" /> {dashData.pendingCorrections} Pending Correction Requests!
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1.5 p-1.5 bg-slate-900/90 rounded-2xl border border-slate-800 flex-wrap">
+        {[
+          { id: 'dashboard', label: '🏠 Dashboard', icon: LayoutDashboard },
+          { id: 'register', label: '📋 Daily Register', icon: CheckSquare },
+          { id: 'calendar', label: '📅 Calendar View', icon: Calendar },
+          { id: 'history', label: '🎓 Student History', icon: History },
+          { id: 'corrections', label: `✏️ Corrections (${corrections.filter(c=>c.status==='PENDING').length})`, icon: Edit2 },
+          { id: 'reports', label: '📊 Reports & Closure', icon: BarChart3 },
+          { id: 'settings', label: '⚙️ Settings', icon: Settings },
+        ].map(st => (
+          <button key={st.id} onClick={() => setActiveSubTab(st.id)}
+            className={`px-3.5 py-2 rounded-xl text-xs font-extrabold transition-all ${
+              activeSubTab === st.id ? 'gradient-primary text-white shadow-lg shadow-indigo-500/30' : 'text-slate-400 hover:text-white hover:bg-slate-800'
+            }`}>
+            {st.label}
+          </button>
+        ))}
+      </div>
+
+      {activeSubTab === 'dashboard' && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)}
+              className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-bold" />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <StatCard label="Students Present" value={`${dashData?.studentSummary?.present || 0}/${dashData?.studentSummary?.total || 0}`} icon={CheckCircle} color="emerald" sub={`${dashData?.studentSummary?.total ? Math.round((dashData.studentSummary.present/dashData.studentSummary.total)*100) : 0}% rate`} />
+            <StatCard label="Students Absent" value={dashData?.studentSummary?.absent || 0} icon={XCircle} color="rose" />
+            <StatCard label="Teachers Present" value={`${dashData?.teacherSummary?.present || 0}/${dashData?.teacherSummary?.total || 0}`} icon={Users} color="blue" />
+            <StatCard label="Low Attendance Alert" value={`${dashData?.lowAttendanceCount || 0} Students`} icon={AlertTriangle} color="amber" sub={`Below ${dashData?.threshold || 75}% threshold`} />
+          </div>
+
+          <div className="bg-[#0d1117] rounded-2xl border border-slate-800 p-5 space-y-4">
+            <h3 className="text-sm font-bold text-white flex items-center justify-between">
+              <span>Today's Class-wise Attendance Status ({selectedDate})</span>
+              <span className="text-xs text-indigo-400 font-normal">{dashData?.classWise?.length || 0} classes recorded</span>
+            </h3>
+            {dashLoading ? <Loader2 className="w-6 h-6 text-indigo-400 animate-spin mx-auto py-8" /> : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {dashData?.classWise?.map((cw, i) => (
+                  <div key={i} className="p-3.5 bg-slate-900/60 rounded-xl border border-slate-800 space-y-1.5 hover:border-indigo-500/30 transition">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white text-xs">Class {cw.classId} - {cw.sectionId}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                        cw.isLocked ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                        cw.status === 'DRAFT' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                        'bg-slate-800 text-slate-400 border border-slate-700'
+                      }`}>
+                        {cw.isLocked ? '🔒 Locked' : cw.status === 'DRAFT' ? '✏️ Draft' : '⚪ Pending'}
+                      </span>
+                    </div>
+                    <p className={`text-lg font-black ${cw.status === 'UNMARKED' ? 'text-slate-500' : 'text-emerald-400'}`}>
+                      {cw.status === 'UNMARKED' ? '—' : `${cw.percentage}%`}
+                    </p>
+                    <p className="text-[10px] text-slate-400">P: {cw.summary?.present || 0} | A: {cw.summary?.absent || 0} | L: {cw.summary?.late || 0}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeSubTab === 'register' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3 p-4 bg-[#0d1117] rounded-2xl border border-slate-800">
+            <div>
+              <label className="text-[10px] text-slate-400 font-bold block mb-1">Date</label>
+              <input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white" />
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-400 font-bold block mb-1">Class</label>
+              <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white">
+                {classes.map(c => <option key={c} value={c}>Class {c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-400 font-bold block mb-1">Section</label>
+              <select value={selectedSection} onChange={e => setSelectedSection(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white">
+                {sections.map(s => <option key={s} value={s}>Section {s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] text-slate-400 font-bold block mb-1">Session Type / Mode</label>
+              {settings.mode === 'HYBRID' ? (
+                <select value={regType} onChange={e => setRegType(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-bold">
+                  <option value="DAILY">🌅 Daily Roll Call (Morning)</option>
+                  <option value="PERIOD">⏱️ Period-Wise Roll Call</option>
+                </select>
+              ) : (
+                <div className="bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-1.5 text-xs font-bold text-indigo-300 flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                  <span>{settings.mode === 'PERIOD' ? '⏱️ Period-Wise Roll Call' : '🌅 Daily Roll Call (Morning)'}</span>
+                  <span className="text-[9px] text-slate-400 font-normal ml-1 bg-slate-800 px-1.5 py-0.5 rounded">(Admin Configured)</span>
+                </div>
+              )}
+            </div>
+            {regType === 'PERIOD' && (
+              <>
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold block mb-1">Period</label>
+                  <select value={regPeriod} onChange={e => setRegPeriod(Number(e.target.value))} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-bold">
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(p => <option key={p} value={p}>Period {p}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-[10px] text-slate-400 font-bold block mb-1">Subject</label>
+                  <select value={regSubject} onChange={e => setRegSubject(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white font-bold">
+                    {['Mathematics', 'Telugu', 'English', 'Science', 'Physics', 'Chemistry', 'Social Studies', 'Computer Science', 'General'].map(s => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+            <div className="flex-1 text-right flex items-center justify-end gap-2.5">
+              <span className="px-3 py-1.5 rounded-xl text-[11px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                Configured Mode: <strong className="text-emerald-300">{settings.mode || 'HYBRID'}</strong>
+              </span>
+              <span className={`px-3 py-1.5 rounded-xl text-xs font-bold ${session?.isLocked ? 'bg-emerald-500/20 text-emerald-300' : 'bg-amber-500/20 text-amber-300'}`}>
+                {session ? (session.isLocked ? '🔒 Submitted & Locked' : '✏️ Draft') : 'Unmarked'}
+              </span>
+            </div>
+          </div>
+
+          <div className="bg-[#0d1117] rounded-2xl border border-slate-800 overflow-hidden p-4">
+            {regLoading ? <Loader2 className="w-6 h-6 text-indigo-400 animate-spin mx-auto py-8" /> : (
+              <div className="space-y-2">
+                <div className="grid grid-cols-12 text-[10px] text-slate-400 uppercase font-black px-4 py-2 bg-slate-900 rounded-xl">
+                  <span className="col-span-2">Roll & Adm</span>
+                  <span className="col-span-4">Student Name</span>
+                  <span className="col-span-3">Parent</span>
+                  <span className="col-span-3 text-right">Status</span>
+                </div>
+                {regStudents.map(st => {
+                  const extractId = (id) => typeof id === 'object' ? String(id?._id || id?.id || id) : String(id);
+                  const entry = session?.entries?.find(e => {
+                    const eId = extractId(e.studentId);
+                    const stId = extractId(st._id);
+                    return (
+                      (eId && stId && eId === stId) ||
+                      (e.rollNo && st.rollNo && String(e.rollNo).trim() === String(st.rollNo).trim()) ||
+                      (e.studentName && String(e.studentName).trim().toLowerCase() === `${st.firstName} ${st.lastName}`.trim().toLowerCase())
+                    );
+                  });
+                  const stStatus = entry?.status === 'PRESENT' ? 'P' : entry?.status === 'ABSENT' ? 'A' : entry?.status === 'LATE' ? 'L' : entry?.status === 'LEAVE' ? 'LV' : (entry?.status || 'NM');
+                  return (
+                    <div key={st._id} className="grid grid-cols-12 px-4 py-3 rounded-xl bg-slate-900/40 border border-slate-800 text-xs items-center">
+                      <span className="col-span-2 font-mono text-indigo-400 font-bold">{st.rollNo}</span>
+                      <span className="col-span-4 text-white font-bold">{st.firstName} {st.lastName}</span>
+                      <span className="col-span-3 text-slate-400">{st.parentName || '—'}</span>
+                      <span className="col-span-3 text-right">
+                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase ${
+                          stStatus === 'P' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                          stStatus === 'A' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
+                          stStatus === 'L' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                          stStatus === 'LV' ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30' :
+                          'bg-slate-800 text-slate-400 border border-slate-700'
+                        }`}>
+                          {stStatus === 'P' ? '🟢 Present' : stStatus === 'A' ? '🔴 Absent' : stStatus === 'L' ? '🟡 Late' : stStatus === 'LV' ? '🔵 Leave' : '⚪ Not Marked'}
+                        </span>
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {activeSubTab === 'calendar' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3 p-4 bg-[#0d1117] rounded-2xl border border-slate-800">
+            <select value={calMonth} onChange={e => setCalMonth(Number(e.target.value))} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white">
+              {months.map((m, i) => <option key={m} value={i+1}>{m}</option>)}
+            </select>
+            <select value={calYear} onChange={e => setCalYear(Number(e.target.value))} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white">
+              {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+            <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white">
+              {classes.map(c => <option key={c} value={c}>Class {c}</option>)}
+            </select>
+            <select value={selectedSection} onChange={e => setSelectedSection(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white">
+              {sections.map(s => <option key={s} value={s}>Section {s}</option>)}
+            </select>
+          </div>
+
+          <div className="bg-[#0d1117] rounded-2xl border border-slate-800 p-5 space-y-3">
+            <h3 className="text-sm font-bold text-white">Monthly Attendance Calendar — {months[calMonth-1]} {calYear}</h3>
+            <div className="grid grid-cols-7 gap-2 text-center text-xs font-bold">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => <div key={d} className="p-2 text-slate-500 uppercase text-[10px]">{d}</div>)}
+              {Array.from({ length: new Date(calYear, calMonth-1, 1).getDay() }).map((_, i) => <div key={`empty-${i}`} className="p-4 bg-slate-950/20 rounded-xl" />)}
+              {Array.from({ length: new Date(calYear, calMonth, 0).getDate() }).map((_, i) => {
+                const dayNum = i + 1;
+                const pad = n => String(n).padStart(2, '0');
+                const dateKey = `${calYear}-${pad(calMonth)}-${pad(dayNum)}`;
+                const entry = calData?.[dateKey];
+                const pct = entry?.average;
+                return (
+                  <div key={dayNum} className={`p-3 rounded-xl border text-center transition ${
+                    pct >= 90 ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' :
+                    pct >= 75 ? 'bg-amber-500/10 border-amber-500/30 text-amber-300' :
+                    pct !== null && pct !== undefined ? 'bg-rose-500/10 border-rose-500/30 text-rose-300' :
+                    'bg-slate-900/40 border-slate-800 text-slate-500'
+                  }`}>
+                    <span className="font-bold text-white block">{dayNum}</span>
+                    <span className="text-[10px] block mt-1 font-mono">{pct !== null && pct !== undefined ? `${pct}%` : '—'}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeSubTab === 'history' && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 p-4 bg-[#0d1117] rounded-2xl border border-slate-800">
+            <div>
+              <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1.5">Filter Class</label>
+              <select
+                value={historyClass}
+                onChange={e => {
+                  const newClass = e.target.value;
+                  setHistoryClass(newClass);
+                  const matching = allStudents.filter(s => {
+                    const matchC = newClass === 'ALL' || String(s.classId || '').replace(/^Class\s+/i, '').trim() === String(newClass).replace(/^Class\s+/i, '').trim();
+                    const matchS = historySection === 'ALL' || String(s.sectionId || '').replace(/^Section\s+/i, '').trim() === String(historySection).replace(/^Section\s+/i, '').trim();
+                    return matchC && matchS;
+                  });
+                  if (matching.length > 0) {
+                    setSelectedStudentId(matching[0]._id);
+                  } else {
+                    setSelectedStudentId('');
+                    setStudentHistory(null);
+                    setAdminStudentPeriodLogs([]);
+                  }
+                }}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white font-bold"
+              >
+                <option value="ALL">All Classes</option>
+                {classes.map(c => <option key={c} value={c}>Class {c}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1.5">Filter Section</label>
+              <select
+                value={historySection}
+                onChange={e => {
+                  const newSec = e.target.value;
+                  setHistorySection(newSec);
+                  const matching = allStudents.filter(s => {
+                    const matchC = historyClass === 'ALL' || String(s.classId || '').replace(/^Class\s+/i, '').trim() === String(historyClass).replace(/^Class\s+/i, '').trim();
+                    const matchS = newSec === 'ALL' || String(s.sectionId || '').replace(/^Section\s+/i, '').trim() === String(newSec).replace(/^Section\s+/i, '').trim();
+                    return matchC && matchS;
+                  });
+                  if (matching.length > 0) {
+                    setSelectedStudentId(matching[0]._id);
+                  } else {
+                    setSelectedStudentId('');
+                    setStudentHistory(null);
+                    setAdminStudentPeriodLogs([]);
+                  }
+                }}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white font-bold"
+              >
+                <option value="ALL">All Sections</option>
+                {sections.map(s => <option key={s} value={s}>Section {s}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block mb-1.5">Select Student ({filteredHistoryStudents.length})</label>
+              <select
+                value={selectedStudentId}
+                onChange={e => setSelectedStudentId(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white font-bold"
+              >
+                {filteredHistoryStudents.length > 0 ? (
+                  filteredHistoryStudents.map(s => (
+                    <option key={s._id} value={s._id}>
+                      {s.firstName} {s.lastName} (Roll: {s.rollNo}, Class {s.classId}-{s.sectionId})
+                    </option>
+                  ))
+                ) : (
+                  <option value="">No students in Class {historyClass}-{historySection}</option>
+                )}
+              </select>
+            </div>
+          </div>
+
+          {filteredHistoryStudents.length === 0 ? (
+            <div className="p-8 text-center text-xs text-slate-400 bg-[#0d1117] rounded-2xl border border-slate-800 space-y-2">
+              <User className="w-8 h-8 text-slate-600 mx-auto" />
+              <p className="font-bold text-slate-300 text-sm">No Students Enrolled in Class {historyClass} — Section {historySection}</p>
+              <p>Please select a class or section with active enrolled students to view attendance logs.</p>
+            </div>
+          ) : studentHistory ? (
+            <div className="space-y-6">
+
+              {/* VIEW MODE TOGGLE BUTTONS */}
+              <div className="flex items-center justify-between flex-wrap gap-3 p-4 bg-[#0d1117] rounded-2xl border border-slate-800">
+                <div className="flex items-center gap-2">
+                  <User className="w-5 h-5 text-indigo-400" />
+                  <span className="font-extrabold text-white text-sm">
+                    {studentHistory.student?.name} — Class {studentHistory.student?.classId} ({studentHistory.student?.sectionId})
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5 p-1 bg-slate-900 rounded-xl border border-slate-800 text-xs font-bold">
+                  <button
+                    onClick={() => setAdminAttMode('period')}
+                    className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                      adminAttMode === 'period'
+                        ? 'bg-emerald-500 text-slate-950 font-extrabold shadow-md'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Clock className="w-3.5 h-3.5" /> Period-Wise Log ({adminStudentPeriodLogs.length})
+                  </button>
+                  <button
+                    onClick={() => setAdminAttMode('daily')}
+                    className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                      adminAttMode === 'daily'
+                        ? 'bg-emerald-500 text-slate-950 font-extrabold shadow-md'
+                        : 'text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <Calendar className="w-3.5 h-3.5" /> Daily Register ({studentHistory.records?.length || 0})
+                  </button>
+                </div>
+              </div>
+
+              {/* STAT CARDS */}
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <StatCard label="Overall Attendance" value={`${studentHistory.summary?.attendancePercentage || 100}%`} icon={CheckCircle} color="emerald" />
+                <StatCard label="Period-Wise Rate" value={`${adminStudentPeriodLogs.length > 0 ? Math.round((adminStudentPeriodLogs.filter(p => p.status === 'PRESENT' || p.status === 'LATE').length / adminStudentPeriodLogs.length) * 100) : 100}%`} icon={Clock} color="indigo" />
+                <StatCard label="Days Present" value={`${studentHistory.summary?.totalPresent || 0} / ${studentHistory.summary?.totalWorkingDays || 0}`} icon={Check} color="cyan" />
+                <StatCard label="Absences & Missed" value={(adminStudentPeriodLogs.filter(p => p.status === 'ABSENT').length) + (studentHistory.summary?.totalAbsent || 0)} icon={X} color="rose" />
+              </div>
+
+              {/* DATE FILTER BAR */}
+              <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between flex-wrap gap-3 text-xs">
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4 text-cyan-400" />
+                  <span className="font-extrabold text-white">Filter Student Attendance By Date:</span>
+                </div>
+                
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={() => setAdminAttFilterDate('')}
+                    className={`px-3 py-1.5 rounded-xl font-bold transition ${
+                      adminAttFilterDate === '' ? 'bg-cyan-500 text-slate-950 font-extrabold' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    All Dates
+                  </button>
+                  <button
+                    onClick={() => setAdminAttFilterDate(new Date().toISOString().split('T')[0])}
+                    className={`px-3 py-1.5 rounded-xl font-bold transition ${
+                      adminAttFilterDate === new Date().toISOString().split('T')[0] ? 'bg-cyan-500 text-slate-950 font-extrabold' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                    }`}
+                  >
+                    Today
+                  </button>
+                  
+                  <div className="flex items-center gap-1.5 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+                    <span className="text-slate-400 font-medium">Select Date:</span>
+                    <input
+                      type="date"
+                      value={adminAttFilterDate}
+                      onChange={e => setAdminAttFilterDate(e.target.value)}
+                      className="bg-transparent text-white font-mono font-bold focus:outline-none"
+                    />
+                  </div>
+
+                  {adminAttFilterDate && (
+                    <button
+                      onClick={() => setAdminAttFilterDate('')}
+                      className="px-2.5 py-1.5 rounded-xl bg-rose-500/20 text-rose-300 border border-rose-500/30 hover:bg-rose-500/30 font-bold"
+                    >
+                      ✕ Clear Date Filter
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* PERIOD-WISE ATTENDANCE LOG TABLE */}
+              {adminAttMode === 'period' && (
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between">
+                    <span>⏱️ Period-Wise Attendance Log</span>
+                    <span className="text-cyan-400 font-mono text-[11px]">
+                      {adminStudentPeriodLogs.filter(log => !adminAttFilterDate || String(log.date).startsWith(adminAttFilterDate)).length} Sessions Shown
+                    </span>
+                  </h4>
+
+                  {adminStudentPeriodLogs.filter(log => !adminAttFilterDate || String(log.date).startsWith(adminAttFilterDate)).length > 0 ? (
+                    <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-900 text-[10px] text-slate-400 uppercase font-black border-b border-slate-800">
+                            <tr>
+                              <th className="p-3.5">Date</th>
+                              <th className="p-3.5">Period & Subject</th>
+                              <th className="p-3.5">Attendance Status</th>
+                              <th className="p-3.5">Class & Section</th>
+                              <th className="p-3.5 text-right">Faculty Sign-off</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60">
+                            {adminStudentPeriodLogs
+                              .filter(log => !adminAttFilterDate || String(log.date).startsWith(adminAttFilterDate))
+                              .map(log => (
+                              <tr key={log._id} className="hover:bg-slate-900/40 transition">
+                                <td className="p-3.5 font-mono text-slate-200 font-semibold">
+                                  {new Date(log.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                </td>
+                                <td className="p-3.5 font-semibold text-cyan-300 flex items-center gap-1.5">
+                                  <span className="px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 font-mono font-bold text-[10px] border border-cyan-500/30">
+                                    Period {log.periodNo}
+                                  </span>
+                                  <span>{log.subject || 'Mathematics'}</span>
+                                </td>
+                                <td className="p-3.5">
+                                  <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${
+                                    log.status === 'PRESENT' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                                    log.status === 'ABSENT' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
+                                    log.status === 'LATE' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                                    'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                                  }`}>
+                                    {log.status === 'PRESENT' ? '🟢 Present' : log.status === 'ABSENT' ? '🔴 Absent' : log.status === 'LATE' ? '🟡 Late' : '🔵 Leave'}
+                                  </span>
+                                </td>
+                                <td className="p-3.5 text-indigo-300 font-bold">Class {log.classId} — {log.sectionId}</td>
+                                <td className="p-3.5 text-right font-mono text-slate-400">{log.markedBy || 'Faculty'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center text-xs text-slate-400 bg-slate-950/60 rounded-2xl border border-slate-800 space-y-1">
+                      <Clock className="w-8 h-8 text-slate-600 mx-auto" />
+                      <p className="font-bold text-slate-300">
+                        {adminAttFilterDate ? `No period attendance records found for ${adminAttFilterDate}.` : 'No period-wise attendance records logged for this student yet.'}
+                      </p>
+                      <p>Select another date or click "All Dates" to view attendance logs.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* DAILY ATTENDANCE LOG TABLE */}
+              {adminAttMode === 'daily' && (
+                <div className="space-y-3">
+                  <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between">
+                    <span>🌅 Daily Roll Call Calendar</span>
+                    <span className="text-emerald-400 font-mono text-[11px]">
+                      {(studentHistory.records || []).filter(log => !adminAttFilterDate || String(log.date).startsWith(adminAttFilterDate)).length} Days Shown
+                    </span>
+                  </h4>
+
+                  {(studentHistory.records || []).filter(log => !adminAttFilterDate || String(log.date).startsWith(adminAttFilterDate)).length > 0 ? (
+                    <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-left text-xs">
+                          <thead className="bg-slate-900 text-[10px] text-slate-400 uppercase font-black border-b border-slate-800">
+                            <tr>
+                              <th className="p-3.5">Date</th>
+                              <th className="p-3.5">Attendance Status</th>
+                              <th className="p-3.5">Class & Section</th>
+                              <th className="p-3.5 text-right">Remarks</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-800/60">
+                            {(studentHistory.records || [])
+                              .filter(log => !adminAttFilterDate || String(log.date).startsWith(adminAttFilterDate))
+                              .map((log, idx) => (
+                              <tr key={idx} className="hover:bg-slate-900/40 transition">
+                                <td className="p-3.5 font-mono text-slate-200 font-semibold">
+                                  {new Date(log.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                </td>
+                                <td className="p-3.5">
+                                  <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${
+                                    log.status === 'P' || log.status === 'PRESENT' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
+                                    log.status === 'A' || log.status === 'ABSENT' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
+                                    log.status === 'L' || log.status === 'LATE' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
+                                    'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                                  }`}>
+                                    {log.status === 'P' || log.status === 'PRESENT' ? '🟢 Present' : log.status === 'A' || log.status === 'ABSENT' ? '🔴 Absent' : log.status === 'L' || log.status === 'LATE' ? '🟡 Late' : '🔵 Leave'}
+                                  </span>
+                                </td>
+                                <td className="p-3.5 text-indigo-300 font-bold">Class {log.classId} — {log.sectionId}</td>
+                                <td className="p-3.5 text-right font-mono text-slate-400">{log.remarks || '—'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center text-xs text-slate-400 bg-slate-950/60 rounded-2xl border border-slate-800 space-y-1">
+                      <Calendar className="w-8 h-8 text-slate-600 mx-auto" />
+                      <p className="font-bold text-slate-300">
+                        {adminAttFilterDate ? `No daily attendance logs found for ${adminAttFilterDate}.` : 'No daily attendance logs recorded for this student yet.'}
+                      </p>
+                      <p>Select another date or click "All Dates" to view attendance logs.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+      )}
+
+
+
+
+      {activeSubTab === 'corrections' && (
+        <div className="space-y-4">
+          <ModuleTable
+            title="Attendance Correction Requests" icon={Edit2} color="amber"
+            loading={corrLoading} rows={corrections}
+            columns={[
+              { key: 'date', label: 'Date' },
+              { key: 'studentName', label: 'Student' },
+              { key: 'classId', label: 'Class', render: (_, r) => `${r.classId}-${r.sectionId}` },
+              { key: 'oldStatus', label: 'Old', badge: true },
+              { key: 'newStatus', label: 'Requested', badge: true },
+              { key: 'reason', label: 'Reason' },
+              { key: 'requestedByName', label: 'Teacher' },
+              { key: 'status', label: 'Status', badge: true },
+            ]}
+            extraActions={r => r.status === 'PENDING' ? (
+              <div className="flex gap-1">
+                <button onClick={() => setReviewModal(r)} className="px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 text-[10px] font-bold hover:bg-indigo-500/30">Review</button>
+              </div>
+            ) : null}
+          />
+
+          {reviewModal && (
+            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-[#0d1117] border border-slate-800 rounded-2xl p-6 max-w-md w-full space-y-4">
+                <h3 className="font-bold text-white">Review Correction Request</h3>
+                <p className="text-xs text-slate-400">{reviewModal.studentName} ({reviewModal.classId}-{reviewModal.sectionId}): Change from {reviewModal.oldStatus} → <strong className="text-emerald-400">{reviewModal.newStatus}</strong></p>
+                <p className="text-xs text-slate-300 bg-slate-900 p-3 rounded-xl border border-slate-800">Reason: {reviewModal.reason}</p>
+                <textarea value={adminNote} onChange={e => setAdminNote(e.target.value)} placeholder="Admin remarks (optional)..." rows={2} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-xs text-white" />
+                <div className="flex gap-3">
+                  <button onClick={() => handleReviewCorrection('REJECT')} className="flex-1 py-2 rounded-xl bg-rose-600/20 text-rose-300 text-xs font-bold border border-rose-500/30">Reject</button>
+                  <button onClick={() => handleReviewCorrection('APPROVE')} className="flex-1 py-2 rounded-xl gradient-primary text-white text-xs font-bold">Approve & Update</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeSubTab === 'reports' && (
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center gap-3 p-4 bg-[#0d1117] rounded-2xl border border-slate-800">
+            <select value={selectedClass} onChange={e => setSelectedClass(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white">
+              {classes.map(c => <option key={c} value={c}>Class {c}</option>)}
+            </select>
+            <select value={selectedSection} onChange={e => setSelectedSection(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white">
+              {sections.map(s => <option key={s} value={s}>Section {s}</option>)}
+            </select>
+            <select value={calMonth} onChange={e => setCalMonth(Number(e.target.value))} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white">
+              {months.map((m, i) => <option key={m} value={i+1}>{m}</option>)}
+            </select>
+            <button onClick={loadReport} className="px-4 py-1.5 rounded-xl gradient-primary text-white text-xs font-bold">Generate Report</button>
+          </div>
+
+          {reportLoading ? <Loader2 className="w-6 h-6 text-indigo-400 animate-spin mx-auto py-8" /> : reportData && (
+            <div className="bg-[#0d1117] rounded-2xl border border-slate-800 p-5 space-y-4">
+              <div className="flex justify-between items-center">
+                <h3 className="text-sm font-bold text-white">Monthly Register Summary — Class {reportData.classId} {reportData.sectionId} ({months[reportData.month-1]} {reportData.year})</h3>
+                <span className="text-xs text-slate-400">Total Working Days: {reportData.totalWorkingDays}</span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-900 text-[10px] text-slate-400 uppercase font-black">
+                    <tr><th className="p-3">Roll</th><th className="p-3">Student</th><th className="p-3">Present</th><th className="p-3">Absent</th><th className="p-3">Late</th><th className="p-3">Rate %</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {reportData.report?.map(r => (
+                      <tr key={r.studentId} className="hover:bg-slate-900/40">
+                        <td className="p-3 font-mono text-indigo-400 font-bold">{r.rollNo}</td>
+                        <td className="p-3 font-bold text-white">{r.studentName}</td>
+                        <td className="p-3 text-emerald-400">{r.present}</td>
+                        <td className="p-3 text-rose-400">{r.absent}</td>
+                        <td className="p-3 text-amber-400">{r.late}</td>
+                        <td className="p-3 font-black text-indigo-300">{r.percentage}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeSubTab === 'settings' && (
+        <div className="bg-[#0d1117] rounded-2xl border border-slate-800 p-6 space-y-5">
+          <h3 className="text-sm font-bold text-white">Attendance System Settings & Rules</h3>
+          
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            <div>
+              <label className="text-slate-400 font-bold block mb-1">Attendance Mode</label>
+              <select value={settings.mode} onChange={e => setSettings({ ...settings, mode: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white">
+                <option value="DAILY">Daily Roll Call (1 record / student / day)</option>
+                <option value="PERIOD">Period-Wise (Per subject / period)</option>
+                <option value="HYBRID">Hybrid (Morning roll call + Period-wise)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-slate-400 font-bold block mb-1">Low Attendance Alert Threshold (%)</label>
+              <input type="number" value={settings.lowAttendanceThreshold} onChange={e => setSettings({ ...settings, lowAttendanceThreshold: Number(e.target.value) })} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white" />
+            </div>
+
+            <div>
+              <label className="text-slate-400 font-bold block mb-1">School Start Time</label>
+              <input type="time" value={settings.schoolStartTime} onChange={e => setSettings({ ...settings, schoolStartTime: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white" />
+            </div>
+
+            <div>
+              <label className="text-slate-400 font-bold block mb-1">School End Time</label>
+              <input type="time" value={settings.schoolEndTime} onChange={e => setSettings({ ...settings, schoolEndTime: e.target.value })} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white" />
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-3">
+            <button onClick={handleSaveSettings} disabled={settingsSaving} className="px-6 py-2.5 gradient-primary text-white text-xs font-bold rounded-xl shadow-lg hover:scale-105 transition-transform">
+              {settingsSaving ? 'Saving...' : 'Save Settings'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const ExamsTab = makeSimpleCRUDTab({
   title: 'Exams & Scheduling', icon: ClipboardList, color: 'blue', endpoint: '/admin/exams',
   columns: [
@@ -1461,7 +2513,8 @@ const LeaveManagementTab = makeSimpleCRUDTab({
   ],
   fields: [
     { key: 'applicantName', label: 'Applicant Name', required: true },
-    { key: 'applicantRole', label: 'Role', type: 'select', options: ['TEACHER', 'ADMIN', 'STAFF', 'STUDENT'] },
+    { key: 'applicantRole', label: 'Role', type: 'select', options: ['PRINCIPAL', 'VICE_PRINCIPAL', 'HEADMASTER', 'TEACHER', 'ADMIN', 'STAFF', 'STUDENT'] },
+
     { key: 'leaveType', label: 'Leave Type', required: true },
     { key: 'fromDate', label: 'From Date', type: 'date', required: true },
     { key: 'toDate', label: 'To Date', type: 'date', required: true },
@@ -1708,159 +2761,7 @@ const CertificatesTab = makeSimpleCRUDTab({
   ]
 });
 
-// Attendance Tab
-function AttendanceTab() {
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
-  const [allClasses, setAllClasses] = useState([]);
-  const [classId, setClassId] = useState('');
-  const [students, setStudents] = useState([]);
-  const [attendance, setAttendance] = useState({});
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  // Load classes from API
-  useEffect(() => {
-    apiFetch('/admin/classes').then(d => {
-      const list = Array.isArray(d) ? d : [];
-      setAllClasses(list);
-      if (list.length > 0) setClassId(list[0].className);
-    }).catch(() => {
-      setAllClasses([{ className: 'Class 10' }, { className: 'Class 9' }]);
-      setClassId('Class 10');
-    });
-  }, []);
-
-  // Load students when class changes
-  useEffect(() => {
-    if (!classId) return;
-    setLoading(true);
-    apiFetch(`/admin/students?classId=${encodeURIComponent(classId)}`).then(d => {
-      const list = Array.isArray(d) ? d : [];
-      setStudents(list);
-      const init = {};
-      list.forEach(s => { init[s._id] = 'PRESENT'; });
-      setAttendance(init);
-      setLoading(false);
-    }).catch(() => {
-      const demo = [
-        { _id: '1', firstName: 'Rohan', lastName: 'Sharma', rollNo: '01' },
-        { _id: '2', firstName: 'Priya', lastName: 'Singh', rollNo: '02' },
-        { _id: '3', firstName: 'Amit', lastName: 'Verma', rollNo: '03' },
-        { _id: '4', firstName: 'Neha', lastName: 'Patel', rollNo: '04' },
-        { _id: '5', firstName: 'Rahul', lastName: 'Kumar', rollNo: '05' },
-      ];
-      setStudents(demo);
-      const init = {};
-      demo.forEach(s => { init[s._id] = 'PRESENT'; });
-      setAttendance(init);
-      setLoading(false);
-    });
-  }, [classId]);
-
-  const mark = (id, status) => setAttendance(a => ({ ...a, [id]: status }));
-  const markAll = (status) => { const next = {}; students.forEach(s => { next[s._id] = status; }); setAttendance(next); };
-
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      const records = students.map(s => ({ studentId: s._id, studentName: `${s.firstName} ${s.lastName}`, status: attendance[s._id] || 'PRESENT' }));
-      await apiFetch('/admin/attendance/students', { method: 'POST', body: JSON.stringify({ date, classId, sectionId: 'A', records }) });
-      setSaved(true);
-      setTimeout(() => setSaved(false), 3000);
-    } catch (e) { alert(e.message); } finally { setSaving(false); }
-  };
-
-  const present = Object.values(attendance).filter(v => v === 'PRESENT').length;
-  const absent = Object.values(attendance).filter(v => v === 'ABSENT').length;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-emerald-500/20 flex items-center justify-center">
-            <CheckSquare className="w-4 h-4 text-emerald-400" />
-          </div>
-          <div>
-            <h2 className="text-sm font-bold text-white">Student Attendance</h2>
-            <p className="text-[11px] text-slate-500">{students.length} students · {date}</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <input type="date" value={date} onChange={e => setDate(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500" />
-          <select value={classId} onChange={e => setClassId(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
-            {allClasses.map(c => <option key={c._id || c.className} value={c.className}>Class {c.className}</option>)}
-          </select>
-          <button onClick={() => markAll('PRESENT')} className="px-3 py-2 rounded-xl bg-emerald-500/20 text-emerald-400 text-[10px] font-bold hover:bg-emerald-500/30">All Present</button>
-          <button onClick={() => markAll('ABSENT')} className="px-3 py-2 rounded-xl bg-rose-500/20 text-rose-400 text-[10px] font-bold hover:bg-rose-500/
-// Payroll Tab
-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500" />
-          <select value={classId} onChange={e => setClassId(e.target.value)}
-            className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
-            {['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10', 'Class 11', 'Class 12'].map(c => <option key={c}>{c}</option>)}
-          </select>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-3 gap-3">
-        <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-center">
-          <p className="text-2xl font-black text-emerald-400">{present}</p>
-          <p className="text-[11px] text-emerald-300">Present</p>
-        </div>
-        <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-3 text-center">
-          <p className="text-2xl font-black text-rose-400">{absent}</p>
-          <p className="text-[11px] text-rose-300">Absent</p>
-        </div>
-        <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-center">
-          <p className="text-2xl font-black text-amber-400">{students.length > 0 ? Math.round((present / students.length) * 100) : 0}%</p>
-          <p className="text-[11px] text-amber-300">Present %</p>
-        </div>
-      </div>
-
-      <div className="bg-[#0d1117] rounded-2xl border border-slate-800 overflow-hidden">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-slate-800">
-              <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-500">Roll No</th>
-              <th className="px-4 py-3 text-left text-[11px] font-bold text-slate-500">Student Name</th>
-              <th className="px-4 py-3 text-center text-[11px] font-bold text-slate-500">Mark Attendance</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-800/60">
-            {students.map(s => (
-              <tr key={s._id} className="hover:bg-slate-900/40">
-                <td className="px-4 py-3 text-xs text-slate-400">{s.rollNo}</td>
-                <td className="px-4 py-3 text-xs text-white font-semibold">{s.firstName} {s.lastName}</td>
-                <td className="px-4 py-3">
-                  <div className="flex items-center justify-center gap-2">
-                    {['PRESENT', 'ABSENT', 'LATE', 'HALF_DAY'].map(st => (
-                      <button key={st} onClick={() => mark(s._id, st)}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all ${attendance[s._id] === st
-                          ? st === 'PRESENT' ? 'bg-emerald-500 text-white' : st === 'ABSENT' ? 'bg-rose-500 text-white' : st === 'LATE' ? 'bg-amber-500 text-white' : 'bg-blue-500 text-white'
-                          : 'bg-slate-800 text-slate-400 hover:bg-slate-700'}`}>
-                        {st === 'HALF_DAY' ? 'Half' : st.charAt(0) + st.slice(1).toLowerCase()}
-                      </button>
-                    ))}
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="flex justify-end">
-        <button onClick={handleSave} disabled={saving}
-          className="flex items-center gap-2 px-6 py-2.5 rounded-xl gradient-primary text-white text-xs font-bold shadow-lg shadow-indigo-500/20 hover:scale-105 transition-transform disabled:opacity-60">
-          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : saved ? <Check className="w-3.5 h-3.5" /> : <CheckSquare className="w-3.5 h-3.5" />}
-          {saved ? 'Saved!' : 'Save Attendance'}
-        </button>
-      </div>
-    </div>
-  );
-}
+// (Old AttendanceTab removed — replaced by comprehensive AttendanceTab above)
 
 // Payroll Tab
 function PayrollTab() {
@@ -2712,6 +3613,11 @@ function AdminProfileTab() {
   const inputCls = 'w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30';
   const labelCls = 'block text-[11px] font-semibold text-slate-400 mb-1.5';
 
+  const themeContext = useTheme();
+  const theme = themeContext?.currentTheme;
+  const brandPrimary = theme?.accentPrimary || '#02563d';
+  const brandSecondary = theme?.accentSecondary || '#02422f';
+
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 text-indigo-400 animate-spin" /></div>;
 
   const currentRole = profile?.role || 'SCHOOL_ADMIN';
@@ -2728,10 +3634,15 @@ function AdminProfileTab() {
         </div>
       )}
 
-      {/* HERO BANNER CARD */}
+      {/* HERO BANNER CARD — DYNAMICALLY THEMED */}
       <div className="relative bg-[#0d1117] border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
-        <div className="h-32 bg-gradient-to-r from-indigo-900/60 via-purple-900/40 to-slate-900 border-b border-slate-800/80 relative">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(99,102,241,0.15),transparent_50%)]" />
+        <div 
+          className="h-36 border-b border-slate-800/80 relative transition-all duration-500 overflow-hidden"
+          style={{
+            background: `linear-gradient(135deg, ${brandPrimary} 0%, ${brandSecondary} 60%, #0d1117 100%)`
+          }}
+        >
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.2),transparent_60%)]" />
         </div>
 
         <div className="px-6 pb-6 pt-0 relative flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 -mt-12 sm:-mt-10">
@@ -3031,6 +3942,493 @@ function AdminProfileTab() {
   );
 }
 
+// Timetable Builder & Period Scheduling Tab (100% Dynamic Subjects & Periods)
+function TimetableTab() {
+  const router = useRouter();
+  const [classes, setClasses] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [subjects, setSubjects] = useState([]);
+  const [selectedClass, setSelectedClass] = useState('LKG');
+  const [selectedSection, setSelectedSection] = useState('A');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const [showPeriodEditor, setShowPeriodEditor] = useState(false);
+
+  // Initial default period setup
+  const DEFAULT_PERIODS = [
+    { periodNo: 1, name: 'Period 1', startTime: '09:00 AM', endTime: '09:45 AM', isBreak: false },
+    { periodNo: 2, name: 'Period 2', startTime: '09:45 AM', endTime: '10:30 AM', isBreak: false },
+    { periodNo: 3, name: 'Tea Break', startTime: '10:30 AM', endTime: '10:45 AM', isBreak: true },
+    { periodNo: 4, name: 'Period 3', startTime: '10:45 AM', endTime: '11:30 AM', isBreak: false },
+    { periodNo: 5, name: 'Period 4', startTime: '11:30 AM', endTime: '12:15 PM', isBreak: false },
+    { periodNo: 6, name: 'Lunch Break', startTime: '12:15 PM', endTime: '01:00 PM', isBreak: true },
+    { periodNo: 7, name: 'Period 5', startTime: '01:00 PM', endTime: '01:45 PM', isBreak: false },
+    { periodNo: 8, name: 'Period 6', startTime: '01:45 PM', endTime: '02:30 PM', isBreak: false },
+  ];
+
+  // SSR-safe period slots state
+  const [periods, setPeriods] = useState(DEFAULT_PERIODS);
+
+  // Load initial period slots from localStorage after initial hydration
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('school_erp_period_config');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) setPeriods(parsed);
+      }
+    } catch (e) {}
+  }, []);
+
+  // Helper to sync periods state and localStorage
+  const updatePeriods = (newPeriods) => {
+    setPeriods(newPeriods);
+    try {
+      localStorage.setItem('school_erp_period_config', JSON.stringify(newPeriods));
+    } catch (e) {}
+  };
+
+  const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const [scheduleGrid, setScheduleGrid] = useState({});
+
+  const showMsg = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg(null), 3500); };
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [cData, eData, sData, ttData] = await Promise.all([
+        apiFetch('/admin/classes').catch(() => []),
+        apiFetch('/admin/employees').catch(() => []),
+        apiFetch('/admin/subjects').catch(() => []),
+        apiFetch(`/admin/timetable?classId=${encodeURIComponent(selectedClass)}&sectionId=${encodeURIComponent(selectedSection)}`).catch(() => [])
+      ]);
+      setClasses(Array.isArray(cData) ? cData : []);
+      // Include all staff members, prioritizing teachers
+      const allStaff = Array.isArray(eData) ? eData : [];
+      const teacherStaff = allStaff.filter(emp => !emp.employeeType || emp.employeeType === 'TEACHER' || emp.employeeType === 'Teacher' || (emp.designation && emp.designation.toLowerCase().includes('teacher')) || emp.department === 'Academics');
+      setTeachers(teacherStaff.length > 0 ? teacherStaff : allStaff);
+      setSubjects(Array.isArray(sData) ? sData : []);
+
+      const grid = {};
+      days.forEach(d => { grid[d] = {}; });
+
+      if (Array.isArray(ttData) && ttData.length > 0) {
+        if (Array.isArray(ttData[0].periods) && ttData[0].periods.length > 0) {
+          updatePeriods(ttData[0].periods);
+        }
+        if (ttData[0].schedule) {
+          ttData[0].schedule.forEach(item => {
+            if (item.day && item.periodNo) {
+              if (!grid[item.day]) grid[item.day] = {};
+              grid[item.day][item.periodNo] = {
+                subject: item.subject || '',
+                teacherName: item.teacherName || '',
+                roomNo: item.roomNo || ''
+              };
+            }
+          });
+        }
+      }
+
+      // Merge local storage backup if available
+      try {
+        const savedGridStr = localStorage.getItem(`school_erp_grid_${selectedClass}_${selectedSection}`);
+        if (savedGridStr) {
+          const parsed = JSON.parse(savedGridStr);
+          if (parsed && typeof parsed === 'object') {
+            Object.keys(parsed).forEach(d => {
+              if (!grid[d]) grid[d] = {};
+              Object.keys(parsed[d]).forEach(pNo => {
+                if (parsed[d][pNo]) {
+                  grid[d][pNo] = {
+                    subject: grid[d][pNo]?.subject || parsed[d][pNo].subject || '',
+                    teacherName: grid[d][pNo]?.teacherName || parsed[d][pNo].teacherName || '',
+                    roomNo: grid[d][pNo]?.roomNo || parsed[d][pNo].roomNo || ''
+                  };
+                }
+              });
+            });
+          }
+        }
+      } catch (e) {}
+
+      setScheduleGrid(grid);
+    } catch (e) {
+      showMsg('error', 'Error loading timetable data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [selectedClass, selectedSection]);
+
+  const handleCellChange = (day, periodNo, field, value) => {
+    setScheduleGrid(prev => {
+      const dayData = { ...(prev[day] || {}) };
+      const cellData = { ...(dayData[periodNo] || { subject: '', teacherName: '', roomNo: '' }), [field]: value };
+      dayData[periodNo] = cellData;
+      const updatedGrid = { ...prev, [day]: dayData };
+      try {
+        localStorage.setItem(`school_erp_grid_${selectedClass}_${selectedSection}`, JSON.stringify(updatedGrid));
+      } catch (e) {}
+      return updatedGrid;
+    });
+  };
+
+  // Period slot manager handlers with instant persistence
+  const handlePeriodChange = (index, field, value) => {
+    const updated = [...periods];
+    updated[index] = { ...updated[index], [field]: value };
+    updatePeriods(updated);
+  };
+
+  const handleAddPeriodSlot = () => {
+    const updated = [
+      ...periods,
+      {
+        periodNo: periods.length + 1,
+        name: `Period ${periods.length + 1}`,
+        startTime: '02:30 PM',
+        endTime: '03:15 PM',
+        isBreak: false
+      }
+    ];
+    updatePeriods(updated);
+  };
+
+  const handleAddBreakSlot = () => {
+    const updated = [
+      ...periods,
+      {
+        periodNo: periods.length + 1,
+        name: 'Tea / Recess Break',
+        startTime: '10:30 AM',
+        endTime: '10:45 AM',
+        isBreak: true
+      }
+    ];
+    updatePeriods(updated);
+  };
+
+  const handleRemovePeriodSlot = (index) => {
+    if (periods.length <= 1) return;
+    const filtered = periods.filter((_, i) => i !== index);
+    const reindexed = filtered.map((p, i) => ({ ...p, periodNo: i + 1 }));
+    updatePeriods(reindexed);
+  };
+
+  const handleResetDefaultPeriods = () => {
+    if (confirm('Reset period timings to standard 8 default slots?')) {
+      updatePeriods(DEFAULT_PERIODS);
+    }
+  };
+
+  const handleSaveTimetable = async () => {
+    setSaving(true);
+    try {
+      const schedule = [];
+      days.forEach(day => {
+        periods.forEach(p => {
+          if (!p.isBreak) {
+            const cell = scheduleGrid[day]?.[p.periodNo] || {};
+            if (cell.subject || cell.teacherName || cell.roomNo) {
+              schedule.push({
+                day,
+                periodNo: p.periodNo,
+                periodName: p.name || `Period ${p.periodNo}`,
+                startTime: p.startTime,
+                endTime: p.endTime,
+                subject: cell.subject || '',
+                teacherName: cell.teacherName || '',
+                roomNo: cell.roomNo || ''
+              });
+            }
+          }
+        });
+      });
+
+      // Local backup sync
+      try {
+        localStorage.setItem(`school_erp_grid_${selectedClass}_${selectedSection}`, JSON.stringify(scheduleGrid));
+      } catch (e) {}
+
+      await apiFetch('/admin/timetable', {
+        method: 'POST',
+        body: JSON.stringify({
+          classId: selectedClass,
+          sectionId: selectedSection,
+          academicYear: '2026-2027',
+          periods,
+          schedule
+        })
+      });
+
+      showMsg('success', `✅ Timetable saved & published for Class ${selectedClass} - Section ${selectedSection}!`);
+    } catch (e) {
+      showMsg('error', `❌ ${e.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {msg && <div className={`p-3 rounded-xl text-xs font-semibold ${msg.type === 'success' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/20' : 'bg-rose-500/15 text-rose-300 border border-rose-500/20'}`}>{msg.text}</div>}
+      
+      {/* HEADER & CLASS SELECTOR BAR */}
+      <div className="flex flex-wrap items-center justify-between gap-4 p-5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20">
+        <div>
+          <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+            <Clock className="w-4 h-4 text-indigo-400" /> Class Timetable Builder & Teacher Period Assignment
+          </h2>
+          <p className="text-[11px] text-slate-400 mt-0.5">Configure period timings, add break slots, select subjects from Subjects module, and assign faculty</p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div>
+            <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Select Class</span>
+            <select
+              className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+              value={selectedClass}
+              onChange={e => setSelectedClass(e.target.value)}
+            >
+              {classes.length > 0 ? (
+                classes.map(c => (
+                  <option key={c._id} value={c.className}>Class {c.className}</option>
+                ))
+              ) : (
+                ['LKG', 'UKG', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'].map(c => (
+                  <option key={c} value={c}>Class {c}</option>
+                ))
+              )}
+            </select>
+          </div>
+
+          <div>
+            <span className="text-[10px] text-slate-400 uppercase font-bold block mb-1">Section</span>
+            <select
+              className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+              value={selectedSection}
+              onChange={e => setSelectedSection(e.target.value)}
+            >
+              {['A', 'B', 'C', 'D'].map(s => (
+                <option key={s} value={s}>Section {s}</option>
+              ))}
+            </select>
+          </div>
+
+          <button
+            onClick={handleSaveTimetable}
+            disabled={saving}
+            className="mt-4 px-5 py-2 rounded-xl gradient-primary text-white text-xs font-bold shadow-lg shadow-indigo-500/20 hover:scale-105 transition-transform flex items-center gap-2"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+            <span>Save & Publish Timetable</span>
+          </button>
+        </div>
+      </div>
+
+      {/* DYNAMIC PERIOD TIMINGS & BREAK SLOTS CREATOR */}
+      <div className="bg-[#0d1117] border border-slate-800 rounded-2xl p-4 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="text-xs font-bold text-cyan-300 uppercase tracking-wider flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5" /> Dynamic Period Timings & Break Slots ({periods.length} Total Slots)
+          </h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => setShowPeriodEditor(!showPeriodEditor)}
+              className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition flex items-center gap-1.5 border border-slate-700"
+            >
+              <Settings className="w-3.5 h-3.5 text-indigo-400" />
+              <span>{showPeriodEditor ? 'Hide Period Editor' : '⚙️ Configure Period Timings'}</span>
+            </button>
+            <button
+              onClick={handleResetDefaultPeriods}
+              className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 text-xs font-bold transition flex items-center gap-1.5 border border-slate-800"
+              title="Reset to default 8 period template"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Reset Default</span>
+            </button>
+            <button
+              onClick={handleAddPeriodSlot}
+              className="px-3 py-1.5 rounded-xl bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 text-xs font-bold transition border border-indigo-500/30 flex items-center gap-1.5"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>+ Add Teaching Period</span>
+            </button>
+            <button
+              onClick={handleAddBreakSlot}
+              className="px-3 py-1.5 rounded-xl bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 text-xs font-bold transition border border-amber-500/40 flex items-center gap-1.5"
+            >
+              <Coffee className="w-3.5 h-3.5 text-amber-400" />
+              <span>☕ + Add Break / Recess</span>
+            </button>
+          </div>
+        </div>
+
+        {/* EXPANDABLE INLINE PERIOD EDITORS */}
+        {showPeriodEditor && (
+          <div className="p-4 bg-slate-900/90 rounded-xl border border-indigo-500/30 space-y-3">
+            <p className="text-[11px] text-slate-400">Edit period names, start/end times, or toggle Break / Recess type for each slot:</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {periods.map((p, idx) => (
+                <div key={idx} className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-2 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-indigo-300">Slot #{idx + 1}</span>
+                    <button onClick={() => handleRemovePeriodSlot(idx)} className="p-1 text-slate-500 hover:text-rose-400">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] text-slate-500 block font-semibold mb-0.5">Slot Title</span>
+                    <input
+                      type="text"
+                      className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
+                      value={p.name}
+                      onChange={e => handlePeriodChange(idx, 'name', e.target.value)}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <div>
+                      <span className="text-[10px] text-slate-500 block font-semibold mb-0.5">Start Time</span>
+                      <input
+                        type="text"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] font-mono text-white focus:outline-none"
+                        value={p.startTime}
+                        onChange={e => handlePeriodChange(idx, 'startTime', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-slate-500 block font-semibold mb-0.5">End Time</span>
+                      <input
+                        type="text"
+                        className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] font-mono text-white focus:outline-none"
+                        value={p.endTime}
+                        onChange={e => handlePeriodChange(idx, 'endTime', e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <label className="flex items-center gap-2 pt-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={p.isBreak || false}
+                      onChange={e => handlePeriodChange(idx, 'isBreak', e.target.checked)}
+                      className="rounded border-slate-700 bg-slate-900 text-indigo-500 focus:ring-0"
+                    />
+                    <span className="text-[11px] font-semibold text-amber-300">Is Break / Recess</span>
+                  </label>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* PERIOD BADGES BAR */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+          {periods.map((p, idx) => (
+            <div key={idx} className={`p-2.5 rounded-xl border text-center text-xs space-y-1 ${p.isBreak ? 'bg-amber-500/10 border-amber-500/30 text-amber-300' : 'bg-slate-900 border-slate-800 text-white'}`}>
+              <span className="font-bold block text-[11px]">{p.name}</span>
+              <span className="text-[10px] text-slate-400 font-mono block">{p.startTime} - {p.endTime}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* DAY-BY-DAY PERIOD GRID TABLE (DYNAMIC SUBJECTS FROM DB) */}
+      <div className="bg-[#0d1117] border border-slate-800 rounded-2xl overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center py-16"><Loader2 className="w-6 h-6 text-indigo-400 animate-spin" /></div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-slate-800 bg-slate-900/50">
+                  <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase tracking-wider min-w-[110px]">Day</th>
+                  {periods.map(p => (
+                    <th key={p.periodNo} className="px-3 py-3 text-left font-bold text-slate-400 uppercase tracking-wider min-w-[180px]">
+                      {p.name} <span className="block text-[10px] font-normal text-slate-500 font-mono">{p.startTime}</span>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60">
+                {days.map(day => (
+                  <tr key={day} className="hover:bg-slate-900/30 transition-colors">
+                    <td className="px-4 py-3 font-bold text-indigo-300 bg-slate-900/20">{day}</td>
+                    {periods.map(p => {
+                      if (p.isBreak) {
+                        return (
+                          <td key={p.periodNo} className="px-3 py-3 bg-amber-500/5 text-amber-400/60 font-semibold text-center text-[11px]">
+                            ☕ {p.name}
+                          </td>
+                        );
+                      }
+                      const cell = scheduleGrid[day]?.[p.periodNo] || { subject: '', teacherName: '', roomNo: '' };
+                      return (
+                        <td key={p.periodNo} className="px-2 py-2 space-y-1">
+                          {/* 100% DYNAMIC SUBJECT DROPDOWN FROM SUBJECTS MODULE */}
+                          <select
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-indigo-500"
+                            value={cell.subject || ''}
+                            onChange={e => handleCellChange(day, p.periodNo, 'subject', e.target.value)}
+                          >
+                            <option value="">Select Subject</option>
+                            {subjects.length > 0 ? (
+                              subjects.map(s => (
+                                <option key={s._id} value={s.subjectName}>
+                                  {s.subjectName} {s.subjectCode ? `(${s.subjectCode})` : ''}
+                                </option>
+                              ))
+                            ) : (
+                              ['Mathematics', 'Science', 'English', 'Social Studies', 'Computer Science', 'Hindi', 'Physics', 'Chemistry', 'Physical Education'].map(s => (
+                                <option key={s} value={s}>{s}</option>
+                              ))
+                            )}
+                          </select>
+
+                          {/* DYNAMIC TEACHER DROPDOWN FROM TEACHERS MODULE */}
+                          <select
+                            className="w-full bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-[11px] text-indigo-300 font-semibold focus:outline-none focus:border-indigo-500"
+                            value={cell.teacherName || ''}
+                            onChange={e => handleCellChange(day, p.periodNo, 'teacherName', e.target.value)}
+                          >
+                            <option value="">Assign Teacher</option>
+                            {cell.teacherName && !teachers.some(t => t.name === cell.teacherName) && (
+                              <option value={cell.teacherName}>{cell.teacherName} (Assigned)</option>
+                            )}
+                            {teachers.map(t => (
+                              <option key={t._id || t.name} value={t.name}>{t.name} ({t.designation || t.subjects?.[0] || 'Teacher'})</option>
+                            ))}
+                          </select>
+
+                          <input
+                            type="text"
+                            placeholder="Room No (e.g. A-101)"
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-0.5 text-[10px] text-slate-300 placeholder-slate-600 focus:outline-none focus:border-slate-600"
+                            value={cell.roomNo || ''}
+                            onChange={e => handleCellChange(day, p.periodNo, 'roomNo', e.target.value)}
+                          />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // School Settings Tab
 function SchoolSettingsTab() {
   const [form, setForm] = useState({
@@ -3153,6 +4551,7 @@ function DashboardContent({ initialTab }) {
     'academic-years': AcademicYearsTab,
     classes: ClassesTab,
     subjects: SubjectsTab,
+    timetable: TimetableTab,
     departments: DepartmentsTab,
     attendance: AttendanceTab,
     exams: ExamsTab,
@@ -3230,6 +4629,8 @@ function DashboardContent({ initialTab }) {
         </div>
       </div>
     ),
+    services: AllServicesTab,
+    'all-services': AllServicesTab,
     enquiry: AdmissionsTab,
     settings: SchoolSettingsTab,
     profile: AdminProfileTab,
@@ -3237,8 +4638,70 @@ function DashboardContent({ initialTab }) {
 
   const ActiveTab = tabs[tab] || OverviewTab;
 
+  // Tab label map for breadcrumb
+  const TAB_LABELS = {
+    admissions: 'Admissions Pipeline', students: 'Student Directory', enquiry: 'Enquiry & Leads',
+    parents: 'Parent Directory', health: 'Health Records', discipline: 'Discipline Tracker',
+    'ai-risk': 'AI Risk Detector', 'academic-years': 'Academic Session',
+    classes: 'Classes & Sections', subjects: 'Subjects', timetable: 'Timetable Builder',
+    homework: 'Homework Manager', lms: 'LMS & E-Learning', exams: 'Exams & Schedule',
+    marks: 'Report Cards', attendance: 'Attendance Tracking', 'staff-attendance': 'Staff GPS Clock',
+    employees: 'Employee HRMS', departments: 'Departments', leave: 'Staff Leave',
+    payroll: 'Payroll & Salary', 'fee-categories': 'Fee Heads', 'fee-structures': 'Fee Structures',
+    'student-fees': 'Student Fees', library: 'Library System', transport: 'Transport & GPS',
+    hostel: 'Hostels & Rooms', inventory: 'Asset Inventory', announcements: 'Announcements',
+    events: 'School Calendar', visitors: 'Visitor Gate Passes', certificates: 'Certificates & TC',
+    helpdesk: 'Campus Helpdesk', 'audit-logs': 'Audit Logs', reports: 'Reports & Analytics',
+    users: 'Roles & Permissions', settings: 'School Settings', profile: 'Admin Profile',
+  };
+
+  const showBack = tab && tab !== 'overview' && tab !== 'services' && tab !== 'all-services';
+  const tabLabel = TAB_LABELS[tab] || tab;
+
+  const handleBack = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+    } else {
+      router.push('/admin/dashboard?tab=services');
+    }
+  };
+
   return (
-    <div className="flex-1 min-h-screen bg-[#070a10] p-6 overflow-y-auto">
+    <div className="flex-1 min-h-screen bg-[#f4f6f8] p-6 overflow-y-auto">
+      {showBack && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+          <button
+            onClick={handleBack}
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: '34px', height: '34px', borderRadius: '10px',
+              background: '#fff', border: '1.5px solid #e2e8f0',
+              cursor: 'pointer', transition: 'all 0.15s ease',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
+              flexShrink: 0,
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--accent-primary, #237dd1)'; e.currentTarget.querySelector('svg').style.color = '#fff'; e.currentTarget.style.borderColor = 'var(--accent-primary, #237dd1)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = '#fff'; e.currentTarget.querySelector('svg').style.color = '#64748b'; e.currentTarget.style.borderColor = '#e2e8f0'; }}
+            title="Back to All Services"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transition: 'color 0.15s' }}>
+              <path d="M19 12H5M12 5l-7 7 7 7" />
+            </svg>
+          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: '#94a3b8', fontWeight: 500 }}>
+            <button
+              onClick={() => router.push('/admin/dashboard?tab=services')}
+              style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: 500, padding: 0, transition: 'color 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--accent-primary, #237dd1)'}
+              onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+            >
+              All Services
+            </button>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6" /></svg>
+            <span style={{ color: '#1e293b', fontWeight: 700 }}>{tabLabel}</span>
+          </div>
+        </div>
+      )}
       <ActiveTab />
     </div>
   );
@@ -3246,7 +4709,7 @@ function DashboardContent({ initialTab }) {
 
 export default function AdminDashboard(props) {
   return (
-    <React.Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-[#070a10] text-slate-400 text-xs"><Loader2 className="w-6 h-6 animate-spin text-indigo-400" /></div>}>
+    <React.Suspense fallback={<div className="flex items-center justify-center min-h-screen bg-[#f4f6f8] text-slate-600 text-xs"><Loader2 className="w-6 h-6 animate-spin text-emerald-600" /></div>}>
       <DashboardContent {...props} />
     </React.Suspense>
   );

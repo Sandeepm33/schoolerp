@@ -22,9 +22,11 @@ const UserSchema = new mongoose.Schema({
   password: { type: String, required: true },
   role: { 
     type: String, 
-    enum: ['SAAS_SUPER_ADMIN', 'SCHOOL_ADMIN', 'ACCOUNTANT', 'TEACHER', 'PARENT', 'STUDENT', 'DRIVER', 'SECURITY'],
+    enum: ['SAAS_SUPER_ADMIN', 'SCHOOL_ADMIN', 'ADMIN', 'PRINCIPAL', 'VICE_PRINCIPAL', 'HEADMASTER', 'HEAD_MASTER', 'ACCOUNTANT', 'TEACHER', 'PARENT', 'STUDENT', 'DRIVER', 'SECURITY'],
     required: true 
   },
+
+
   phone: { type: String },
   designation: { type: String },
   bio: { type: String },
@@ -32,6 +34,7 @@ const UserSchema = new mongoose.Schema({
   status: { type: String, enum: ['ACTIVE', 'INACTIVE'], default: 'ACTIVE' },
   // Parent-Student link: PARENT users store their child's Student _id here
   mappedStudentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', default: null },
+  themePreference: { type: mongoose.Schema.Types.Mixed, default: null },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -153,8 +156,24 @@ const TimetableSchema = new mongoose.Schema({
   schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
   classId: { type: String, required: true },
   sectionId: { type: String, required: true },
+  academicYear: { type: String, default: '2026-2027' },
+  periods: [{
+    periodNo: Number,
+    name: String,
+    startTime: String,
+    endTime: String,
+    isBreak: { type: Boolean, default: false }
+  }],
   schedule: [{
     day: { type: String, enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] },
+    periodNo: Number,
+    periodName: String,
+    startTime: String,
+    endTime: String,
+    subject: String,
+    teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    teacherName: String,
+    roomNo: String,
     periods: [{
       periodNo: Number,
       startTime: String,
@@ -165,9 +184,9 @@ const TimetableSchema = new mongoose.Schema({
       roomNo: String
     }]
   }],
-  generatedByAI: { type: Boolean, default: true },
+  generatedByAI: { type: Boolean, default: false },
   updatedAt: { type: Date, default: Date.now }
-});
+}, { timestamps: true, strict: false });
 
 // 8. INVENTORY SCHEMA
 const InventorySchema = new mongoose.Schema({
@@ -193,9 +212,13 @@ const CertificateSchema = new mongoose.Schema({
   issuedBy: { type: String, required: true }
 });
 
+// Force fresh model recompilation for User schema enum additions
+delete mongoose.models.User;
+
 module.exports = {
   School: mongoose.models.School || mongoose.model('School', SchoolSchema),
-  User: mongoose.models.User || mongoose.model('User', UserSchema),
+  User: mongoose.model('User', UserSchema),
+
   Student: mongoose.models.Student || mongoose.model('Student', StudentSchema),
   AttendanceRecord: mongoose.models.AttendanceRecord || mongoose.model('AttendanceRecord', AttendanceRecordSchema),
   Admission: mongoose.models.Admission || mongoose.model('Admission', AdmissionSchema),

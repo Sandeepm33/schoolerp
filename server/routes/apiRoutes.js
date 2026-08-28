@@ -8,6 +8,7 @@ const academicAndOp = require('../controllers/academicAndOpControllers');
 const ai = require('../controllers/aiController');
 const saas = require('../controllers/saasController');
 const admin = require('../controllers/schoolAdminController');
+const attendance = require('../controllers/attendanceController');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. AUTH & USER MANAGEMENT ROUTES
@@ -15,6 +16,7 @@ const admin = require('../controllers/schoolAdminController');
 router.post('/auth/login', authAndAdmission.login);
 router.get('/auth/me', authMiddleware, authAndAdmission.getMe);
 router.put('/auth/profile', authMiddleware, authAndAdmission.updateProfile);
+router.put('/auth/theme', authMiddleware, authAndAdmission.updateThemePreference);
 
 // School Admin User Role Creator Routes
 router.get('/users', authMiddleware, authAndAdmission.getSchoolUsers);
@@ -138,16 +140,52 @@ router.put('/admin/employees/:id', authMiddleware, admin.updateEmployee);
 router.delete('/admin/employees/:id', authMiddleware, admin.deleteEmployee);
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 9. ATTENDANCE
+// 9. ATTENDANCE — Complete School ERP Attendance System
 // ─────────────────────────────────────────────────────────────────────────────
-// Legacy
+
+// Attendance Settings
+router.get('/admin/attendance/settings', authMiddleware, attendance.getAttendanceSettings);
+router.put('/admin/attendance/settings', authMiddleware, attendance.saveAttendanceSettings);
+
+// Session Management (Draft / Submit / Lock)
+router.get('/attendance/sessions', authMiddleware, attendance.getSessionsForDay);
+router.get('/attendance/sessions/:id', authMiddleware, attendance.getSessionById);
+router.post('/attendance/sessions/draft', authMiddleware, attendance.saveDraftSession);
+router.post('/attendance/sessions/submit', authMiddleware, attendance.submitSession);
+router.post('/attendance/sessions/:id/lock', authMiddleware, attendance.lockSession);
+
+// Calendar & Summaries
+router.get('/attendance/dashboard', authMiddleware, attendance.getAttendanceDashboard);
+router.get('/attendance/calendar', authMiddleware, attendance.getAttendanceCalendar);
+router.get('/attendance/class-summary', authMiddleware, attendance.getClassWiseSummary);
+router.get('/attendance/section-summary', authMiddleware, attendance.getSectionWiseSummary);
+
+// Student History & Low Attendance
+router.get('/attendance/student/:studentId/history', authMiddleware, attendance.getStudentHistory);
+router.get('/attendance/low-attendance', authMiddleware, attendance.getLowAttendanceList);
+
+// Teacher Attendance
+router.get('/attendance/teacher', authMiddleware, attendance.getTeacherAttendance);
+router.post('/attendance/teacher', authMiddleware, attendance.markTeacherAttendance);
+router.post('/attendance/staff/clock-in', authMiddleware, attendance.clockInStaff);
+
+// Reports
+router.get('/attendance/reports/monthly', authMiddleware, attendance.getMonthlyReport);
+
+// Corrections (Teacher → Admin approval flow)
+router.get('/attendance/corrections', authMiddleware, attendance.getCorrectionRequests);
+router.post('/attendance/corrections', authMiddleware, attendance.submitCorrectionRequest);
+router.patch('/attendance/corrections/:id', authMiddleware, attendance.approveCorrectionRequest);
+
+// Legacy compatibility routes (kept working)
+router.post('/attendance/bulk', authMiddleware, studentAndFee.markBulkAttendance);
+router.get('/attendance/analytics', authMiddleware, studentAndFee.getAttendanceAnalytics);
 router.get('/attendance/students', authMiddleware, academicAndOp.getStudentAttendance);
 router.post('/attendance/students', authMiddleware, academicAndOp.markStudentAttendance);
-router.post('/attendance/staff/clock-in', authMiddleware, academicAndOp.clockInStaff);
 
-// Admin full attendance CRUD
-router.get('/admin/attendance/students', authMiddleware, admin.getStudentAttendance);
-router.post('/admin/attendance/students', authMiddleware, admin.markStudentAttendance);
+// Admin full attendance CRUD (legacy + new)
+router.get('/admin/attendance/students', authMiddleware, attendance.getStudentAttendance);
+router.post('/admin/attendance/students', authMiddleware, attendance.markStudentAttendance);
 router.get('/admin/attendance/staff', authMiddleware, admin.getStaffAttendance);
 router.post('/admin/attendance/staff', authMiddleware, admin.markStaffAttendance);
 router.patch('/admin/attendance/staff/:id/correction', authMiddleware, admin.approveStaffAttendanceCorrection);
@@ -156,7 +194,6 @@ router.patch('/admin/attendance/staff/:id/correction', authMiddleware, admin.app
 // 10. EXAMS, MARKS & REPORT CARDS
 // ─────────────────────────────────────────────────────────────────────────────
 // Legacy
-router.get('/timetable', authMiddleware, academicAndOp.getTimetable);
 router.post('/timetable/generate-ai', authMiddleware, academicAndOp.generateAITimetable);
 router.get('/exams', authMiddleware, academicAndOp.getExams);
 router.get('/marks', authMiddleware, academicAndOp.getStudentMarks);
@@ -174,7 +211,8 @@ router.put('/admin/marks/:id', authMiddleware, admin.updateMark);
 router.delete('/admin/marks/:id', authMiddleware, admin.deleteMark);
 router.post('/admin/marks/publish', authMiddleware, admin.publishMarks);
 
-// Timetable
+// Timetable (Publicly readable for Parents & Students)
+router.get('/timetable', admin.getTimetable);
 router.get('/admin/timetable', authMiddleware, admin.getTimetable);
 router.post('/admin/timetable', authMiddleware, admin.saveTimetable);
 

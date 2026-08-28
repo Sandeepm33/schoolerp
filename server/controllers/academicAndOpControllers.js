@@ -88,10 +88,10 @@ const generateAITimetable = async (req, res) => {
     
     // AI Algorithmic Timetable Generator
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-    const subjects = ['Mathematics', 'Science', 'English', 'Social Studies', 'Computer Science', 'Physics', 'Chemistry'];
-    const teachers = ['Dr. Sarah Jenkins', 'Mr. Robert Vance', 'Ms. Anita Sharma', 'Mr. David Miller', 'Mrs. Priya Patel'];
-    
-    const schedule = [];
+    // Fetch real registered teachers from database
+    const { User } = require('../models/coreModels');
+    const dbTeachers = await User.find({ role: 'TEACHER' });
+    const teachers = dbTeachers.length > 0 ? dbTeachers.map(t => t.name) : ['Assigned Faculty'];
     
     days.forEach(day => {
       for (let periodNo = 1; periodNo <= 6; periodNo++) {

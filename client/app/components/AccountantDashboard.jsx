@@ -1,11 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { DollarSign, CreditCard, Receipt, PlusCircle, CheckCircle, Search, AlertCircle, FileSpreadsheet } from 'lucide-react';
+import { DollarSign, CreditCard, Receipt, PlusCircle, CheckCircle, Search, AlertCircle, FileSpreadsheet, LayoutDashboard } from 'lucide-react';
 import { useAuth, API_BASE } from '../context/AuthContext';
+import AllServicesPanel from './AllServicesPanel';
 
 export default function AccountantDashboard() {
   const { token } = useAuth();
+  const [activeTab, setActiveTab] = useState('fees');
   const [studentFees, setStudentFees] = useState([]);
   const [feeStructures, setFeeStructures] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -93,6 +95,54 @@ export default function AccountantDashboard() {
           </div>
         </div>
       </div>
+
+      {/* Tab Navigation */}
+      <div className="flex items-center gap-2">
+        {[
+          { id: 'fees', label: 'Fee Management', icon: DollarSign },
+          { id: 'services', label: 'All Services', icon: LayoutDashboard },
+        ].map(tab => {
+          const Icon = tab.icon;
+          const isSel = activeTab === tab.id;
+          return (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
+                isSel ? 'gradient-primary text-white border-indigo-400/40 shadow-lg shadow-indigo-500/20' : 'glass-panel text-slate-400 hover:text-white border-slate-700'
+              }`}>
+              <Icon className="w-4 h-4" /><span>{tab.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {activeTab === 'services' && (
+        <div className="glass-panel p-6 rounded-2xl border border-slate-800">
+          <AllServicesPanel role="ACCOUNTANT" />
+        </div>
+      )}
+
+      {/* BACK BUTTON — shown on fee management tab */}
+      {activeTab === 'fees' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+          <button
+            onClick={() => setActiveTab('services')}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '7px',
+              padding: '6px 14px 6px 10px', borderRadius: '10px',
+              background: 'rgba(255,255,255,0.07)', border: '1.5px solid rgba(255,255,255,0.1)',
+              color: '#94a3b8', cursor: 'pointer', fontSize: '12px', fontWeight: 600,
+              transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(99,102,241,0.15)'; e.currentTarget.style.color = '#a5b4fc'; e.currentTarget.style.borderColor = 'rgba(99,102,241,0.3)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.07)'; e.currentTarget.style.color = '#94a3b8'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'; }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 5l-7 7 7 7" /></svg>
+            Back to All Services
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'fees' && (<>
 
       {/* Financial KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -264,6 +314,7 @@ export default function AccountantDashboard() {
         </div>
 
       </div>
+      </>)}
 
     </div>
   );

@@ -416,9 +416,12 @@ const getEmployees = async (req, res) => {
     ok(res, docs);
   } catch (e) { err(res, e.message); }
 };
+
 const createEmployee = async (req, res) => {
   try {
     const data = { ...req.body, schoolId: getSchoolId(req) };
+    delete data.role;
+
     if (!data.employeeId) {
       const count = await StaffHRMS.countDocuments({ schoolId: getSchoolId(req) });
       data.employeeId = `EMP${String(count + 1001).padStart(5, '0')}`;
@@ -426,20 +429,124 @@ const createEmployee = async (req, res) => {
     if (!data.netSalary) {
       data.netSalary = (data.basicSalary || 0) + (data.allowances || 0) - (data.deductions || 0);
     }
+
+    const requesterDesig = (req.user?.designation || '').toUpperCase();
+    const requesterRole = (req.user?.role || '').toUpperCase();
+    const isLeadershipRequester = requesterDesig.includes('HEAD') || 
+                                 requesterDesig.includes('PRINCIPAL') || 
+                                 requesterDesig.includes('VICE') ||
+                                 requesterRole === 'HEADMASTER' ||
+                                 requesterRole === 'PRINCIPAL' ||
+                                 requesterRole === 'VICE_PRINCIPAL';
+
+    const rawType = (data.employeeType || 'TEACHER').toUpperCase();
+    if (isLeadershipRequester && ['HEADMASTER', 'HEAD_MASTER', 'PRINCIPAL', 'VICE_PRINCIPAL'].includes(rawType)) {
+      return err(res, '❌ Permission Denied: Headmaster, Vice Principal, and Principal accounts cannot create Headmaster, Vice Principal, or Principal roles. Only primary School Admin can add leadership accounts.', 403);
+    }
+
+    if (['HEADMASTER', 'HEAD_MASTER', 'PRINCIPAL', 'VICE_PRINCIPAL'].includes(rawType)) {
+      if (!data.designation || data.designation === 'Teacher') {
+        data.designation = rawType === 'HEADMASTER' ? 'Headmaster' : rawType === 'PRINCIPAL' ? 'Principal' : 'Vice Principal';
+      }
+      data.employeeType = 'ADMIN';
+    }
+
+
+    
+    // Auto-create User Login Account for Teacher / Staff
+    if (data.email) {
+      const cleanEmail = data.email.toLowerCase().trim();
+      let existingUser = await User.findOne({ email: cleanEmail });
+      if (!existingUser) {
+        const passwordHash = await bcrypt.hash(data.password || 'teacher123', 10);
+        const typeToCheck = (data.employeeType || rawType || '').toUpperCase();
+
+        let userRole = 'TEACHER';
+        if (['HEADMASTER', 'HEAD_MASTER', 'PRINCIPAL', 'VICE_PRINCIPAL', 'ADMIN', 'SCHOOL_ADMIN', 'HR'].includes(typeToCheck)) {
+          userRole = 'SCHOOL_ADMIN';
+        } else if (typeToCheck === 'ACCOUNTANT') {
+          userRole = 'ACCOUNTANT';
+        } else {
+          userRole = 'TEACHER';
+        }
+
+        existingUser = await User.create({
+          schoolId: getSchoolId(req),
+          name: data.name,
+          email: cleanEmail,
+          password: passwordHash,
+          role: userRole,
+          phone: data.phone || '',
+          designation: data.designation || rawType || 'Teacher',
+          status: 'ACTIVE'
+        });
+      }
+      if (existingUser) {
+        data.userId = existingUser._id;
+      }
+    }
+
+
     const doc = await StaffHRMS.create(data);
+
+
+    // If assigned as Class Teacher, update ClassRoom record
+    if (data.assignedClass && data.assignedClass !== 'None') {
+      const clsName = data.assignedClass.replace(/^Class\s+/i, '').split('-')[0].trim();
+      await ClassRoom.findOneAndUpdate(
+        { schoolId: getSchoolId(req), className: clsName },
+        { classTeacher: data.name },
+        { upsert: false }
+      );
+    }
+
     ok(res, doc, 201);
   } catch (e) { err(res, e.message); }
 };
+
 const updateEmployee = async (req, res) => {
   try {
-    const doc = await StaffHRMS.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const data = { ...req.body };
+    const rawType = data.employeeType;
+    if (['HEADMASTER', 'HEAD_MASTER', 'PRINCIPAL', 'VICE_PRINCIPAL'].includes(rawType)) {
+      if (!data.designation || data.designation === 'Teacher') {
+        data.designation = rawType === 'HEADMASTER' ? 'Headmaster' : rawType === 'PRINCIPAL' ? 'Principal' : 'Vice Principal';
+      }
+      data.employeeType = 'ADMIN';
+    }
+    const doc = await StaffHRMS.findByIdAndUpdate(req.params.id, data, { new: true });
+
+    
+    // Update User account if designation or name changed
+    if (doc && doc.userId) {
+      await User.findByIdAndUpdate(doc.userId, {
+        name: doc.name,
+        phone: doc.phone,
+        designation: doc.designation
+      });
+    }
+
+    if (req.body.assignedClass && req.body.assignedClass !== 'None') {
+      const clsName = req.body.assignedClass.replace(/^Class\s+/i, '').split('-')[0].trim();
+      await ClassRoom.findOneAndUpdate(
+        { schoolId: getSchoolId(req), className: clsName },
+        { classTeacher: doc.name },
+        { upsert: false }
+      );
+    }
+
     ok(res, doc);
   } catch (e) { err(res, e.message); }
 };
+
 const deleteEmployee = async (req, res) => {
   try {
+    const emp = await StaffHRMS.findById(req.params.id);
+    if (emp && emp.userId) {
+      await User.findByIdAndUpdate(emp.userId, { status: 'INACTIVE' });
+    }
     await StaffHRMS.findByIdAndUpdate(req.params.id, { isArchived: true });
-    ok(res, { message: 'Employee archived' });
+    ok(res, { message: 'Employee archived and login deactivated' });
   } catch (e) { err(res, e.message); }
 };
 
@@ -658,16 +765,37 @@ const getTimetable = async (req, res) => {
   try {
     const { classId, sectionId } = req.query;
     const query = {};
-    if (classId) query.classId = classId;
-    if (sectionId) query.sectionId = sectionId;
-    const docs = await Timetable.find(query);
+    if (classId) {
+      const cleanCls = String(classId).replace(/^Class\s+/i, '').trim();
+      query.classId = { $regex: new RegExp(`^(${cleanCls}|Class\\s*${cleanCls})$`, 'i') };
+    }
+    if (sectionId) {
+      const cleanSec = String(sectionId).replace(/^Section\s+/i, '').trim();
+      query.sectionId = { $regex: new RegExp(`^(${cleanSec}|Section\\s*${cleanSec})$`, 'i') };
+    }
+    const docs = await Timetable.find(query).sort({ updatedAt: -1, _id: -1 });
     ok(res, docs);
   } catch (e) { err(res, e.message); }
 };
 const saveTimetable = async (req, res) => {
   try {
     const { classId, sectionId } = req.body;
-    const doc = await Timetable.findOneAndUpdate({ classId, sectionId }, req.body, { upsert: true, new: true });
+    const cleanCls = String(classId || 'LKG').replace(/^Class\s+/i, '').trim();
+    const cleanSec = String(sectionId || 'A').replace(/^Section\s+/i, '').trim();
+    const schoolId = getSchoolId(req);
+    
+    // Delete any old duplicate entries for this class and section to prevent stale records
+    await Timetable.deleteMany({
+      classId: { $regex: new RegExp(`^${cleanCls}$`, 'i') },
+      sectionId: { $regex: new RegExp(`^${cleanSec}$`, 'i') }
+    });
+
+    const doc = await Timetable.create({
+      ...req.body,
+      classId: cleanCls,
+      sectionId: cleanSec,
+      schoolId
+    });
     ok(res, doc);
   } catch (e) { err(res, e.message); }
 };

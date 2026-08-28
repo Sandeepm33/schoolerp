@@ -2,19 +2,28 @@ const mongoose = require('mongoose');
 
 // 1. TIMETABLE SCHEMA
 const TimetableSchema = new mongoose.Schema({
+  schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
   classId: { type: String, required: true },
   sectionId: { type: String, required: true },
   academicYear: { type: String, default: '2026-2027' },
+  periods: [{
+    periodNo: Number,
+    name: String,
+    startTime: String,
+    endTime: String,
+    isBreak: { type: Boolean, default: false }
+  }],
   schedule: [{
     day: { type: String, enum: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] },
     periodNo: Number,
+    periodName: String,
     startTime: String,
     endTime: String,
     subject: String,
     teacherName: String,
     roomNo: String
   }]
-});
+}, { timestamps: true, strict: false });
 
 // 2. EXAM & MARKS SCHEMA
 const ExamSchema = new mongoose.Schema({
@@ -144,7 +153,9 @@ const StaffHRMSSchema = new mongoose.Schema({
   photo: { type: String },
   department: { type: String, required: true },
   designation: { type: String, required: true },
-  employeeType: { type: String, enum: ['TEACHER', 'ADMIN', 'HR', 'ACCOUNTANT', 'DRIVER', 'SECURITY', 'LIBRARIAN', 'SUPPORT'], default: 'TEACHER' },
+  employeeType: { type: String, default: 'TEACHER' },
+
+
   joiningDate: { type: Date, default: Date.now },
   qualification: { type: String },
   experience: { type: String },
@@ -533,6 +544,110 @@ const StaffAttendanceSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 });
 
+// 24. ATTENDANCE SESSION SCHEMA — Core lockable attendance submission per class/date
+const AttendanceSessionSchema = new mongoose.Schema({
+  schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+  academicYear: { type: String, default: '2026-2027' },
+  date: { type: String, required: true }, // 'YYYY-MM-DD'
+  classId: { type: String, required: true },
+  sectionId: { type: String, required: true },
+  type: { type: String, enum: ['DAILY', 'PERIOD'], default: 'DAILY' },
+  periodNo: { type: Number, default: null },
+  subject: { type: String, default: null },
+  teacherId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  teacherName: { type: String, default: null },
+  status: { type: String, enum: ['DRAFT', 'SUBMITTED', 'LOCKED'], default: 'DRAFT' },
+  submittedAt: { type: Date, default: null },
+  lockedAt: { type: Date, default: null },
+  // Per-student entries
+  entries: [{
+    studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
+    studentName: { type: String },
+    rollNo: { type: String },
+    // P=Present A=Absent L=Late HD=Half-Day LV=Leave OD=Official-Duty H=Holiday W=Weekend NM=Not-Marked
+    status: { type: String, enum: ['P', 'A', 'L', 'HD', 'LV', 'OD', 'H', 'W', 'NM'], default: 'NM' },
+    remarks: { type: String, default: '' },
+    inTime: { type: String, default: null },
+    outTime: { type: String, default: null },
+    source: { type: String, enum: ['MANUAL', 'BIOMETRIC', 'GPS', 'AUTO'], default: 'MANUAL' }
+  }],
+  // Summary computed on submit
+  summary: {
+    total: { type: Number, default: 0 },
+    present: { type: Number, default: 0 },
+    absent: { type: Number, default: 0 },
+    late: { type: Number, default: 0 },
+    halfDay: { type: Number, default: 0 },
+    leave: { type: Number, default: 0 },
+    od: { type: Number, default: 0 },
+    notMarked: { type: Number, default: 0 }
+  },
+  markedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  markedByName: { type: String, default: null },
+  isLocked: { type: Boolean, default: false },
+  lockedBy: { type: String, default: null }
+}, { timestamps: true });
+
+// Compound index to prevent duplicate sessions for same class/date/type/period
+AttendanceSessionSchema.index({ schoolId: 1, date: 1, classId: 1, sectionId: 1, type: 1, periodNo: 1 }, { unique: true, sparse: true });
+
+// 25. ATTENDANCE CORRECTION REQUEST SCHEMA
+const AttendanceCorrectionSchema = new mongoose.Schema({
+  schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+  sessionId: { type: mongoose.Schema.Types.ObjectId, ref: 'AttendanceSession', required: true },
+  date: { type: String, required: true },
+  classId: { type: String, required: true },
+  sectionId: { type: String, required: true },
+  studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
+  studentName: { type: String, required: true },
+  rollNo: { type: String },
+  oldStatus: { type: String, enum: ['P', 'A', 'L', 'HD', 'LV', 'OD', 'H', 'W', 'NM'] },
+  newStatus: { type: String, enum: ['P', 'A', 'L', 'HD', 'LV', 'OD', 'H', 'W', 'NM'], required: true },
+  reason: { type: String, required: true },
+  supportingDoc: { type: String, default: null }, // URL to uploaded doc
+  requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  requestedByName: { type: String },
+  requestedByRole: { type: String },
+  status: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'], default: 'PENDING' },
+  reviewedBy: { type: String, default: null },
+  reviewedAt: { type: Date, default: null },
+  adminRemarks: { type: String, default: null },
+  auditLog: [{
+    action: String,
+    by: String,
+    byRole: String,
+    at: { type: Date, default: Date.now },
+    note: String
+  }],
+  createdAt: { type: Date, default: Date.now }
+});
+
+// 26. ATTENDANCE SETTING SCHEMA — Per-school configuration
+const AttendanceSettingSchema = new mongoose.Schema({
+  schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School', unique: true },
+  mode: { type: String, enum: ['DAILY', 'PERIOD', 'HYBRID'], default: 'HYBRID' },
+  workingDays: { type: [String], default: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] },
+  lateThresholdMinutes: { type: Number, default: 15 }, // minutes after school start = late
+  halfDayEnabled: { type: Boolean, default: true },
+  halfDayCutoffTime: { type: String, default: '12:00' },
+  lockAfterSubmit: { type: Boolean, default: true },
+  lockDelayMinutes: { type: Number, default: 0 }, // 0 = immediate lock on submit
+  requireAdminApprovalForCorrections: { type: Boolean, default: true },
+  allowTeacherSelfCorrection: { type: Boolean, default: false },
+  lowAttendanceThreshold: { type: Number, default: 75 }, // % below which alert fires
+  enabledStatuses: {
+    type: [String],
+    default: ['P', 'A', 'L', 'HD', 'LV', 'OD', 'NM']
+  },
+  notifyParentOnAbsent: { type: Boolean, default: true },
+  notifyParentOnLowAttendance: { type: Boolean, default: true },
+  schoolStartTime: { type: String, default: '08:30' },
+  schoolEndTime: { type: String, default: '16:30' },
+  updatedAt: { type: Date, default: Date.now }
+});
+
+delete mongoose.models.StaffHRMS;
+
 module.exports = {
   Timetable: mongoose.models.Timetable || mongoose.model('Timetable', TimetableSchema),
   Exam: mongoose.models.Exam || mongoose.model('Exam', ExamSchema),
@@ -541,7 +656,8 @@ module.exports = {
   LMSContent: mongoose.models.LMSContent || mongoose.model('LMSContent', LMSContentSchema),
   Transport: mongoose.models.Transport || mongoose.model('Transport', TransportSchema),
   Inventory: mongoose.models.Inventory || mongoose.model('Inventory', InventorySchema),
-  StaffHRMS: mongoose.models.StaffHRMS || mongoose.model('StaffHRMS', StaffHRMSSchema),
+  StaffHRMS: mongoose.model('StaffHRMS', StaffHRMSSchema),
+
   Certificate: mongoose.models.Certificate || mongoose.model('Certificate', CertificateSchema),
   Helpdesk: mongoose.models.Helpdesk || mongoose.model('Helpdesk', HelpdeskSchema),
   AcademicYear: mongoose.models.AcademicYear || mongoose.model('AcademicYear', AcademicYearSchema),
@@ -565,4 +681,7 @@ module.exports = {
   FeeStructure: mongoose.models.FeeStructure || mongoose.model('FeeStructure', FeeStructureSchema),
   SchoolAuditLog: mongoose.models.SchoolAuditLog || mongoose.model('SchoolAuditLog', SchoolAuditLogSchema),
   StaffAttendance: mongoose.models.StaffAttendance || mongoose.model('StaffAttendance', StaffAttendanceSchema),
+  AttendanceSession: mongoose.models.AttendanceSession || mongoose.model('AttendanceSession', AttendanceSessionSchema),
+  AttendanceCorrection: mongoose.models.AttendanceCorrection || mongoose.model('AttendanceCorrection', AttendanceCorrectionSchema),
+  AttendanceSetting: mongoose.models.AttendanceSetting || mongoose.model('AttendanceSetting', AttendanceSettingSchema),
 };
