@@ -70,6 +70,7 @@ router.post('/students/:id/attendance', authMiddleware, studentAndFee.markAttend
 // Admin full CRUD for students
 router.get('/admin/students', authMiddleware, admin.getStudentList);
 router.post('/admin/students/enroll', authMiddleware, admin.enrollStudentWithAccounts);
+router.post('/admin/students/bulk-enroll', authMiddleware, admin.enrollStudentsBulk);
 router.get('/admin/students/roll-preview', authMiddleware, admin.previewNextRollNo);
 router.post('/admin/students', authMiddleware, admin.createStudentRecord);
 router.put('/admin/students/:id', authMiddleware, admin.updateStudentRecord);
@@ -110,6 +111,7 @@ router.delete('/admin/academic-years/:id', authMiddleware, admin.deleteAcademicY
 
 router.get('/admin/classes', authMiddleware, admin.getClasses);
 router.post('/admin/classes', authMiddleware, admin.createClass);
+router.post('/admin/classes/bulk', authMiddleware, admin.createClassesBulk);
 router.put('/admin/classes/:id', authMiddleware, admin.updateClass);
 router.delete('/admin/classes/:id', authMiddleware, admin.deleteClass);
 

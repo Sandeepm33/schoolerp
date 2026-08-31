@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard, GraduationCap, Users, FileText, Calendar, DollarSign,
   BookOpen, Clock, Award, Box, Sparkles, Bell, HelpCircle, Key, CheckSquare,
-  Plus, Edit2, Trash2, X, Check, RefreshCw, Search, Filter, Download,
+  Plus, Edit2, Trash2, X, Check, RefreshCw, Search, Filter, Download, Upload,
   AlertTriangle, Stethoscope, Library, Bus, Home, Megaphone, Ticket,
   FileBadge2, BarChart3, Settings, ChevronDown, UserCog, TrendingUp,
   Building2, BookMarked, Calculator, Scroll, MapPin, ShieldCheck,
@@ -66,6 +67,49 @@ const statusColor = (s) => {
 // REUSABLE COMPONENTS
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+// ─── ATTRACTIVE CUSTOM ALERT MODAL ──────────────────────────────────────────
+function CustomAlertModal({ isOpen, title = "Attention Required", message, onClose }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  if (!isOpen || !message || !mounted || typeof window === 'undefined') return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[999999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+      <div className="bg-[#0d1117] border border-rose-500/40 rounded-2xl w-full max-w-md shadow-2xl p-6 space-y-4 my-auto relative z-10">
+        
+        <div className="flex items-start gap-3">
+          <div className="p-3 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-400 shrink-0">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+          <div className="flex-1 pr-2">
+            <h3 className="text-base font-black text-white">{title}</h3>
+            <p className="text-[11px] text-rose-400 font-medium mt-0.5">Please review the details below</p>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-200 leading-relaxed max-h-[260px] overflow-y-auto whitespace-pre-wrap font-sans space-y-1">
+          {message}
+        </div>
+
+        <div className="pt-1">
+          <button
+            onClick={onClose}
+            className="w-full py-2.5 rounded-xl gradient-primary text-white text-xs font-bold shadow-lg shadow-indigo-500/20 hover:scale-[1.02] active:scale-95 transition-all cursor-pointer flex items-center justify-center gap-2"
+          >
+            <CheckCircle className="w-4 h-4" /> Got it, Understand
+          </button>
+        </div>
+
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 // Generic CRUD Modal
 function CrudModal({ title, fields, initial = {}, onSave, onClose, loading }) {
   const [form, setForm] = useState(initial);
@@ -75,9 +119,14 @@ function CrudModal({ title, fields, initial = {}, onSave, onClose, loading }) {
   const inputCls = 'w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30';
   const labelCls = 'block text-xs font-semibold text-slate-400 mb-1';
 
-  return (
-    <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-[#0d1117] border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl max-h-[90vh] flex flex-col">
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  if (!mounted || typeof window === 'undefined') return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 pt-20 pb-8 overflow-y-auto">
+      <div className="bg-[#0d1117] border border-slate-800 rounded-2xl w-full max-w-lg shadow-2xl max-h-[85vh] flex flex-col my-auto relative z-10">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
           <h3 className="text-sm font-bold text-white">{title}</h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-200"><X className="w-4 h-4" /></button>
@@ -177,7 +226,640 @@ function CrudModal({ title, fields, initial = {}, onSave, onClose, loading }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
+  );
+}
+
+// ─── BULK ADD CLASSES MODAL ──────────────────────────────────────────
+function BulkAddClassesModal({ isOpen, onClose, onRefresh, apiFetch }) {
+  const [selectedGrades, setSelectedGrades] = useState(['1', '2', '3', '4', '5', '6', '7', '8', '9', '10']);
+  const [selectedSections, setSelectedSections] = useState(['A', 'B']);
+  const [capacity, setCapacity] = useState('40');
+  const [academicYear, setAcademicYear] = useState('2026-2027');
+  const [loading, setLoading] = useState(false);
+
+  if (!isOpen) return null;
+
+  const allPresetGrades = ['Nursery', 'LKG', 'UKG', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+  const allPresetSections = ['A', 'B', 'C', 'D', 'E'];
+
+  const toggleGrade = (g) => {
+    setSelectedGrades(prev => prev.includes(g) ? prev.filter(x => x !== g) : [...prev, g]);
+  };
+
+  const toggleSection = (s) => {
+    setSelectedSections(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
+  };
+
+  const handleSelectAll = () => setSelectedGrades([...allPresetGrades]);
+  const handleDeselectAll = () => setSelectedGrades([]);
+
+  const handleSubmit = async () => {
+    if (selectedGrades.length === 0) return alert('Please select at least one class grade.');
+    if (selectedSections.length === 0) return alert('Please select at least one section.');
+
+    setLoading(true);
+    try {
+      const payloadClasses = selectedGrades.map(g => ({
+        className: g,
+        sections: selectedSections,
+        capacity: Number(capacity) || 40,
+        academicYear,
+      }));
+
+      try {
+        await apiFetch('/admin/classes/bulk', {
+          method: 'POST',
+          body: JSON.stringify({ classes: payloadClasses })
+        });
+      } catch (errApi) {
+        // Resilient Fallback: If 404/route not yet reloaded, call /admin/classes sequentially
+        for (const item of payloadClasses) {
+          await apiFetch('/admin/classes', {
+            method: 'POST',
+            body: JSON.stringify(item)
+          }).catch(() => {});
+        }
+      }
+
+      onRefresh();
+      onClose();
+    } catch (err) {
+      alert('Error creating bulk classes: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 pt-16 pb-8 overflow-y-auto">
+      <div className="bg-[#0d1117] border border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[85vh] my-auto relative z-10">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 shrink-0 bg-[#0d1117] rounded-t-2xl">
+          <div>
+            <h3 className="text-base font-bold text-white flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-indigo-400" /> Bulk Generate Classes & Sections
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">Generate all school grades and section structures in 1 click</p>
+          </div>
+          <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-5">
+          
+          {/* Step 1: Select Classes */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-bold text-indigo-300 uppercase tracking-wider">1. Select Class Grades ({selectedGrades.length} selected)</label>
+              <div className="flex gap-2">
+                <button onClick={handleSelectAll} className="text-[10px] text-indigo-400 hover:underline">Select All</button>
+                <span className="text-[10px] text-slate-600">•</span>
+                <button onClick={handleDeselectAll} className="text-[10px] text-slate-400 hover:underline">Clear</button>
+              </div>
+            </div>
+            <div className="grid grid-cols-5 gap-2">
+              {allPresetGrades.map(g => {
+                const isSelected = selectedGrades.includes(g);
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => toggleGrade(g)}
+                    className={`py-2 px-3 rounded-xl border text-xs font-extrabold transition-all ${
+                      isSelected
+                        ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-500/20'
+                        : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    Class {g}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Step 2: Select Sections */}
+          <div>
+            <label className="block text-xs font-bold text-indigo-300 uppercase tracking-wider mb-2">2. Apply Active Sections</label>
+            <div className="flex flex-wrap gap-2">
+              {allPresetSections.map(s => {
+                const isSelected = selectedSections.includes(s);
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => toggleSection(s)}
+                    className={`py-2 px-4 rounded-xl border text-xs font-bold transition-all ${
+                      isSelected
+                        ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-500/20'
+                        : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800 hover:text-white'
+                    }`}
+                  >
+                    Section {s}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Step 3: Default Capacity & Academic Year */}
+          <div className="grid grid-cols-2 gap-4 pt-2">
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Classroom Capacity (Per Section)</label>
+              <input
+                type="number"
+                value={capacity}
+                onChange={e => setCapacity(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-400 mb-1">Academic Session</label>
+              <input
+                type="text"
+                value={academicYear}
+                onChange={e => setAcademicYear(e.target.value)}
+                className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500"
+              />
+            </div>
+          </div>
+
+          {/* Live Batch Summary */}
+          <div className="p-4 rounded-2xl bg-indigo-500/10 border border-indigo-500/30 text-xs space-y-1.5">
+            <p className="font-bold text-indigo-300 flex items-center justify-between">
+              <span>⚡ Batch Generation Summary</span>
+              <span className="text-xs text-emerald-400 font-mono font-black">{selectedGrades.length * selectedSections.length} Class Section Records</span>
+            </p>
+            <p className="text-slate-300">
+              Will generate <strong>{selectedGrades.length}</strong> classes with sections [<strong>{selectedSections.join(', ') || 'None'}</strong>]. Each section capacity set to <strong>{capacity}</strong> students.
+            </p>
+          </div>
+
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-800 flex justify-end gap-3 shrink-0 bg-[#0d1117] rounded-b-2xl">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700">Cancel</button>
+          <button onClick={handleSubmit} disabled={loading || selectedGrades.length === 0} className="px-5 py-2 rounded-xl gradient-primary text-white text-xs font-bold flex items-center gap-2 disabled:opacity-60">
+            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+            Generate {selectedGrades.length} Classes Now
+          </button>
+        </div>
+
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ─── BULK ENROLL STUDENTS MODAL (SINGLE UNIFIED VIEW) ──────────────────────────────────────────
+function BulkAddStudentsModal({ isOpen, onClose, onRefresh, classes, selectedClass, selectedSection, apiFetch }) {
+  const [targetClass, setTargetClass] = useState(selectedClass || classes[0]?.className || '10');
+  const [targetSection, setTargetSection] = useState(selectedSection || 'A');
+  const [loading, setLoading] = useState(false);
+  const [resultsModal, setResultsModal] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  React.useEffect(() => {
+    if (isOpen) {
+      if (selectedClass) setTargetClass(selectedClass);
+      if (selectedSection) setTargetSection(selectedSection);
+    }
+  }, [isOpen, selectedClass, selectedSection]);
+
+  const bulkSectionOptions = React.useMemo(() => {
+    const cls = classes.find(c => c.className === targetClass);
+    if (!cls || !Array.isArray(cls.sections) || cls.sections.length === 0) return ['A', 'B', 'C', 'D', 'E'];
+    return cls.sections;
+  }, [classes, targetClass]);
+
+  const handleTargetClassChange = (newClass) => {
+    setTargetClass(newClass);
+    const cls = classes.find(c => c.className === newClass);
+    if (cls && Array.isArray(cls.sections) && cls.sections.length > 0) {
+      setTargetSection(cls.sections[0]);
+    }
+  };
+
+  const createEmptyRow = () => ({
+    firstName: '',
+    lastName: '',
+    dob: '',
+    gender: 'Male',
+    bloodGroup: 'O+',
+    address: '',
+    studentEmail: '',
+    studentPassword: '',
+    parentName: '',
+    parentPhone: '',
+    parentEmail: '',
+    parentPassword: ''
+  });
+
+  const [customAlert, setCustomAlert] = useState({ open: false, title: '', message: '' });
+  const triggerAlert = (message, title = 'Enrollment Issue') => setCustomAlert({ open: true, title, message });
+
+  const [rows, setRows] = useState([createEmptyRow(), createEmptyRow(), createEmptyRow()]);
+
+  if (!isOpen) return null;
+
+  const handleAddRow = () => setRows(prev => [...prev, createEmptyRow()]);
+  const handleRemoveRow = (idx) => setRows(prev => prev.filter((_, i) => i !== idx));
+
+  const handleRowChange = (idx, field, val) => {
+    setRows(prev => {
+      const updated = [...prev];
+      updated[idx] = { ...updated[idx], [field]: val };
+      return updated;
+    });
+    if (errors[idx]) setErrors(prev => ({ ...prev, [idx]: { ...prev[idx], [field]: false } }));
+  };
+
+  const handleSubmit = async () => {
+    const studentList = rows.filter(r => r.firstName.trim() !== '');
+
+    if (studentList.length === 0) {
+      return triggerAlert('Please enter at least one student with a First Name.', 'Validation Required');
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const newErrors = {};
+    for (let i = 0; i < rows.length; i++) {
+      const s = rows[i];
+      if (s.firstName.trim() || s.lastName.trim() || s.parentName.trim() || s.parentPhone.trim()) {
+        const rowErrors = {};
+        if (!s.firstName.trim()) rowErrors.firstName = true;
+        if (!s.studentPassword?.trim()) rowErrors.studentPassword = true;
+        if (!s.parentName?.trim()) rowErrors.parentName = true;
+        if (!s.parentPhone?.trim()) rowErrors.parentPhone = true;
+        if (!s.parentPassword?.trim()) rowErrors.parentPassword = true;
+
+        if (s.studentEmail?.trim() && !emailRegex.test(s.studentEmail.trim())) {
+          newErrors[i] = { ...rowErrors, studentEmail: true };
+          setErrors(newErrors);
+          return triggerAlert(`Row ${i + 1} ("${s.firstName}"): Invalid Student Email format "${s.studentEmail}". Must be a valid email address (e.g. student@school.com or name@gmail.com).`, 'Invalid Email Format');
+        }
+        if (s.parentEmail?.trim() && !emailRegex.test(s.parentEmail.trim())) {
+          newErrors[i] = { ...rowErrors, parentEmail: true };
+          setErrors(newErrors);
+          return triggerAlert(`Row ${i + 1} ("${s.firstName}"): Invalid Parent Email format "${s.parentEmail}". Must be a valid email address (e.g. parent@school.com or name@gmail.com).`, 'Invalid Email Format');
+        }
+
+        if (Object.keys(rowErrors).length > 0) {
+          newErrors[i] = rowErrors;
+        }
+      }
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return triggerAlert('Please fill all mandatory required fields highlighted with red borders in the table.', 'Missing Mandatory Fields');
+    }
+
+    setLoading(true);
+    try {
+      const payload = studentList.map(s => ({
+        ...s,
+        classId: targetClass,
+        sectionId: targetSection
+      }));
+
+      const enrolledArr = [];
+      const failedArr = [];
+      for (let idx = 0; idx < payload.length; idx++) {
+        const s = payload[idx];
+        try {
+          const resSingle = await apiFetch('/admin/students/enroll', {
+            method: 'POST',
+            body: JSON.stringify({
+              ...s,
+              studentEmail: s.studentEmail || `${s.firstName.toLowerCase().replace(/\s+/g, '')}.${Date.now()}@school.erp`,
+              parentEmail: s.parentEmail || `${s.firstName.toLowerCase().replace(/\s+/g, '')}.${Date.now()}@parent.com`,
+            })
+          });
+          enrolledArr.push({
+            name: `${s.firstName} ${s.lastName || ''}`.trim(),
+            rollNo: resSingle?.student?.rollNo || 'N/A',
+            admissionNo: resSingle?.student?.admissionNo || 'N/A',
+            studentEmail: s.studentEmail,
+            studentPassword: s.studentPassword,
+            parentEmail: s.parentEmail,
+            parentPassword: s.parentPassword
+          });
+        } catch (eSeq) {
+          failedArr.push(`• Row ${idx + 1} ("${s.firstName}"): ${eSeq.message}`);
+        }
+      }
+
+      if (failedArr.length > 0) {
+        triggerAlert(failedArr.join('\n\n'), 'Bulk Enrollment Issue');
+      }
+
+      if (enrolledArr.length > 0) {
+        setResultsModal({
+          successCount: enrolledArr.length,
+          students: enrolledArr
+        });
+        onRefresh();
+      }
+    } catch (err) {
+      triggerAlert('Error in bulk enrollment: ' + err.message, 'Enrollment Error');
+    } finally {
+        setLoading(false);
+      }
+    };
+
+  const handleCopyAllCredentials = () => {
+    if (!resultsModal?.students) return;
+    const text = resultsModal.students.map((s, idx) => 
+      `--- Student ${idx + 1}: ${s.name} ---
+Class: Class ${targetClass}-${targetSection} | Roll No: ${s.rollNo} | Adm No: ${s.admissionNo}
+Student Email: ${s.studentEmail} | Password: ${s.studentPassword || '(not set)'}
+Parent Email: ${s.parentEmail} | Password: ${s.parentPassword || '(not set)'}`
+    ).join('\n\n');
+
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2500);
+    });
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 pt-16 pb-8 overflow-y-auto">
+      
+      {resultsModal ? (
+        <div className="bg-[#0d1117] border border-slate-800 rounded-2xl w-full max-w-3xl shadow-2xl p-6 space-y-4 my-auto relative z-10">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-emerald-400" /> Bulk Enrollment Complete!
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">{resultsModal.successCount} Students enrolled into Class {targetClass}-{targetSection}</p>
+            </div>
+            <button onClick={() => { setResultsModal(null); onClose(); }} className="p-1 text-slate-400 hover:text-white">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="max-h-[350px] overflow-y-auto space-y-2 pr-1">
+            {resultsModal.students.map((st, i) => (
+              <div key={i} className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs">
+                <div>
+                  <h4 className="font-bold text-white">{st.name}</h4>
+                  <p className="text-[10px] text-slate-400">Roll No: <strong className="text-indigo-300 font-mono">{st.rollNo}</strong> • Adm: <span className="font-mono text-slate-300">{st.admissionNo}</span></p>
+                </div>
+                <div className="text-right text-[10px] space-y-0.5">
+                  <p className="text-emerald-400 font-mono">Student: {st.studentEmail} (Pass: <span className="text-amber-300">{st.studentPassword || '(not set)'}</span>)</p>
+                  <p className="text-indigo-300 font-mono">Parent: {st.parentEmail} (Pass: <span className="text-amber-300">{st.parentPassword || '(not set)'}</span>)</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center justify-between pt-2">
+            <button
+              onClick={handleCopyAllCredentials}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border ${
+                copied ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300' : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'
+              }`}
+            >
+              {copied ? <CheckCircle className="w-3.5 h-3.5" /> : <Key className="w-3.5 h-3.5" />}
+              {copied ? 'Copied All Credentials!' : '📋 Copy All Credentials'}
+            </button>
+            <button onClick={() => { setResultsModal(null); onClose(); }} className="px-5 py-2 rounded-xl gradient-primary text-white text-xs font-bold">
+              Done
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-[#0d1117] border border-slate-800 rounded-2xl w-full max-w-7xl shadow-2xl flex flex-col max-h-[88vh] my-auto relative z-10">
+          
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 shrink-0 bg-[#0d1117] rounded-t-2xl">
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Users className="w-5 h-5 text-indigo-400" /> Bulk Student Enrollment (Single View Table)
+              </h3>
+              <p className="text-xs text-slate-400 mt-0.5">Fill all student details, parent details & login passwords together in 1 single table</p>
+            </div>
+            <button onClick={onClose} className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Target Class & Section Selectors */}
+          <div className="p-4 bg-slate-900/60 border-b border-slate-800 flex items-center gap-4 shrink-0">
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Target Class</label>
+              <select
+                value={targetClass}
+                onChange={e => handleTargetClassChange(e.target.value)}
+                className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+              >
+                {classes.map(c => <option key={c._id} value={c.className}>Class {c.className}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-slate-400 uppercase block mb-1">Section</label>
+              <select
+                value={targetSection}
+                onChange={e => setTargetSection(e.target.value)}
+                className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+              >
+                {bulkSectionOptions.map(s => <option key={s} value={s}>Section {s}</option>)}
+              </select>
+            </div>
+          </div>
+
+          {/* SINGLE UNIFIED GRID TABLE */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+            <div className="overflow-x-auto border border-slate-800 rounded-xl">
+              <table className="w-full text-left text-xs border-collapse min-w-[1450px]">
+                <thead>
+                  <tr className="bg-slate-900 text-slate-400 border-b border-slate-800 text-[11px] font-bold">
+                    <th className="p-2.5 text-center w-8">#</th>
+                    <th className="p-2.5">First Name *</th>
+                    <th className="p-2.5">Last Name</th>
+                    <th className="p-2.5">DOB</th>
+                    <th className="p-2.5">Gender</th>
+                    <th className="p-2.5">Blood Group</th>
+                    <th className="p-2.5">Address</th>
+                    <th className="p-2.5 text-indigo-300">Student Email</th>
+                    <th className="p-2.5 text-amber-300">Student Pass *</th>
+                    <th className="p-2.5">Parent Name *</th>
+                    <th className="p-2.5">Parent Phone *</th>
+                    <th className="p-2.5 text-indigo-300">Parent Email</th>
+                    <th className="p-2.5 text-amber-300">Parent Pass *</th>
+                    <th className="p-2.5 text-center w-10">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/60 bg-[#0d1117]">
+                  {rows.map((row, idx) => (
+                    <tr key={idx} className="hover:bg-slate-900/40 transition-colors">
+                      <td className="p-2 text-slate-500 font-bold text-center">{idx + 1}</td>
+                      <td className="p-2">
+                        <input
+                          type="text"
+                          placeholder="Rahul"
+                          value={row.firstName}
+                          onChange={e => handleRowChange(idx, 'firstName', e.target.value)}
+                          className={`w-full min-w-[110px] bg-slate-900 border rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none ${errors[idx]?.firstName ? 'border-rose-500 bg-rose-500/10 ring-1 ring-rose-500' : 'border-slate-700 focus:border-indigo-500'}`}
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="text"
+                          placeholder="Sharma"
+                          value={row.lastName}
+                          onChange={e => handleRowChange(idx, 'lastName', e.target.value)}
+                          className="w-full min-w-[100px] bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="date"
+                          value={row.dob}
+                          onChange={e => handleRowChange(idx, 'dob', e.target.value)}
+                          className="w-full min-w-[125px] bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
+                        />
+                      </td>
+                      <td className="p-2">
+                        <select
+                          value={row.gender}
+                          onChange={e => handleRowChange(idx, 'gender', e.target.value)}
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
+                        >
+                          <option>Male</option>
+                          <option>Female</option>
+                          <option>Other</option>
+                        </select>
+                      </td>
+                      <td className="p-2">
+                        <select
+                          value={row.bloodGroup}
+                          onChange={e => handleRowChange(idx, 'bloodGroup', e.target.value)}
+                          className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
+                        >
+                          {['O+', 'A+', 'B+', 'AB+', 'O-', 'A-', 'B-', 'AB-'].map(bg => (
+                            <option key={bg}>{bg}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="text"
+                          placeholder="Address..."
+                          value={row.address}
+                          onChange={e => handleRowChange(idx, 'address', e.target.value)}
+                          className="w-full min-w-[110px] bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="email"
+                          placeholder="student@email.com"
+                          value={row.studentEmail}
+                          onChange={e => handleRowChange(idx, 'studentEmail', e.target.value)}
+                          className="w-full min-w-[130px] bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-emerald-300 font-mono focus:outline-none focus:border-indigo-500"
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="text"
+                          placeholder="Password"
+                          value={row.studentPassword}
+                          onChange={e => handleRowChange(idx, 'studentPassword', e.target.value)}
+                          className={`w-full min-w-[100px] bg-slate-900 border rounded-lg px-2.5 py-1 text-xs text-amber-300 font-mono focus:outline-none ${errors[idx]?.studentPassword ? 'border-rose-500 bg-rose-500/10 ring-1 ring-rose-500' : 'border-slate-700 focus:border-indigo-500'}`}
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="text"
+                          placeholder="Rajesh Sharma"
+                          value={row.parentName}
+                          onChange={e => handleRowChange(idx, 'parentName', e.target.value)}
+                          className={`w-full min-w-[110px] bg-slate-900 border rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none ${errors[idx]?.parentName ? 'border-rose-500 bg-rose-500/10 ring-1 ring-rose-500' : 'border-slate-700 focus:border-indigo-500'}`}
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="tel"
+                          placeholder="9876543210"
+                          value={row.parentPhone}
+                          onChange={e => handleRowChange(idx, 'parentPhone', e.target.value)}
+                          className={`w-full min-w-[110px] bg-slate-900 border rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none ${errors[idx]?.parentPhone ? 'border-rose-500 bg-rose-500/10 ring-1 ring-rose-500' : 'border-slate-700 focus:border-indigo-500'}`}
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="email"
+                          placeholder="parent@email.com"
+                          value={row.parentEmail}
+                          onChange={e => handleRowChange(idx, 'parentEmail', e.target.value)}
+                          className="w-full min-w-[130px] bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-emerald-300 font-mono focus:outline-none focus:border-indigo-500"
+                        />
+                      </td>
+                      <td className="p-2">
+                        <input
+                          type="text"
+                          placeholder="Password"
+                          value={row.parentPassword}
+                          onChange={e => handleRowChange(idx, 'parentPassword', e.target.value)}
+                          className={`w-full min-w-[100px] bg-slate-900 border rounded-lg px-2.5 py-1 text-xs text-amber-300 font-mono focus:outline-none ${errors[idx]?.parentPassword ? 'border-rose-500 bg-rose-500/10 ring-1 ring-rose-500' : 'border-slate-700 focus:border-indigo-500'}`}
+                        />
+                      </td>
+                      <td className="p-2 text-center">
+                        {rows.length > 1 && (
+                          <button
+                            onClick={() => handleRemoveRow(idx)}
+                            className="p-1 rounded-md text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleAddRow}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-indigo-300 text-xs font-bold transition-all border border-slate-700 cursor-pointer"
+            >
+              <Plus className="w-3.5 h-3.5" /> Add Student Row
+            </button>
+          </div>
+
+          {/* Footer */}
+          <div className="px-6 py-4 border-t border-slate-800 flex justify-end gap-3 shrink-0 bg-[#0d1117] rounded-b-2xl">
+            <button onClick={onClose} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700">Cancel</button>
+            <button onClick={handleSubmit} disabled={loading} className="px-5 py-2 rounded-xl gradient-primary text-white text-xs font-bold flex items-center gap-2 disabled:opacity-60">
+              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
+              Confirm & Batch Enroll {rows.filter(r => r.firstName.trim()).length} Students
+            </button>
+          </div>
+
+        </div>
+      )}
+
+      <CustomAlertModal
+        isOpen={customAlert.open}
+        title={customAlert.title}
+        message={customAlert.message}
+        onClose={() => setCustomAlert({ open: false, title: '', message: '' })}
+      />
+
+    </div>,
+    document.body
   );
 }
 
@@ -538,6 +1220,9 @@ function StudentsTab() {
   const [selectedClass, setSelectedClass] = React.useState(null);
   const [selectedSection, setSelectedSection] = React.useState('');
 
+  const [bulkClassModal, setBulkClassModal] = React.useState(false);
+  const [bulkStudentModal, setBulkStudentModal] = React.useState(false);
+
   // Student list
   const [students, setStudents] = React.useState([]);
   const [studentLoading, setStudentLoading] = React.useState(false);
@@ -552,16 +1237,33 @@ function StudentsTab() {
   const [enrollForm, setEnrollForm] = React.useState({
     firstName: '', lastName: '', dob: '', gender: 'Male', bloodGroup: 'O+', address: '',
     classId: '', sectionId: '',
-    studentEmail: '', studentPassword: 'student123',
-    parentName: '', parentPhone: '', parentEmail: '', parentPassword: 'parent123',
+    studentEmail: '', studentPassword: '',
+    parentName: '', parentPhone: '', parentEmail: '', parentPassword: '',
   });
   const [msg, setMsg] = React.useState(null);
   const showMsg = (type, text) => { setMsg({ type, text }); setTimeout(() => setMsg(null), 4000); };
+  const [customAlert, setCustomAlert] = React.useState({ open: false, title: '', message: '' });
+  const triggerAlert = (message, title = 'Validation Alert') => setCustomAlert({ open: true, title, message });
   const setField = (k, v) => setEnrollForm(f => ({ ...f, [k]: v }));
 
   const loadClasses = () => {
     setClassLoading(true);
-    apiFetch('/admin/classes').then(d => { setClasses(Array.isArray(d) ? d : []); setClassLoading(false); }).catch(() => setClassLoading(false));
+    apiFetch('/admin/classes').then(d => {
+      const raw = Array.isArray(d) ? d : [];
+      const map = new Map();
+      for (const item of raw) {
+        const norm = String(item.className || '').replace(/^Class\s+/i, '').trim();
+        if (!map.has(norm)) {
+          map.set(norm, { ...item, className: norm });
+        } else {
+          const existing = map.get(norm);
+          const mergedSec = Array.from(new Set([...(existing.sections || []), ...(item.sections || [])]));
+          map.set(norm, { ...existing, sections: mergedSec });
+        }
+      }
+      setClasses(Array.from(map.values()));
+      setClassLoading(false);
+    }).catch(() => setClassLoading(false));
   };
   React.useEffect(() => { loadClasses(); }, []);
 
@@ -579,12 +1281,16 @@ function StudentsTab() {
 
   // Open enrollment modal, pre-fill class/section
   const openEnroll = () => {
+    const targetClassId = selectedClass || (classes[0]?.className || '');
+    const classObj = classes.find(c => c.className === targetClassId);
+    const defaultSec = selectedSection || ((classObj && Array.isArray(classObj.sections) && classObj.sections.length > 0) ? classObj.sections[0] : '');
+
     setEnrollForm(f => ({
       ...f,
-      classId: selectedClass || '',
-      sectionId: selectedSection || '',
-      studentEmail: '', studentPassword: 'student123',
-      parentName: '', parentPhone: '', parentEmail: '', parentPassword: 'parent123',
+      classId: targetClassId,
+      sectionId: defaultSec,
+      studentEmail: '', studentPassword: '',
+      parentName: '', parentPhone: '', parentEmail: '', parentPassword: '',
       firstName: '', lastName: '', dob: '', gender: 'Male', bloodGroup: 'O+', address: '',
     }));
     setEnrollStep(1);
@@ -601,14 +1307,6 @@ function StudentsTab() {
       .then(d => setModalRollPreview(d.rollNo || '—')).catch(() => setModalRollPreview('—'));
   }, [enrollForm.classId, enrollForm.sectionId, enrollModal]);
 
-  // Auto-suggest student email
-  React.useEffect(() => {
-    if (enrollForm.firstName && modalRollPreview !== '—') {
-      const auto = `${enrollForm.firstName.toLowerCase().replace(/\s+/g, '')}.${modalRollPreview.toLowerCase()}@school.erp`;
-      setField('studentEmail', auto);
-    }
-  }, [enrollForm.firstName, modalRollPreview]);
-
   const handleEnrollSave = async () => {
     setEnrollSaving(true);
     try {
@@ -622,8 +1320,10 @@ function StudentsTab() {
       setTimeout(() => {
         if (selectedClass) apiFetch(`/admin/students/roll-preview?classId=${encodeURIComponent(selectedClass)}&sectionId=${encodeURIComponent(selectedSection || '')}`).then(d => setNextRollNo(d.rollNo || '—')).catch(() => {});
       }, 800);
-    } catch (e) { showMsg('error', e.message); }
-    finally { setEnrollSaving(false); }
+    } catch (e) {
+      showMsg('error', e.message);
+      triggerAlert(e.message, 'Enrollment Failed');
+    } finally { setEnrollSaving(false); }
   };
 
   const handleDeleteStudent = async (id) => {
@@ -653,6 +1353,28 @@ function StudentsTab() {
       else await apiFetch('/admin/classes', { method: 'POST', body: JSON.stringify(payload) });
       setClassModal(null); loadClasses();
     } catch (e) { showMsg('error', e.message); } finally { setClassSaving(false); }
+  };
+
+  const handleDeleteClass = async (cls) => {
+    if (!confirm(`Are you sure you want to delete Class ${cls.className}? This will archive the class.`)) return;
+    try {
+      await apiFetch(`/admin/classes/${cls._id}`, { method: 'DELETE' });
+      showMsg('success', `✅ Class ${cls.className} deleted successfully.`);
+      loadClasses();
+    } catch (e) { showMsg('error', e.message); }
+  };
+
+  const handleDeleteSection = async (cls, secToRemove) => {
+    if (!confirm(`Remove Section ${secToRemove} from Class ${cls.className}?`)) return;
+    try {
+      const updatedSections = (cls.sections || []).filter(s => s !== secToRemove);
+      await apiFetch(`/admin/classes/${cls._id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ sections: updatedSections })
+      });
+      showMsg('success', `✅ Section ${secToRemove} removed from Class ${cls.className}.`);
+      loadClasses();
+    } catch (e) { showMsg('error', e.message); }
   };
 
   const handleCopyCredentials = () => {
@@ -709,10 +1431,16 @@ function StudentsTab() {
               <h2 className="text-sm font-bold text-white">Classes & Sections</h2>
               <p className="text-[11px] text-slate-500 mt-0.5">Create classes first before enrolling students</p>
             </div>
-            <button onClick={() => setClassModal({ editing: null })}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-primary text-white text-xs font-bold shadow-lg shadow-indigo-500/20 hover:scale-105 transition-transform">
-              <Plus className="w-3.5 h-3.5" /> Add Class
-            </button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => setBulkClassModal(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 text-xs font-bold hover:bg-indigo-500/30 transition-all cursor-pointer">
+                <Sparkles className="w-3.5 h-3.5" /> Bulk Generate Classes
+              </button>
+              <button onClick={() => setClassModal({ editing: null })}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-primary text-white text-xs font-bold shadow-lg shadow-indigo-500/20 hover:scale-105 transition-transform">
+                <Plus className="w-3.5 h-3.5" /> Add Class
+              </button>
+            </div>
           </div>
 
           {/* Workflow hint */}
@@ -741,14 +1469,26 @@ function StudentsTab() {
                       {cls.academicYear && <p className="text-[10px] text-slate-500">{cls.academicYear}</p>}
                     </div>
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => setClassModal({ editing: cls })} className="p-1.5 rounded-lg hover:bg-indigo-500/20 text-slate-400 hover:text-indigo-400"><Edit2 className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => setClassModal({ editing: cls })} title="Edit Class" className="p-1.5 rounded-lg hover:bg-indigo-500/20 text-slate-400 hover:text-indigo-400 transition-colors">
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => handleDeleteClass(cls)} title="Delete Class" className="p-1.5 rounded-lg hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-colors">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
                   {/* Sections */}
                   <div className="flex flex-wrap gap-1.5">
                     {Array.isArray(cls.sections) && cls.sections.length > 0 ? cls.sections.map(sec => (
-                      <span key={sec} className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                        Section {sec}
+                      <span key={sec} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 group/sec">
+                        <span>Section {sec}</span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleDeleteSection(cls, sec); }}
+                          title={`Delete Section ${sec}`}
+                          className="hover:text-rose-400 hover:scale-125 transition-transform cursor-pointer"
+                        >
+                          <X className="w-3 h-3 text-slate-400 hover:text-rose-400" />
+                        </button>
                       </span>
                     )) : (
                       <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-800 text-slate-400">No sections</span>
@@ -797,10 +1537,16 @@ function StudentsTab() {
               </div>
             )}
             {selectedClass && (
-              <button onClick={openEnroll}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-primary text-white text-xs font-bold shadow-lg shadow-indigo-500/20 hover:scale-105 transition-transform">
-                <Plus className="w-3.5 h-3.5" /> Enroll Student
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setBulkStudentModal(true)}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 text-xs font-bold hover:bg-indigo-500/30 transition-all cursor-pointer">
+                  <Users className="w-3.5 h-3.5" /> Bulk Enroll Students
+                </button>
+                <button onClick={openEnroll}
+                  className="flex items-center gap-2 px-4 py-2 rounded-xl gradient-primary text-white text-xs font-bold shadow-lg shadow-indigo-500/20 hover:scale-105 transition-transform">
+                  <Plus className="w-3.5 h-3.5" /> Enroll Student
+                </button>
+              </div>
             )}
           </div>
 
@@ -892,57 +1638,59 @@ function StudentsTab() {
           ENROLLMENT RESULT CREDENTIALS CARD
       ══════════════════════════════════════════════════ */}
       {enrollResult && (
-        <div className="relative rounded-2xl border border-emerald-400/40 bg-emerald-500/5 backdrop-blur-sm overflow-hidden p-5 space-y-4">
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 via-transparent to-indigo-500/10 pointer-events-none" />
-          <div className="relative flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-lg bg-emerald-500/30 border border-emerald-400/50">
-                <CheckCircle className="w-4 h-4 text-emerald-400" />
+        <div className="relative rounded-2xl border border-emerald-500/40 bg-[#0d1117] shadow-2xl overflow-hidden p-5 space-y-4 my-2">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-emerald-500/20 border border-emerald-500/40">
+                <CheckCircle className="w-5 h-5 text-emerald-400" />
               </div>
-              <span className="text-sm font-black text-emerald-300">Student Enrolled Successfully!</span>
+              <div>
+                <h3 className="text-base font-black text-white">Student Enrolled Successfully!</h3>
+                <p className="text-xs text-emerald-400 font-medium">Credentials generated and active</p>
+              </div>
             </div>
-            <button onClick={() => setEnrollResult(null)} className="text-slate-400 hover:text-slate-200 p-1">
-              <X className="w-4 h-4" />
+            <button onClick={() => setEnrollResult(null)} className="text-slate-400 hover:text-white p-1 transition-colors">
+              <X className="w-5 h-5" />
             </button>
           </div>
 
-          <div className="relative grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Student Credentials */}
-            <div className="p-4 rounded-xl bg-slate-950/70 border border-indigo-500/30 space-y-2">
-              <div className="flex items-center gap-2 mb-1">
-                <GraduationCap className="w-3.5 h-3.5 text-indigo-400" />
-                <span className="text-[11px] font-black uppercase tracking-widest text-indigo-300">Student Login</span>
+            <div className="p-4 rounded-xl bg-slate-900 border border-indigo-500/40 space-y-2.5">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-800/80">
+                <GraduationCap className="w-4 h-4 text-indigo-400" />
+                <span className="text-xs font-black uppercase tracking-wider text-indigo-300">Student Login Credentials</span>
               </div>
-              <div className="space-y-1.5 text-xs">
-                <div className="flex justify-between"><span className="text-slate-400">Name</span><span className="text-white font-semibold">{enrollResult.credentials.student.name}</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Roll No</span><span className="font-mono font-bold text-indigo-300">{enrollResult.credentials.student.rollNo}</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Adm No</span><span className="font-mono text-slate-200">{enrollResult.credentials.student.admissionNo}</span></div>
-                <div className="flex justify-between items-center"><span className="text-slate-400">Email</span><span className="font-mono text-[11px] text-emerald-300">{enrollResult.credentials.student.email}</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Password</span><span className="font-mono font-bold text-amber-300">{enrollResult.credentials.student.password}</span></div>
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between items-center"><span className="text-slate-300 font-semibold">Student Name:</span><span className="text-white font-bold text-sm">{enrollResult.credentials.student.name}</span></div>
+                <div className="flex justify-between items-center"><span className="text-slate-300 font-semibold">Roll Number:</span><span className="font-mono font-black text-indigo-300 text-xs bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/30">{enrollResult.credentials.student.rollNo}</span></div>
+                <div className="flex justify-between items-center"><span className="text-slate-300 font-semibold">Admission No:</span><span className="font-mono font-bold text-slate-200 text-xs">{enrollResult.credentials.student.admissionNo}</span></div>
+                <div className="flex justify-between items-center"><span className="text-slate-300 font-semibold">Login Email:</span><span className="font-mono font-bold text-emerald-300 text-xs">{enrollResult.credentials.student.email}</span></div>
+                <div className="flex justify-between items-center"><span className="text-slate-300 font-semibold">Login Password:</span><span className="font-mono font-bold text-amber-300 text-xs bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">{enrollResult.credentials.student.password || '(not set)'}</span></div>
               </div>
             </div>
 
             {/* Parent Credentials */}
-            <div className="p-4 rounded-xl bg-slate-950/70 border border-amber-500/30 space-y-2">
-              <div className="flex items-center gap-2 mb-1">
-                <Users className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-[11px] font-black uppercase tracking-widest text-amber-300">Parent Login</span>
+            <div className="p-4 rounded-xl bg-slate-900 border border-amber-500/40 space-y-2.5">
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-800/80">
+                <Users className="w-4 h-4 text-amber-400" />
+                <span className="text-xs font-black uppercase tracking-wider text-amber-300">Parent Login Credentials</span>
               </div>
-              <div className="space-y-1.5 text-xs">
-                <div className="flex justify-between"><span className="text-slate-400">Name</span><span className="text-white font-semibold">{enrollResult.credentials.parent.name}</span></div>
-                <div className="flex justify-between items-center"><span className="text-slate-400">Email</span><span className="font-mono text-[11px] text-emerald-300">{enrollResult.credentials.parent.email}</span></div>
-                <div className="flex justify-between"><span className="text-slate-400">Password</span><span className="font-mono font-bold text-amber-300">{enrollResult.credentials.parent.password}</span></div>
+              <div className="space-y-2 text-xs">
+                <div className="flex justify-between items-center"><span className="text-slate-300 font-semibold">Parent Name:</span><span className="text-white font-bold text-sm">{enrollResult.credentials.parent.name}</span></div>
+                <div className="flex justify-between items-center"><span className="text-slate-300 font-semibold">Login Email:</span><span className="font-mono font-bold text-emerald-300 text-xs">{enrollResult.credentials.parent.email}</span></div>
+                <div className="flex justify-between items-center"><span className="text-slate-300 font-semibold">Login Password:</span><span className="font-mono font-bold text-amber-300 text-xs bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">{enrollResult.credentials.parent.password || '(not set)'}</span></div>
               </div>
             </div>
           </div>
 
-          <div className="relative flex gap-3">
+          <div className="flex items-center justify-between pt-2">
             <button onClick={handleCopyCredentials}
-              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border ${copied ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-300' : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700'}`}>
-              {copied ? <CheckCircle className="w-3.5 h-3.5" /> : <Key className="w-3.5 h-3.5" />}
-              {copied ? 'Copied!' : 'Copy All Credentials'}
+              className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold transition-all border ${copied ? 'bg-emerald-500 text-slate-950 border-emerald-400' : 'bg-indigo-600 text-white hover:bg-indigo-500 border-indigo-500 shadow-lg shadow-indigo-500/20'}`}>
+              {copied ? <CheckCircle className="w-4 h-4" /> : <Key className="w-4 h-4" />}
+              {copied ? 'Copied Credentials!' : 'Copy All Credentials'}
             </button>
-            <button onClick={() => setEnrollResult(null)} className="px-4 py-2 rounded-xl bg-slate-800/60 text-slate-400 text-xs font-semibold hover:bg-slate-800 border border-slate-700">
+            <button onClick={() => setEnrollResult(null)} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700 border border-slate-700 transition-colors">
               Dismiss
             </button>
           </div>
@@ -975,11 +1723,11 @@ function StudentsTab() {
       {/* ══════════════════════════════════════════════════
           4-STEP ENROLLMENT MODAL
       ══════════════════════════════════════════════════ */}
-      {enrollModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#0d1117] border border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[90vh]">
+      {enrollModal && typeof window !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 pt-20 pb-8 overflow-y-auto">
+          <div className="bg-[#0d1117] border border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl flex flex-col max-h-[85vh] my-auto relative z-10">
             {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 shrink-0">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 shrink-0 bg-[#0d1117] rounded-t-2xl">
               <div>
                 <h3 className="text-sm font-bold text-white">Enroll New Student</h3>
                 <p className="text-[11px] text-slate-400 mt-0.5">Step {enrollStep} of 4 — {stepTitles[enrollStep - 1]}</p>
@@ -1010,7 +1758,12 @@ function StudentsTab() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className={labelCls}>Class <span className="text-rose-400">*</span></label>
-                      <select className={inputCls} value={enrollForm.classId} onChange={e => { setField('classId', e.target.value); setField('sectionId', ''); }}>
+                      <select className={inputCls} value={enrollForm.classId} onChange={e => {
+                        const newClassId = e.target.value;
+                        const targetClassObj = classes.find(c => c.className === newClassId);
+                        const defaultSec = (targetClassObj && Array.isArray(targetClassObj.sections) && targetClassObj.sections.length > 0) ? targetClassObj.sections[0] : '';
+                        setEnrollForm(f => ({ ...f, classId: newClassId, sectionId: defaultSec }));
+                      }}>
                         <option value="">Select Class</option>
                         {classes.map(c => <option key={c._id} value={c.className}>Class {c.className}</option>)}
                       </select>
@@ -1018,7 +1771,7 @@ function StudentsTab() {
                     <div>
                       <label className={labelCls}>Section</label>
                       <select className={inputCls} value={enrollForm.sectionId} onChange={e => setField('sectionId', e.target.value)}>
-                        <option value="">No Section</option>
+                        {modalSectionOptions.length === 0 && <option value="">No Section</option>}
                         {modalSectionOptions.map(s => <option key={s} value={s}>Section {s}</option>)}
                       </select>
                     </div>
@@ -1056,14 +1809,14 @@ function StudentsTab() {
               {enrollStep === 2 && (
                 <div className="space-y-4">
                   <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-[11px] text-slate-300">
-                    <span className="text-indigo-300 font-bold">Student login will be created automatically.</span> You can customise the email and password below.
+                    <span className="text-indigo-300 font-bold">Student login details.</span> Enter the student login email and password below.
                   </div>
-                  <div><label className={labelCls}>Student Login Email <span className="text-rose-400">*</span></label><input className={inputCls} type="email" value={enrollForm.studentEmail} onChange={e => setField('studentEmail', e.target.value)} placeholder="auto-generated" /></div>
-                  <div><label className={labelCls}>Student Password</label><input className={inputCls} type="text" value={enrollForm.studentPassword} onChange={e => setField('studentPassword', e.target.value)} /></div>
+                  <div><label className={labelCls}>Student Login Email <span className="text-rose-400">*</span></label><input className={inputCls} type="email" value={enrollForm.studentEmail} onChange={e => setField('studentEmail', e.target.value)} placeholder="student@email.com" /></div>
+                  <div><label className={labelCls}>Student Password <span className="text-rose-400">*</span></label><input className={inputCls} type="text" value={enrollForm.studentPassword} onChange={e => setField('studentPassword', e.target.value)} placeholder="Enter student password" /></div>
                   <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1.5 text-xs">
                     <p className="text-slate-400 font-semibold">Preview credentials:</p>
                     <div className="flex justify-between"><span className="text-slate-500">Email</span><span className="font-mono text-emerald-300">{enrollForm.studentEmail || '(not set)'}</span></div>
-                    <div className="flex justify-between"><span className="text-slate-500">Password</span><span className="font-mono text-amber-300">{enrollForm.studentPassword}</span></div>
+                    <div className="flex justify-between"><span className="text-slate-500">Password</span><span className="font-mono text-amber-300">{enrollForm.studentPassword || '(not set)'}</span></div>
                     <div className="flex justify-between"><span className="text-slate-500">Roll No</span><span className="font-mono font-bold text-indigo-300">{modalRollPreview}</span></div>
                   </div>
                 </div>
@@ -1073,14 +1826,14 @@ function StudentsTab() {
               {enrollStep === 3 && (
                 <div className="space-y-4">
                   <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-[11px] text-slate-300">
-                    <span className="text-amber-300 font-bold">Parent login will be created with these details.</span> The parent can then log in to see homework, marks, attendance & messages for their child.
+                    <span className="text-amber-300 font-bold">Parent login details.</span> Enter parent name, phone, email and login password below.
                   </div>
                   <div><label className={labelCls}>Parent / Guardian Name <span className="text-rose-400">*</span></label><input className={inputCls} value={enrollForm.parentName} onChange={e => setField('parentName', e.target.value)} placeholder="e.g. Rajesh Sharma" /></div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div><label className={labelCls}>Parent Phone</label><input className={inputCls} type="tel" value={enrollForm.parentPhone} onChange={e => setField('parentPhone', e.target.value)} placeholder="+91 9XXXXXXXXX" /></div>
+                    <div><label className={labelCls}>Parent Phone <span className="text-rose-400">*</span></label><input className={inputCls} type="tel" value={enrollForm.parentPhone} onChange={e => setField('parentPhone', e.target.value)} placeholder="+91 9XXXXXXXXX" /></div>
                     <div><label className={labelCls}>Parent Email <span className="text-rose-400">*</span></label><input className={inputCls} type="email" value={enrollForm.parentEmail} onChange={e => setField('parentEmail', e.target.value)} placeholder="parent@email.com" /></div>
                   </div>
-                  <div><label className={labelCls}>Parent Login Password</label><input className={inputCls} type="text" value={enrollForm.parentPassword} onChange={e => setField('parentPassword', e.target.value)} /></div>
+                  <div><label className={labelCls}>Parent Login Password <span className="text-rose-400">*</span></label><input className={inputCls} type="text" value={enrollForm.parentPassword} onChange={e => setField('parentPassword', e.target.value)} placeholder="Enter parent password" /></div>
                 </div>
               )}
 
@@ -1127,12 +1880,48 @@ function StudentsTab() {
               {enrollStep < 4 ? (
                 <button
                   onClick={() => {
-                    if (enrollStep === 1 && (!enrollForm.firstName || !enrollForm.lastName || !enrollForm.classId)) { showMsg('error', 'Please fill in First Name, Last Name and select a Class.'); return; }
-                    if (enrollStep === 2 && !enrollForm.studentEmail) { showMsg('error', 'Student email is required.'); return; }
-                    if (enrollStep === 3 && (!enrollForm.parentName || !enrollForm.parentEmail)) { showMsg('error', 'Parent name and email are required.'); return; }
+                    if (enrollStep === 1) {
+                      const missing = [];
+                      if (!enrollForm.firstName?.trim()) missing.push('First Name');
+                      if (!enrollForm.classId) missing.push('Class');
+                      if (missing.length > 0) {
+                        triggerAlert(`Step 1 Missing Required Fields:\n\n• ${missing.join('\n• ')}\n\nPlease fill all required fields marked with * to proceed.`, 'Step 1 Validation');
+                        return;
+                      }
+                    }
+                    if (enrollStep === 2) {
+                      const missing = [];
+                      if (!enrollForm.studentEmail?.trim()) missing.push('Student Login Email');
+                      if (!enrollForm.studentPassword?.trim()) missing.push('Student Password');
+                      if (missing.length > 0) {
+                        triggerAlert(`Step 2 Missing Required Fields:\n\n• ${missing.join('\n• ')}\n\nPlease fill all required fields marked with * to proceed.`, 'Step 2 Validation');
+                        return;
+                      }
+                      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                      if (!emailRegex.test(enrollForm.studentEmail.trim())) {
+                        triggerAlert(`"${enrollForm.studentEmail}" is not a valid email address.\nPlease enter a complete email address (e.g. student@school.com or name@gmail.com).`, 'Invalid Student Email');
+                        return;
+                      }
+                    }
+                    if (enrollStep === 3) {
+                      const missing = [];
+                      if (!enrollForm.parentName?.trim()) missing.push('Parent Name');
+                      if (!enrollForm.parentPhone?.trim()) missing.push('Parent Phone');
+                      if (!enrollForm.parentEmail?.trim()) missing.push('Parent Email');
+                      if (!enrollForm.parentPassword?.trim()) missing.push('Parent Login Password');
+                      if (missing.length > 0) {
+                        triggerAlert(`Step 3 Missing Required Fields:\n\n• ${missing.join('\n• ')}\n\nPlease fill all required fields marked with * to proceed.`, 'Step 3 Validation');
+                        return;
+                      }
+                      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                      if (!emailRegex.test(enrollForm.parentEmail.trim())) {
+                        triggerAlert(`"${enrollForm.parentEmail}" is not a valid email address.\nPlease enter a complete email address (e.g. parent@school.com or name@gmail.com).`, 'Invalid Parent Email');
+                        return;
+                      }
+                    }
                     setEnrollStep(s => s + 1);
                   }}
-                  className="px-5 py-2 rounded-xl gradient-primary text-white text-xs font-bold flex items-center gap-2 hover:scale-105 transition-transform">
+                  className="px-5 py-2 rounded-xl gradient-primary text-white text-xs font-bold flex items-center gap-2 hover:scale-105 transition-transform cursor-pointer">
                   Next Step →
                 </button>
               ) : (
@@ -1143,8 +1932,43 @@ function StudentsTab() {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
+
+      {/* Bulk Add Classes Modal */}
+      <BulkAddClassesModal
+        isOpen={bulkClassModal}
+        onClose={() => setBulkClassModal(false)}
+        onRefresh={loadClasses}
+        apiFetch={apiFetch}
+      />
+
+      {/* Bulk Add Students Modal */}
+      <BulkAddStudentsModal
+        isOpen={bulkStudentModal}
+        onClose={() => setBulkStudentModal(false)}
+        onRefresh={() => {
+          if (selectedClass) {
+            setStudentLoading(true);
+            const url = selectedSection 
+              ? `/admin/students?classId=${encodeURIComponent(selectedClass)}&sectionId=${encodeURIComponent(selectedSection)}`
+              : `/admin/students?classId=${encodeURIComponent(selectedClass)}`;
+            apiFetch(url).then(d => { setStudents(Array.isArray(d) ? d : []); setStudentLoading(false); }).catch(() => setStudentLoading(false));
+          }
+        }}
+        classes={classes}
+        selectedClass={selectedClass}
+        selectedSection={selectedSection}
+        apiFetch={apiFetch}
+      />
+
+      <CustomAlertModal
+        isOpen={customAlert.open}
+        title={customAlert.title}
+        message={customAlert.message}
+        onClose={() => setCustomAlert({ open: false, title: '', message: '' })}
+      />
     </div>
   );
 }
@@ -2283,9 +3107,9 @@ function AttendanceTab() {
             ) : null}
           />
 
-          {reviewModal && (
-            <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-[#0d1117] border border-slate-800 rounded-2xl p-6 max-w-md w-full space-y-4">
+          {reviewModal && typeof window !== 'undefined' && createPortal(
+            <div className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 pt-20 pb-8 overflow-y-auto">
+              <div className="bg-[#0d1117] border border-slate-800 rounded-2xl p-6 max-w-md w-full space-y-4 relative z-10">
                 <h3 className="font-bold text-white">Review Correction Request</h3>
                 <p className="text-xs text-slate-400">{reviewModal.studentName} ({reviewModal.classId}-{reviewModal.sectionId}): Change from {reviewModal.oldStatus} → <strong className="text-emerald-400">{reviewModal.newStatus}</strong></p>
                 <p className="text-xs text-slate-300 bg-slate-900 p-3 rounded-xl border border-slate-800">Reason: {reviewModal.reason}</p>
@@ -2295,7 +3119,8 @@ function AttendanceTab() {
                   <button onClick={() => handleReviewCorrection('APPROVE')} className="flex-1 py-2 rounded-xl gradient-primary text-white text-xs font-bold">Approve & Update</button>
                 </div>
               </div>
-            </div>
+            </div>,
+            document.body
           )}
         </div>
       )}
@@ -3821,8 +4646,8 @@ function AdminProfileTab() {
                   disabled={savingInfo}
                   className="px-6 py-2.5 rounded-xl gradient-primary text-white text-xs font-bold shadow-lg shadow-indigo-500/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-60 flex items-center gap-2"
                 >
-                  {savingInfo ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                  Save Profile Details
+                  {savingInfo ? <Loader2 className="w-3.5 h-3.5 animate-spin text-white" /> : <Check className="w-3.5 h-3.5 text-white" />}
+                  <span className="text-white">Save Profile Details</span>
                 </button>
               )}
             </div>

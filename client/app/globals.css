@@ -454,14 +454,10 @@ html, body, main {
 }
 
 /* Header bar brand color background */
-header {
+header.app-header {
   background-color: var(--accent-primary) !important;
   color: #ffffff !important;
   border-bottom: 1px solid rgba(255, 255, 255, 0.15) !important;
-}
-
-header * {
-  color: #ffffff !important;
 }
 
 /* Sidebar clean white */
@@ -480,7 +476,7 @@ aside {
 }
 
 /* Force text classes across tables, headings, and cards to use dark slate variables */
-.text-white:not(.btn-primary *):not(.gradient-primary *):not(header *):not(.badge-brand *):not(.active-pill *):not([style*="background-color"]) {
+.text-white:not(.btn-primary):not(.btn-primary *):not(.gradient-primary):not(.gradient-primary *):not(.gradient-emerald):not(.gradient-emerald *):not(header *):not(.badge-brand *):not(.active-pill *):not([style*="background-color"]) {
   color: #0f172a !important;
 }
 
@@ -516,13 +512,15 @@ aside {
   color: var(--accent-primary) !important;
 }
 
-/* Dynamic Brand Primary Buttons & Sub-Tab Active Items */
+/* Dynamic Brand Primary Buttons & Sub-Tab Active Items - ALWAYS CRISP WHITE TEXT */
 .bg-indigo-600,
 .bg-indigo-500,
 .bg-emerald-600,
 .bg-emerald-500,
 .bg-violet-600,
-.gradient-primary {
+.gradient-primary,
+.gradient-emerald,
+.btn-primary {
   background-color: var(--accent-primary) !important;
   background: var(--accent-primary) !important;
   color: #ffffff !important;
@@ -533,7 +531,12 @@ aside {
 .bg-indigo-500 *,
 .bg-emerald-600 *,
 .bg-emerald-500 *,
-.gradient-primary * {
+.gradient-primary,
+.gradient-primary *,
+.gradient-emerald,
+.gradient-emerald *,
+.btn-primary,
+.btn-primary * {
   color: #ffffff !important;
 }
 
