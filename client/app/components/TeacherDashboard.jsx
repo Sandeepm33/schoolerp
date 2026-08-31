@@ -42,6 +42,11 @@ function computeSummary(entries) {
   return s;
 }
 
+const getLocalDateStr = (d = new Date()) => {
+  const dt = new Date(d);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+};
+
 // ─── MAIN COMPONENT ───────────────────────────────────────────────────────────
 function TeacherDashboardContent() {
   const { token, user } = useAuth();
@@ -56,7 +61,7 @@ function TeacherDashboardContent() {
   const [teacherTimetable, setTeacherTimetable] = useState([]);
 
   // Attendance state
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getLocalDateStr());
   const [selectedClass, setSelectedClass] = useState('LKG');
   const [selectedSection, setSelectedSection] = useState('A');
   const [students, setStudents] = useState([]);
@@ -628,6 +633,32 @@ function TeacherDashboardContent() {
         setHwForm({ title: '', subject: 'Mathematics', classId: 'LKG', sectionId: 'A', dueDate: '', description: '' });
         fetchHomework();
       }
+    } catch (e) { console.error(e); }
+  };
+
+  const handleTeacherVerifyHomework = async (hwId, studentId, studentName) => {
+    try {
+      setHomeworkList(prev => prev.map(hw => {
+        if (hw._id === hwId) {
+          const subs = Array.isArray(hw.submissions) ? [...hw.submissions] : [];
+          // Mark all existing submissions as VERIFIED
+          subs.forEach(s => { s.status = 'VERIFIED'; });
+          const existingIdx = subs.findIndex(s => String(s.studentId) === String(studentId) || s.studentName === studentName);
+          if (existingIdx >= 0) {
+            subs[existingIdx].status = 'VERIFIED';
+          } else {
+            subs.push({ studentId: studentId || 'all', studentName: studentName || 'Class', status: 'VERIFIED', submittedAt: new Date() });
+          }
+          return { ...hw, isCompletedByTeacher: true, submissions: subs };
+        }
+        return hw;
+      }));
+
+      await fetch(`${API_BASE}/admin/homework/${hwId}/verify`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ studentId: studentId || 'all', studentName: studentName || 'Class', status: 'VERIFIED' })
+      });
     } catch (e) { console.error(e); }
   };
 
@@ -1578,17 +1609,74 @@ function TeacherDashboardContent() {
                 <p className="font-bold text-slate-300">No Assignments Posted</p>
               </div>
             ) : (
-              <div className="space-y-3">
-                {homeworkList.map((hw, idx) => (
-                  <div key={idx} className="glass-card p-4 rounded-2xl border border-slate-800 space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">{hw.subject}</span>
-                      <span className="text-[10px] text-slate-400">Due: {new Date(hw.dueDate).toLocaleDateString()}</span>
+              <div className="space-y-4">
+                {homeworkList.map((hw, idx) => {
+                  const subs = Array.isArray(hw.submissions) ? hw.submissions : [];
+                  const completedCount = subs.filter(s => s.status === 'COMPLETED' || s.status === 'VERIFIED' || s.status === 'GRADED').length;
+                  const isVerifiedByTeacher = subs.some(s => s.status === 'VERIFIED' || s.status === 'GRADED');
+
+                  const formattedDue = hw.dueDate ? new Date(hw.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No Due Date';
+
+                  return (
+                    <div key={hw._id || idx} className="glass-card p-5 rounded-2xl border border-slate-800 space-y-3 hover:border-indigo-500/40 transition">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="px-3 py-1 rounded-xl text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                            {hw.subject}
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                            Class {hw.classId}{hw.sectionId ? `-${hw.sectionId}` : ''}
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-amber-400 font-mono font-bold flex items-center gap-1">
+                          <Calendar className="w-3 h-3 text-amber-400" /> Due: {formattedDue}
+                        </span>
+                      </div>
+
+                      <div>
+                        <h4 className="font-extrabold text-white text-sm">{hw.title}</h4>
+                        <p className="text-xs text-slate-300 leading-relaxed mt-1">{hw.description}</p>
+                      </div>
+
+                      {/* Submissions & Verification Bar */}
+                      <div className="pt-2 border-t border-slate-800 flex items-center justify-between flex-wrap gap-2 text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] text-slate-400 font-medium">Faculty: <strong className="text-white">{hw.teacherName || teacherName}</strong></span>
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            {completedCount} Submissions Completed
+                          </span>
+                        </div>
+
+                        <button
+                          onClick={() => handleTeacherVerifyHomework(hw._id, 'all', 'Class')}
+                          disabled={isVerifiedByTeacher}
+                          className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                            isVerifiedByTeacher
+                              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 cursor-not-allowed'
+                              : 'gradient-primary text-white shadow-md shadow-indigo-500/20 hover:scale-105 cursor-pointer'
+                          }`}
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          <span>{isVerifiedByTeacher ? 'Completed ✓' : 'Mark Completed & Verified'}</span>
+                        </button>
+                      </div>
+
+                      {/* Student Submissions List Pills if any */}
+                      {subs.length > 0 && (
+                        <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] text-slate-500 font-bold uppercase">Submissions:</span>
+                          {subs.map((s, sIdx) => (
+                            <span key={sIdx} className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 border ${
+                              s.status === 'VERIFIED' ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' : 'bg-teal-500/20 text-teal-300 border-teal-500/30'
+                            }`}>
+                              <CheckCircle className="w-2.5 h-2.5" /> {s.studentName || 'Student'}: {s.status}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                    <h4 className="font-bold text-white text-xs sm:text-sm">{hw.title}</h4>
-                    <p className="text-slate-300 text-xs leading-relaxed">{hw.description}</p>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

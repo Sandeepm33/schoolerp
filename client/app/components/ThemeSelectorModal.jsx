@@ -74,7 +74,7 @@ export default function ThemeSelectorModal({ isOpen, onClose }) {
   ];
 
   return createPortal(
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-slate-900/50 backdrop-blur-sm animate-fade-in overflow-y-auto">
+    <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 sm:p-6 pt-20 pb-8 bg-slate-900/60 backdrop-blur-md animate-fade-in overflow-y-auto">
       
       {/* Backdrop overlay click */}
       <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-sm" onClick={onClose} />

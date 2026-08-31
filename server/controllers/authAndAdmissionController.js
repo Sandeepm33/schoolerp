@@ -244,7 +244,7 @@ const getSchoolUsers = async (req, res) => {
 
 const createSchoolUser = async (req, res) => {
   try {
-    const { name, email, password, role, phone } = req.body;
+    const { name, email, password, role, phone, mappedStudentId, status } = req.body;
     const cleanEmail = (email || '').toLowerCase().trim();
 
     const allowedRoles = ['SCHOOL_ADMIN', 'ACCOUNTANT', 'TEACHER', 'PARENT', 'STUDENT'];
@@ -266,10 +266,20 @@ const createSchoolUser = async (req, res) => {
       email: cleanEmail,
       password: hashedPassword,
       role,
-      phone: phone || ''
+      phone: phone || '',
+      status: status || 'ACTIVE',
+      mappedStudentId: mappedStudentId || null
     });
 
     await newUser.save();
+
+    if (mappedStudentId) {
+      await Student.findByIdAndUpdate(mappedStudentId, {
+        parentName: newUser.name,
+        parentEmail: newUser.email,
+        parentPhone: newUser.phone
+      });
+    }
 
     res.status(201).json({
       message: `User '${newUser.name}' created with role [${newUser.role}]!`,
@@ -278,9 +288,43 @@ const createSchoolUser = async (req, res) => {
         name: newUser.name,
         email: newUser.email,
         role: newUser.role,
-        phone: newUser.phone
+        phone: newUser.phone,
+        mappedStudentId: newUser.mappedStudentId
       }
     });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateSchoolUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, email, password, phone, status, mappedStudentId } = req.body;
+
+    const user = await User.findById(id);
+    if (!user) return res.status(404).json({ message: 'User account not found' });
+
+    if (name) user.name = name.trim();
+    if (email) user.email = email.toLowerCase().trim();
+    if (phone !== undefined) user.phone = phone.trim();
+    if (status) user.status = status;
+    if (mappedStudentId !== undefined) user.mappedStudentId = mappedStudentId || null;
+    if (password && password.trim()) {
+      user.password = await bcrypt.hash(password.trim(), 10);
+    }
+
+    await user.save();
+
+    if (user.mappedStudentId) {
+      await Student.findByIdAndUpdate(user.mappedStudentId, {
+        parentName: user.name,
+        parentEmail: user.email,
+        parentPhone: user.phone
+      });
+    }
+
+    res.json({ message: `User '${user.name}' updated successfully!`, user });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -389,6 +433,7 @@ module.exports = {
   updateThemePreference,
   getSchoolUsers,
   createSchoolUser,
+  updateSchoolUser,
   deleteSchoolUser,
   getAdmissions,
   createAdmission,

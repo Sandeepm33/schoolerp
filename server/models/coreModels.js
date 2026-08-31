@@ -80,6 +80,8 @@ const StudentSchema = new mongoose.Schema({
     actionTaken: String
   }],
   transportRoute: { type: String },
+  pickupStop: { type: String },
+  transportFee: { type: Number, default: 0 },
   createdAt: { type: Date, default: Date.now }
 });
 
@@ -212,14 +214,15 @@ const CertificateSchema = new mongoose.Schema({
   issuedBy: { type: String, required: true }
 });
 
-// Force fresh model recompilation for User schema enum additions
+// Force fresh model recompilation for User & Student schema additions
 delete mongoose.models.User;
+delete mongoose.models.Student;
 
 module.exports = {
   School: mongoose.models.School || mongoose.model('School', SchoolSchema),
   User: mongoose.model('User', UserSchema),
 
-  Student: mongoose.models.Student || mongoose.model('Student', StudentSchema),
+  Student: mongoose.model('Student', StudentSchema),
   AttendanceRecord: mongoose.models.AttendanceRecord || mongoose.model('AttendanceRecord', AttendanceRecordSchema),
   Admission: mongoose.models.Admission || mongoose.model('Admission', AdmissionSchema),
   FeeStructure: mongoose.models.FeeStructure || mongoose.model('FeeStructure', FeeStructureSchema),

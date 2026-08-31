@@ -162,6 +162,42 @@ const getHomework = async (req, res) => {
   }
 };
 
+const submitHomework = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { studentId, studentName, answerText, fileUrl, status } = req.body;
+    const sId = studentId || req.user?.mappedStudentId || req.user?.id || 'demo_student_id';
+    const sName = studentName || req.user?.name || 'Student';
+    const subStatus = status || 'COMPLETED';
+
+    const hw = await Homework.findById(id);
+    if (!hw) return res.status(404).json({ message: 'Homework assignment not found' });
+
+    if (!hw.submissions) hw.submissions = [];
+    const existingIdx = hw.submissions.findIndex(s => String(s.studentId) === String(sId) || s.studentName === sName);
+    if (existingIdx >= 0) {
+      hw.submissions[existingIdx].status = subStatus;
+      hw.submissions[existingIdx].submittedAt = new Date();
+      if (answerText) hw.submissions[existingIdx].answerText = answerText;
+      if (fileUrl) hw.submissions[existingIdx].fileUrl = fileUrl;
+    } else {
+      hw.submissions.push({
+        studentId: sId,
+        studentName: sName,
+        submittedAt: new Date(),
+        status: subStatus,
+        answerText: answerText || 'Marked completed by student',
+        fileUrl: fileUrl || ''
+      });
+    }
+
+    await hw.save();
+    res.json({ message: 'Homework completion recorded successfully!', homework: hw });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 const getLMSContent = async (req, res) => {
   try {
     const { classId, subject } = req.query;
@@ -240,6 +276,7 @@ module.exports = {
   getExams,
   getStudentMarks,
   getHomework,
+  submitHomework,
   getLMSContent,
   getTransportInfo,
   getInventoryItems,

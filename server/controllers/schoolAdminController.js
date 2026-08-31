@@ -74,28 +74,168 @@ const deleteAcademicYear = async (req, res) => {
 // ─────────────────────────────────────────────────────────
 // 2. CLASS MANAGEMENT
 // ─────────────────────────────────────────────────────────
+// Helper to normalize class names (e.g. "Class 1" -> "1", "Class 10" -> "10")
+const normalizeClassName = (name) => {
+  if (!name) return '';
+  return String(name).replace(/^Class\s+/i, '').trim();
+};
+
 const getClasses = async (req, res) => {
   try {
-    const docs = await ClassRoom.find({ schoolId: getSchoolId(req), isActive: true }).sort({ className: 1 });
-    ok(res, docs);
+    const schoolId = getSchoolId(req);
+    const docs = await ClassRoom.find({ 
+      $or: [{ schoolId }, { schoolId: null }],
+      isActive: true 
+    }).sort({ className: 1 });
+    
+    // Auto-deduplicate duplicate class documents if any exist
+    const map = new Map();
+    const duplicatesToRemove = [];
+
+    for (const doc of docs) {
+      const normName = normalizeClassName(doc.className);
+      if (!map.has(normName)) {
+        if (doc.className !== normName) {
+          doc.className = normName;
+          await ClassRoom.findByIdAndUpdate(doc._id, { className: normName });
+        }
+        map.set(normName, doc);
+      } else {
+        const existing = map.get(normName);
+        const mergedSections = Array.from(new Set([
+          ...(Array.isArray(existing.sections) ? existing.sections : []),
+          ...(Array.isArray(doc.sections) ? doc.sections : [])
+        ]));
+        existing.sections = mergedSections;
+        await ClassRoom.findByIdAndUpdate(existing._id, { sections: mergedSections, className: normName });
+        duplicatesToRemove.push(doc._id);
+      }
+    }
+
+    if (duplicatesToRemove.length > 0) {
+      await ClassRoom.updateMany(
+        { _id: { $in: duplicatesToRemove } },
+        { isActive: false }
+      );
+    }
+
+    const cleanDocs = Array.from(map.values());
+    ok(res, cleanDocs);
   } catch (e) { err(res, e.message); }
 };
+
 const createClass = async (req, res) => {
   try {
-    const doc = await ClassRoom.create({ ...req.body, schoolId: getSchoolId(req) });
+    const schoolId = getSchoolId(req);
+    const rawName = req.body.className;
+    const cleanClass = normalizeClassName(rawName);
+
+    if (!cleanClass) {
+      return err(res, 'Class name is required', 400);
+    }
+
+    const incomingSections = Array.isArray(req.body.sections) 
+      ? req.body.sections 
+      : (req.body.sections ? String(req.body.sections).split(',').map(s => s.trim()).filter(Boolean) : ['A']);
+
+    const existing = await ClassRoom.findOne({
+      $or: [{ schoolId }, { schoolId: null }],
+      className: { $regex: new RegExp(`^(Class\\s+)?${cleanClass}$`, 'i') },
+      isActive: true
+    });
+
+    if (existing) {
+      const mergedSections = Array.from(new Set([
+        ...(Array.isArray(existing.sections) ? existing.sections : []),
+        ...incomingSections
+      ]));
+      existing.sections = mergedSections;
+      if (req.body.classTeacher) existing.classTeacher = req.body.classTeacher;
+      if (req.body.capacity) existing.capacity = Number(req.body.capacity);
+      if (req.body.academicYear) existing.academicYear = req.body.academicYear;
+      existing.className = cleanClass;
+      await existing.save();
+      return ok(res, existing, 200);
+    }
+
+    const doc = await ClassRoom.create({
+      ...req.body,
+      schoolId,
+      className: cleanClass,
+      sections: incomingSections,
+      isActive: true
+    });
     ok(res, doc, 201);
   } catch (e) { err(res, e.message); }
 };
+
 const updateClass = async (req, res) => {
   try {
-    const doc = await ClassRoom.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const data = { ...req.body };
+    if (data.className) data.className = normalizeClassName(data.className);
+    const doc = await ClassRoom.findByIdAndUpdate(req.params.id, data, { new: true });
     ok(res, doc);
   } catch (e) { err(res, e.message); }
 };
+
 const deleteClass = async (req, res) => {
   try {
     await ClassRoom.findByIdAndUpdate(req.params.id, { isActive: false });
     ok(res, { message: 'Archived successfully' });
+  } catch (e) { err(res, e.message); }
+};
+
+const createClassesBulk = async (req, res) => {
+  try {
+    const schoolId = getSchoolId(req);
+    const { classes } = req.body;
+
+    if (!Array.isArray(classes) || classes.length === 0) {
+      return err(res, 'Array of classes is required', 400);
+    }
+
+    const resultDocs = [];
+    for (const item of classes) {
+      if (!item.className) continue;
+      const cleanClass = normalizeClassName(item.className);
+      const incomingSections = Array.isArray(item.sections) && item.sections.length > 0 
+        ? item.sections 
+        : ['A'];
+
+      const existing = await ClassRoom.findOne({
+        $or: [{ schoolId }, { schoolId: null }],
+        className: { $regex: new RegExp(`^(Class\\s+)?${cleanClass}$`, 'i') },
+        isActive: true
+      });
+
+      if (existing) {
+        const mergedSections = Array.from(new Set([
+          ...(Array.isArray(existing.sections) ? existing.sections : []),
+          ...incomingSections
+        ]));
+        existing.sections = mergedSections;
+        if (item.capacity) existing.capacity = Number(item.capacity);
+        if (item.academicYear) existing.academicYear = item.academicYear;
+        existing.className = cleanClass;
+        await existing.save();
+        resultDocs.push(existing);
+      } else {
+        const doc = await ClassRoom.create({
+          schoolId,
+          className: cleanClass,
+          sections: incomingSections,
+          capacity: Number(item.capacity) || 40,
+          roomNo: item.roomNo || '',
+          classTeacher: item.classTeacher || 'Unassigned',
+          academicYear: item.academicYear || '2026-2027',
+          isActive: true
+        });
+        resultDocs.push(doc);
+      }
+    }
+
+    await logAudit(req, 'BULK_CREATE', 'ClassRoom', null, null, { count: resultDocs.length });
+    ok(res, { message: `Processed ${resultDocs.length} classes without duplicates`, classes: resultDocs }, 201);
   } catch (e) { err(res, e.message); }
 };
 
@@ -212,7 +352,33 @@ const createStudentRecord = async (req, res) => {
 const updateStudentRecord = async (req, res) => {
   try {
     const old = await Student.findById(req.params.id);
-    const doc = await Student.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const doc = await Student.findByIdAndUpdate(req.params.id, req.body, { new: true, strict: false });
+    
+    // Sync with Transport routes if transportRoute field is present in payload
+    if (req.body.transportRoute !== undefined) {
+      // Remove student from any previous transport routes first
+      await Transport.updateMany(
+        { 'assignedStudents.studentId': doc._id },
+        { $pull: { assignedStudents: { studentId: doc._id } } }
+      );
+      if (req.body.transportRoute) {
+        const transport = await Transport.findOne({ routeName: req.body.transportRoute });
+        if (transport) {
+          transport.assignedStudents.push({
+            studentId: doc._id,
+            studentName: `${doc.firstName} ${doc.lastName}`,
+            rollNo: doc.rollNo,
+            classId: doc.classId,
+            sectionId: doc.sectionId,
+            pickupStop: req.body.pickupStop || doc.pickupStop || '',
+            monthlyFee: req.body.transportFee || 0,
+            parentPhone: doc.parentPhone || ''
+          });
+          await transport.save();
+        }
+      }
+    }
+
     await logAudit(req, 'UPDATE', 'Student', doc._id, old, doc);
     ok(res, doc);
   } catch (e) { err(res, e.message); }
@@ -239,21 +405,50 @@ const promoteStudents = async (req, res) => {
 // ─────────────────────────────────────────────────────────
 // 5b. ROLL NUMBER GENERATION
 // ─────────────────────────────────────────────────────────
-// Format: Class 5, Section A → 5A01, 5A02 ...
-//         Class 5, Section B → 5B01, 5B02 ...
-//         Class 5, No section → 501, 502 ...
 const generateRollNo = async (classId, sectionId, schoolId) => {
+  const cleanClass = (classId || '').replace(/^Class\s+/i, '').trim();
+  const classNum = cleanClass.replace(/\D/g, '') || cleanClass; // e.g. "10", "LKG", "UKG", "Nursery"
   const noSection = !sectionId || sectionId.trim() === '' || sectionId.trim() === '-';
-  const classNum = (classId || '').replace(/\D/g, '') || classId; // extract digits
   const sectionLabel = noSection ? '' : (sectionId || '').trim().toUpperCase().charAt(0);
+  const prefix = noSection ? `${classNum}` : `${classNum}${sectionLabel}`;
 
-  const query = { classId };
-  if (!noSection) query.sectionId = sectionId;
-  if (schoolId) query.schoolId = schoolId;
+  // Find all existing students across DB whose rollNo starts with prefix (e.g. LKGA)
+  const existingStudents = await Student.find({
+    rollNo: new RegExp('^' + prefix.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'i')
+  }).select('rollNo');
 
-  const count = await Student.countDocuments(query);
-  const seq = String(count + 1).padStart(2, '0');
-  return noSection ? `${classNum}${seq}` : `${classNum}${sectionLabel}${seq}`;
+  let maxSeq = 0;
+  for (const st of existingStudents) {
+    if (st.rollNo) {
+      const match = st.rollNo.match(/(\d+)$/);
+      if (match) {
+        const val = parseInt(match[1], 10);
+        if (!isNaN(val) && val > maxSeq) {
+          maxSeq = val;
+        }
+      }
+    }
+  }
+
+  let nextSeq = maxSeq + 1;
+  let candidateRollNo = '';
+
+  // Double check uniqueness in DB globally
+  while (true) {
+    const seqStr = String(nextSeq).padStart(2, '0');
+    candidateRollNo = `${prefix}${seqStr}`;
+
+    const exists = await Student.findOne({ 
+      rollNo: new RegExp('^' + candidateRollNo.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&') + '$', 'i') 
+    });
+
+    if (!exists) {
+      break;
+    }
+    nextSeq++;
+  }
+
+  return candidateRollNo;
 };
 
 const previewNextRollNo = async (req, res) => {
@@ -283,11 +478,22 @@ const enrollStudentWithAccounts = async (req, res) => {
       parentName, parentPhone, parentEmail, parentPassword
     } = req.body;
 
-    if (!firstName || !lastName || !classId) {
-      return err(res, 'firstName, lastName, and classId are required', 400);
+    if (!firstName || !classId) {
+      return err(res, 'First name and Class ID are required', 400);
     }
-    if (!parentEmail) {
-      return err(res, 'Parent email is required', 400);
+    if (!studentPassword || !studentPassword.trim()) {
+      return err(res, 'Student password is required', 400);
+    }
+    if (!parentEmail || !parentPassword || !parentPassword.trim()) {
+      return err(res, 'Parent email and parent password are required', 400);
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (providedStudentEmail && !emailRegex.test(providedStudentEmail.trim())) {
+      return err(res, `Invalid student email format '${providedStudentEmail}'. Must be a valid email address (e.g. student@school.com).`, 400);
+    }
+    if (parentEmail && !emailRegex.test(parentEmail.trim())) {
+      return err(res, `Invalid parent email format '${parentEmail}'. Must be a valid email address (e.g. parent@school.com).`, 400);
     }
 
     // --- Generate roll number ---
@@ -316,7 +522,7 @@ const enrollStudentWithAccounts = async (req, res) => {
     const studentDoc = await Student.create({
       schoolId,
       firstName,
-      lastName,
+      lastName: lastName || '',
       admissionNo,
       rollNo,
       classId,
@@ -335,30 +541,30 @@ const enrollStudentWithAccounts = async (req, res) => {
     });
 
     // --- Create Student login user ---
-    const hashedStudentPass = await bcrypt.hash(studentPassword || 'student123', 10);
+    const hashedStudentPass = await bcrypt.hash(studentPassword || '', 10);
     const studentUser = await User.create({
       schoolId,
-      name: `${firstName} ${lastName}`,
+      username: studentEmail,
       email: studentEmail,
       password: hashedStudentPass,
       role: 'STUDENT',
-      phone: '',
-      status: 'ACTIVE',
+      name: `${firstName} ${lastName || ''}`.trim(),
+      mappedStudentId: studentDoc._id,
     });
 
-    // --- Create or reuse Parent login user ---
+    // --- Check if parent User already exists ---
     let parentUser = existingParentUser;
     if (!parentUser) {
-      const hashedParentPass = await bcrypt.hash(parentPassword || 'parent123', 10);
+      const hashedParentPass = await bcrypt.hash(parentPassword || '', 10);
       parentUser = await User.create({
         schoolId,
-        name: parentName || `Parent of ${firstName}`,
+        username: parentEmail.toLowerCase().trim(),
         email: parentEmail.toLowerCase().trim(),
         password: hashedParentPass,
         role: 'PARENT',
+        name: parentName || `Parent of ${firstName}`,
         phone: parentPhone || '',
         mappedStudentId: studentDoc._id,
-        status: 'ACTIVE',
       });
     } else {
       // Update existing parent's mappedStudentId if not already set
@@ -382,16 +588,147 @@ const enrollStudentWithAccounts = async (req, res) => {
         student: {
           name: `${firstName} ${lastName}`,
           email: studentEmail,
-          password: studentPassword || 'student123',
+          password: studentPassword || '',
           rollNo,
           admissionNo,
         },
         parent: {
           name: parentName || `Parent of ${firstName}`,
           email: parentEmail.toLowerCase().trim(),
-          password: parentPassword || 'parent123',
+          password: parentPassword || '',
         },
       },
+    }, 201);
+  } catch (e) { err(res, e.message); }
+};
+
+const enrollStudentsBulk = async (req, res) => {
+  try {
+    const schoolId = getSchoolId(req);
+    const { students, defaultClassId, defaultSectionId } = req.body;
+
+    if (!Array.isArray(students) || students.length === 0) {
+      return err(res, 'Array of students is required', 400);
+    }
+
+    const enrolledResults = [];
+    const errors = [];
+
+    for (let index = 0; index < students.length; index++) {
+      const s = students[index];
+      const firstName = (s.firstName || '').trim();
+      const lastName = (s.lastName || '').trim();
+      const classId = (s.classId || defaultClassId || '').trim();
+      const sectionId = (s.sectionId || defaultSectionId || 'A').trim();
+      const gender = (s.gender || 'Male').trim();
+      const dob = s.dob || null;
+      const parentName = (s.parentName || `Parent of ${firstName}`).trim();
+      const parentPhone = (s.parentPhone || '').trim();
+      const parentEmail = (s.parentEmail || `${firstName.toLowerCase()}.${Date.now()}@parent.com`).toLowerCase().trim();
+
+      if (!firstName || !classId) {
+        errors.push({ index: index + 1, name: `${firstName} ${lastName}`, error: 'First name and Class ID are required' });
+        continue;
+      }
+      if (!s.studentPassword || !s.studentPassword.trim()) {
+        errors.push({ index: index + 1, name: `${firstName} ${lastName}`, error: 'Student password is required' });
+        continue;
+      }
+      if (!s.parentPassword || !s.parentPassword.trim()) {
+        errors.push({ index: index + 1, name: `${firstName} ${lastName}`, error: 'Parent password is required' });
+        continue;
+      }
+
+      try {
+        const rollNo = s.rollNo || (await generateRollNo(classId, sectionId, schoolId));
+        const count = await Student.countDocuments();
+        const admissionNo = s.admissionNo || `ADM-${new Date().getFullYear()}-${String(count + 101).padStart(4, '0')}`;
+        
+        const cleanFirst = firstName.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const autoStudentEmail = `${cleanFirst}.${rollNo.toLowerCase()}@school.erp`;
+        const studentEmail = (s.studentEmail || autoStudentEmail).toLowerCase().trim();
+
+        const studentPassword = s.studentPassword || '';
+        const parentPassword = s.parentPassword || '';
+
+        const studentDoc = await Student.create({
+          schoolId,
+          firstName,
+          lastName,
+          admissionNo,
+          rollNo,
+          classId,
+          sectionId,
+          dob,
+          gender,
+          bloodGroup: s.bloodGroup || 'O+',
+          address: s.address || '',
+          parentName,
+          parentPhone,
+          parentEmail,
+          studentEmail,
+          attendancePercentage: 0,
+          totalPresent: 0,
+          totalClasses: 0
+        });
+
+        const hashedStudentPass = await bcrypt.hash(studentPassword, 10);
+        let studentUser = await User.findOne({ email: studentEmail });
+        if (!studentUser) {
+          studentUser = await User.create({
+            schoolId,
+            name: `${firstName} ${lastName}`,
+            email: studentEmail,
+            password: hashedStudentPass,
+            role: 'STUDENT',
+            phone: '',
+            status: 'ACTIVE'
+          });
+        }
+
+        let parentUser = await User.findOne({ email: parentEmail });
+        if (!parentUser) {
+          const hashedParentPass = await bcrypt.hash(parentPassword, 10);
+          parentUser = await User.create({
+            schoolId,
+            name: parentName,
+            email: parentEmail,
+            password: hashedParentPass,
+            role: 'PARENT',
+            phone: parentPhone,
+            mappedStudentId: studentDoc._id,
+            status: 'ACTIVE'
+          });
+        }
+
+        await Student.findByIdAndUpdate(studentDoc._id, {
+          parentId: parentUser._id,
+          studentUserId: studentUser._id
+        });
+
+        enrolledResults.push({
+          studentId: studentDoc._id,
+          name: `${firstName} ${lastName}`,
+          classId,
+          sectionId,
+          rollNo,
+          admissionNo,
+          studentEmail,
+          parentEmail
+        });
+      } catch (errItem) {
+        errors.push({ index: index + 1, name: `${firstName} ${lastName}`, error: errItem.message });
+      }
+    }
+
+    await logAudit(req, 'BULK_ENROLL', 'Student', null, null, { successCount: enrolledResults.length, errorCount: errors.length });
+
+    ok(res, {
+      message: `Bulk enrollment completed. ${enrolledResults.length} students enrolled successfully!`,
+      successCount: enrolledResults.length,
+      errorCount: errors.length,
+      students: enrolledResults,
+      errors
     }, 201);
   } catch (e) { err(res, e.message); }
 };
@@ -727,6 +1064,36 @@ const deleteHomework = async (req, res) => {
   try {
     await Homework.findByIdAndDelete(req.params.id);
     ok(res, { message: 'Deleted' });
+  } catch (e) { err(res, e.message); }
+};
+const verifyHomeworkSubmission = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { studentId, studentName, status, teacherComment, grade } = req.body;
+    const targetStatus = status || 'VERIFIED';
+
+    const hw = await Homework.findById(id);
+    if (!hw) return err(res, 'Homework not found', 404);
+
+    if (!hw.submissions) hw.submissions = [];
+    const subIdx = hw.submissions.findIndex(s => String(s.studentId) === String(studentId) || s.studentName === studentName);
+    if (subIdx >= 0) {
+      hw.submissions[subIdx].status = targetStatus;
+      if (teacherComment) hw.submissions[subIdx].teacherComment = teacherComment;
+      if (grade) hw.submissions[subIdx].grade = grade;
+    } else {
+      hw.submissions.push({
+        studentId,
+        studentName: studentName || 'Student',
+        submittedAt: new Date(),
+        status: targetStatus,
+        teacherComment: teacherComment || 'Verified & marked completed by faculty',
+        grade: grade || 'A+'
+      });
+    }
+
+    await hw.save();
+    ok(res, hw);
   } catch (e) { err(res, e.message); }
 };
 
@@ -1085,19 +1452,76 @@ const returnBook = async (req, res) => {
 // ─────────────────────────────────────────────────────────
 const getTransport = async (req, res) => {
   try {
-    const docs = await Transport.find({ schoolId: getSchoolId(req) });
+    const schoolId = getSchoolId(req);
+    const query = schoolId 
+      ? { $or: [{ schoolId }, { schoolId: null }, { schoolId: { $exists: false } }] }
+      : {};
+    const docs = await Transport.find(query);
     ok(res, docs);
   } catch (e) { err(res, e.message); }
 };
 const createTransport = async (req, res) => {
   try {
-    const doc = await Transport.create({ ...req.body, schoolId: getSchoolId(req) });
+    const { routeName, vehicleNo, vehicleType, driverName, driverPhone, helperName, helperPhone, capacity, monthlyFee, stops, isActive } = req.body;
+    const baseFee = Number(monthlyFee) || 1500;
+    const formattedStops = Array.isArray(stops) ? stops.map(s => {
+      if (typeof s === 'string') return { stopName: s, monthlyFee: baseFee, pickupTime: '07:30 AM', dropTime: '04:30 PM' };
+      const stopFare = (s && s.monthlyFee !== undefined && s.monthlyFee !== null && s.monthlyFee !== '' && !isNaN(s.monthlyFee)) 
+        ? Number(s.monthlyFee) 
+        : baseFee;
+      return {
+        stopName: String(s.stopName || '').trim(),
+        monthlyFee: stopFare,
+        pickupTime: s.pickupTime || '07:30 AM',
+        dropTime: s.dropTime || '04:30 PM'
+      };
+    }) : [];
+    const doc = await Transport.create({
+      schoolId: getSchoolId(req),
+      routeName, vehicleNo, vehicleType, driverName, driverPhone,
+      helperName: helperName || '',
+      helperPhone: helperPhone || '',
+      capacity: Number(capacity) || 40,
+      monthlyFee: baseFee,
+      stops: formattedStops,
+      isActive: isActive !== false
+    });
+    console.log("CREATED TRANSPORT DOC:", JSON.stringify(doc));
     ok(res, doc, 201);
   } catch (e) { err(res, e.message); }
 };
 const updateTransport = async (req, res) => {
   try {
-    const doc = await Transport.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const { routeName, vehicleNo, vehicleType, driverName, driverPhone, helperName, helperPhone, capacity, monthlyFee, stops, isActive } = req.body;
+    const baseFee = Number(monthlyFee) || 1500;
+    const formattedStops = Array.isArray(stops) ? stops.map(s => {
+      if (typeof s === 'string') return { stopName: s, monthlyFee: baseFee, pickupTime: '07:30 AM', dropTime: '04:30 PM' };
+      const stopFare = (s && s.monthlyFee !== undefined && s.monthlyFee !== null && s.monthlyFee !== '' && !isNaN(s.monthlyFee)) 
+        ? Number(s.monthlyFee) 
+        : baseFee;
+      return {
+        stopName: String(s.stopName || '').trim(),
+        monthlyFee: stopFare,
+        pickupTime: s.pickupTime || '07:30 AM',
+        dropTime: s.dropTime || '04:30 PM'
+      };
+    }) : [];
+    const doc = await Transport.findByIdAndUpdate(
+      req.params.id, 
+      {
+        $set: {
+          routeName, vehicleNo, vehicleType, driverName, driverPhone,
+          helperName: helperName || '',
+          helperPhone: helperPhone || '',
+          capacity: Number(capacity) || 40,
+          monthlyFee: baseFee,
+          stops: formattedStops,
+          isActive: isActive !== false
+        }
+      },
+      { new: true, strict: false }
+    );
+    console.log("UPDATED TRANSPORT DOC:", JSON.stringify(doc));
     ok(res, doc);
   } catch (e) { err(res, e.message); }
 };
@@ -1105,6 +1529,71 @@ const deleteTransport = async (req, res) => {
   try {
     await Transport.findByIdAndDelete(req.params.id);
     ok(res, { message: 'Deleted' });
+  } catch (e) { err(res, e.message); }
+};
+
+const assignStudentToTransport = async (req, res) => {
+  try {
+    const { studentId, pickupStop, monthlyFee } = req.body;
+    const transport = await Transport.findById(req.params.id);
+    if (!transport) return err(res, 'Transport route not found');
+
+    const student = await Student.findById(studentId);
+    if (!student) return err(res, 'Student not found');
+
+    const matchedStop = (transport.stops || []).find(st => 
+      typeof st === 'string' 
+        ? st.toLowerCase() === String(pickupStop || '').toLowerCase()
+        : (st.stopName || '').toLowerCase() === String(pickupStop || '').toLowerCase()
+    );
+    const calculatedFee = Number(monthlyFee) > 0 
+      ? Number(monthlyFee) 
+      : (matchedStop && typeof matchedStop === 'object' && matchedStop.monthlyFee > 0 
+          ? Number(matchedStop.monthlyFee) 
+          : (Number(transport.monthlyFee) || 1500));
+
+    const alreadyAssigned = (transport.assignedStudents || []).some(s => String(s.studentId) === String(studentId));
+    if (!alreadyAssigned) {
+      if ((transport.assignedStudents || []).length >= (transport.capacity || 40)) {
+        return err(res, `Cannot assign student: Bus route has reached full capacity (${transport.capacity} seats).`);
+      }
+
+      if (!transport.assignedStudents) transport.assignedStudents = [];
+      transport.assignedStudents.push({
+        studentId: student._id,
+        studentName: `${student.firstName} ${student.lastName || ''}`.trim(),
+        rollNo: student.rollNo || '',
+        classId: student.classId,
+        sectionId: student.sectionId,
+        pickupStop: pickupStop || 'Main Stop',
+        monthlyFee: calculatedFee,
+        parentPhone: student.parentPhone || ''
+      });
+      await transport.save();
+    }
+
+    await Student.findByIdAndUpdate(studentId, {
+      transportRoute: transport.routeName,
+      pickupStop: pickupStop || 'Main Stop',
+      transportFee: calculatedFee
+    });
+
+    ok(res, transport);
+  } catch (e) { err(res, e.message); }
+};
+
+const removeStudentFromTransport = async (req, res) => {
+  try {
+    const { studentId } = req.body;
+    const transport = await Transport.findById(req.params.id);
+    if (!transport) return err(res, 'Transport route not found');
+
+    transport.assignedStudents = (transport.assignedStudents || []).filter(s => String(s.studentId) !== String(studentId));
+    await transport.save();
+
+    await Student.findByIdAndUpdate(studentId, { transportRoute: '', pickupStop: '' });
+
+    ok(res, transport);
   } catch (e) { err(res, e.message); }
 };
 
@@ -1465,14 +1954,14 @@ module.exports = {
   // Academic Year
   getAcademicYears, createAcademicYear, updateAcademicYear, deleteAcademicYear,
   // Classes & Subjects
-  getClasses, createClass, updateClass, deleteClass,
+  getClasses, createClass, createClassesBulk, updateClass, deleteClass,
   getSubjects, createSubject, updateSubject, deleteSubject,
   // HR Setup
   getDepartments, createDepartment, updateDepartment, deleteDepartment,
   getDesignations, createDesignation, updateDesignation, deleteDesignation,
   // People
   getStudentList, createStudentRecord, updateStudentRecord, deleteStudentRecord, promoteStudents,
-  enrollStudentWithAccounts, previewNextRollNo,
+  enrollStudentWithAccounts, enrollStudentsBulk, previewNextRollNo,
   getEmployees, createEmployee, updateEmployee, deleteEmployee,
   // Attendance
   getStudentAttendance, markStudentAttendance,
@@ -1480,7 +1969,7 @@ module.exports = {
   // Academics
   getExams, createExam, updateExam, deleteExam, publishExam,
   getMarks, createMark, updateMark, deleteMark, publishMarks,
-  getHomework, createHomework, updateHomework, deleteHomework,
+  getHomework, createHomework, updateHomework, deleteHomework, verifyHomeworkSubmission,
   getLMSContent, createLMSContent, updateLMSContent, deleteLMSContent,
   getTimetable, saveTimetable,
   // Finance
@@ -1494,7 +1983,7 @@ module.exports = {
   // Campus
   getLibraryBooks, createLibraryBook, updateLibraryBook, deleteLibraryBook,
   getLibraryTransactions, issueBook, returnBook,
-  getTransport, createTransport, updateTransport, deleteTransport,
+  getTransport, createTransport, updateTransport, deleteTransport, assignStudentToTransport, removeStudentFromTransport,
   getHostelRooms, createHostelRoom, updateHostelRoom, deleteHostelRoom,
   getHostelAllocations, createHostelAllocation, vacateHostelAllocation,
   getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem,

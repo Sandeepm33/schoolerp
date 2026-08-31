@@ -11,7 +11,7 @@ import {
   Star, ChevronDown, X, MessageCircle, FileCheck, Layers, Layout, ArrowUpRight, ExternalLink,
   ClipboardList, GraduationCap, HeartHandshake, Stethoscope, AlertTriangle, Calendar,
   BookMarked, CheckSquare, UserCog, TrendingUp, DollarSign, Scroll, Library, Home,
-  Box, Megaphone, MapPin, FileBadge2, Settings, Search
+  Box, Megaphone, MapPin, FileBadge2, Settings, Search, Menu, Compass
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -24,6 +24,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('ALL');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Floating Interactive Widgets State
   const [showChatWidget, setShowChatWidget] = useState(false);
@@ -159,56 +160,148 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen w-full bg-slate-50 text-slate-800 font-sans selection:bg-blue-600 selection:text-white relative overflow-x-hidden">
       
-      {/* 1. STICKY HEADER NAVIGATION BAR */}
-      <header className="sticky top-0 z-[100] w-full bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
-        <nav className="max-w-7xl mx-auto flex items-center justify-between py-3 px-4 md:px-8 min-h-[72px]">
+      {/* 1. FIXED HEADER NAVIGATION BAR (DYNAMIC BRAND COLOR ON SCROLL) */}
+      <header style={{ backgroundColor: 'var(--accent-primary, #02563d)' }} className="fixed top-0 left-0 right-0 z-[9999] w-full backdrop-blur-md border-b border-white/10 shadow-md transition-colors duration-300">
+        <nav className="max-w-7xl mx-auto flex items-center justify-between py-2.5 px-3 md:px-8 min-h-[64px] sm:min-h-[72px]">
           
           {/* Logo & Branding */}
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => router.push('/')}>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 via-indigo-600 to-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
-              <Sparkles className="w-5 h-5 animate-pulse" />
-            </div>
+          <div className="flex items-center gap-2 sm:gap-3 cursor-pointer shrink-0" onClick={() => router.push('/')}>
+            <img 
+              src="/track360_logo.png" 
+              alt="Track 360 Logo" 
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover border border-white/20 shadow-md shrink-0" 
+            />
             <div>
               <div className="flex items-center space-x-2">
-                <span className="text-lg font-black text-blue-950 tracking-tight">AI SCHOOL ERP</span>
-                <span className="bg-blue-100 text-blue-700 text-[10px] font-extrabold px-2 py-0.5 rounded-full border border-blue-200 uppercase">CAMPUS OS v2.0</span>
+                <span className="text-base sm:text-lg font-black text-white tracking-tight">Track 360</span>
               </div>
-              <p className="text-[10px] text-slate-500 font-semibold hidden sm:block">Complete School Management Operating System</p>
+              <p className="text-[10px] text-slate-200 font-semibold hidden sm:block">360° Complete School Management Operating System</p>
             </div>
           </div>
 
           {/* Desktop Navigation Links */}
-          <div className="hidden lg:flex items-center gap-8 text-sm font-bold text-slate-600">
-            <a href="#home" className="hover:text-blue-600 transition-colors">Home</a>
-            <a href="#modules" className="hover:text-blue-600 transition-colors">Application Modules</a>
-            <a href="#login-portal" className="hover:text-blue-600 transition-colors">Portals</a>
-            <a href="#demo" className="hover:text-blue-600 transition-colors">Demo Accounts</a>
+          <div className="hidden lg:flex items-center gap-8 text-sm font-bold text-white">
+            <a href="#home" className="hover:text-amber-300 transition-colors">Home</a>
+            <a href="#modules" className="hover:text-amber-300 transition-colors">Application Modules</a>
+            <button onClick={() => router.push('/login')} className="hover:text-amber-300 transition-colors">Portals</button>
+            <button onClick={() => setShowInquiryModal(true)} className="hover:text-amber-300 transition-colors">System Support</button>
           </div>
 
-          {/* Action CTAs */}
-          <div className="flex items-center gap-3">
+          {/* Action CTAs & Prominent Mobile Menu Button */}
+          <div className="flex items-center gap-2">
+            {/* Quick Inquiry CTA (Desktop/Tablet >=640px) */}
             <button 
               onClick={() => setShowInquiryModal(true)}
-              className="bg-[#00a859] hover:bg-green-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-green-500/20 flex items-center gap-1.5"
+              className="hidden sm:flex bg-[#00a859] hover:bg-green-700 text-white text-xs font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all shadow-md shadow-green-500/20 items-center gap-1.5 shrink-0"
             >
               <span>Quick Inquiry</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
 
-            <a 
-              href="#login-portal"
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-blue-500/20 flex items-center gap-1.5"
+            {/* Workspace Sign In Button (Desktop/Tablet >=480px) */}
+            <button 
+              onClick={() => router.push('/login')}
+              className="hidden min-[480px]:flex bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all shadow-md shadow-blue-500/20 items-center gap-1.5 shrink-0"
             >
               <Key className="w-3.5 h-3.5" />
               <span>Workspace Sign In</span>
-            </a>
+            </button>
+
+            {/* PROMINENT MOBILE MENU BUTTON (ALWAYS 100% VISIBLE ON MOBILE <1024px) */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="lg:hidden bg-amber-400 hover:bg-amber-500 text-slate-950 text-xs font-black px-3.5 py-2 rounded-xl border border-amber-300 transition-all cursor-pointer flex items-center gap-1.5 shrink-0 shadow-lg active:scale-95"
+              title="Open Navigation Menu"
+            >
+              {mobileMenuOpen ? (
+                <>
+                  <X className="w-4 h-4 text-slate-950" />
+                  <span className="text-xs font-black text-slate-950">Close</span>
+                </>
+              ) : (
+                <>
+                  <Menu className="w-4 h-4 text-slate-950" />
+                  <span className="text-xs font-black text-slate-950">Menu</span>
+                </>
+              )}
+            </button>
           </div>
 
         </nav>
+
+        {/* MOBILE NAVIGATION DRAWER OVERLAY (HOME, APPLICATION MODULES, PORTALS, SYSTEM SUPPORT) */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden bg-slate-950/95 border-b border-slate-800 p-4 space-y-3 shadow-2xl backdrop-blur-xl text-white animate-in slide-in-from-top-4 duration-200">
+            <div className="space-y-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-400 block px-1">Navigation Options</span>
+              
+              {/* 1. HOME */}
+              <a 
+                href="#home" 
+                onClick={() => setMobileMenuOpen(false)} 
+                className="p-3 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between hover:border-emerald-500 text-slate-100 font-extrabold text-sm"
+              >
+                <span className="flex items-center gap-2.5">
+                  <Home className="w-4 h-4 text-emerald-400" /> Home
+                </span>
+                <ChevronRight className="w-4 h-4 text-slate-500" />
+              </a>
+
+              {/* 2. APPLICATION MODULES */}
+              <a 
+                href="#modules" 
+                onClick={() => setMobileMenuOpen(false)} 
+                className="p-3 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between hover:border-blue-500 text-slate-100 font-extrabold text-sm"
+              >
+                <span className="flex items-center gap-2.5">
+                  <Box className="w-4 h-4 text-blue-400" /> Application Modules (36)
+                </span>
+                <ChevronRight className="w-4 h-4 text-slate-500" />
+              </a>
+
+              {/* 3. PORTALS */}
+              <button 
+                onClick={() => { setMobileMenuOpen(false); router.push('/login'); }}
+                className="w-full p-3 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between hover:border-amber-500 text-slate-100 font-extrabold text-sm text-left"
+              >
+                <span className="flex items-center gap-2.5">
+                  <UserCog className="w-4 h-4 text-amber-400" /> Portals
+                </span>
+                <ChevronRight className="w-4 h-4 text-slate-500" />
+              </button>
+
+              {/* 4. SYSTEM SUPPORT */}
+              <button 
+                onClick={() => { setMobileMenuOpen(false); setShowInquiryModal(true); }}
+                className="w-full p-3 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between hover:border-purple-500 text-slate-100 font-extrabold text-sm"
+              >
+                <span className="flex items-center gap-2.5">
+                  <MessageSquare className="w-4 h-4 text-purple-400" /> System Support
+                </span>
+                <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/30">24/7 Active</span>
+              </button>
+            </div>
+
+            <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
+              <button 
+                onClick={() => { setMobileMenuOpen(false); setShowInquiryModal(true); }}
+                className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md"
+              >
+                <FileText className="w-3.5 h-3.5" /> Quick Inquiry
+              </button>
+              <button 
+                onClick={() => { setMobileMenuOpen(false); router.push('/login'); }}
+                className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md"
+              >
+                <Key className="w-3.5 h-3.5" /> Workspace Sign In
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* 2. HERO SECTION */}
-      <section id="home" className="relative bg-gradient-to-b from-slate-50 via-blue-50/40 to-slate-50 py-12 lg:py-16 px-4 md:px-8 overflow-hidden">
+      <section id="home" className="relative bg-gradient-to-b from-slate-50 via-blue-50/40 to-slate-50 pt-[96px] pb-12 lg:pb-16 px-4 md:px-8 overflow-hidden">
         
         {/* Background Ambient Glows */}
         <div className="absolute top-1/4 right-[-5%] w-[500px] h-[500px] bg-gradient-to-tr from-blue-600 via-indigo-500 to-amber-400 rounded-full blur-[120px] opacity-30 pointer-events-none animate-pulse" />
@@ -301,10 +394,6 @@ export default function LoginPage() {
                       <p className="text-[10px] text-slate-400 font-bold">Campus OS Control Center</p>
                     </div>
                   </div>
-                  <button onClick={() => handleModuleClick('services')} className="text-[10px] bg-blue-600 hover:bg-blue-500 text-white font-black px-3 py-1.5 rounded-lg transition-all flex items-center gap-1">
-                    <span>Open Live Portal</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </button>
                 </div>
 
                 {/* Dashboard Stats Widgets */}
@@ -352,7 +441,7 @@ export default function LoginPage() {
               </h2>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 max-w-md font-medium">
-              Click any actual module card below to open its live interactive feature inside your ERP workspace!
+              Comprehensive suite of 36 integrated modules available in the ERP application.
             </p>
           </div>
 
@@ -369,15 +458,14 @@ export default function LoginPage() {
             ))}
           </div>
 
-          {/* 36 APPLICATION MODULE CARDS (EXACT IMAGE 2 HOVER EFFECT - SMALL COMPACT 8-COL GRID) */}
+          {/* 36 APPLICATION MODULE CARDS (VISUAL DISPLAY GRID) */}
           <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
             {filteredModules.map((mod, idx) => {
               const IconC = mod.icon;
               return (
                 <div 
                   key={idx}
-                  onClick={() => handleModuleClick(mod.tab)}
-                  className="group bg-white border border-slate-200 p-2 rounded-xl shadow-xs hover:shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-center gap-1.5 cursor-pointer relative overflow-hidden h-[80px]"
+                  className="group bg-white border border-slate-200 p-2 rounded-xl shadow-xs hover:shadow-lg transition-all duration-200 flex flex-col items-center justify-center text-center gap-1.5 cursor-default relative overflow-hidden h-[80px]"
                   onMouseEnter={(e) => {
                     e.currentTarget.style.borderColor = `${mod.color}80`;
                     e.currentTarget.style.boxShadow = `0 8px 20px -4px ${mod.color}30`;
@@ -432,142 +520,31 @@ export default function LoginPage() {
         </div>
       </section>
 
-      {/* 4. WORKSPACE LOGIN PORTAL CARD & DEMO ACCOUNTS */}
-      <section id="login-portal" className="py-12 px-4 md:px-8 bg-slate-900 text-white relative">
-        <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-10 items-center">
-          
-          {/* Left Description Column */}
-          <div className="lg:col-span-6 space-y-6">
-            <span style={{ backgroundColor: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', borderColor: 'rgba(245, 158, 11, 0.5)' }} className="text-xs font-black uppercase tracking-widest px-3.5 py-1.5 rounded-full border">
-              ENTERPRISE SINGLE SIGN-ON
-            </span>
+      {/* 4. WORKSPACE SIGN IN BANNER CTA */}
+      <section className="py-14 px-4 md:px-8 bg-slate-900 text-white relative overflow-hidden">
+        <div className="max-w-5xl mx-auto text-center space-y-6 relative z-10">
+          <span style={{ backgroundColor: 'rgba(245, 158, 11, 0.2)', color: '#fbbf24', borderColor: 'rgba(245, 158, 11, 0.5)' }} className="text-xs font-black uppercase tracking-widest px-4 py-1.5 rounded-full border inline-block">
+            ENTERPRISE SINGLE SIGN-ON
+          </span>
 
-            <h2 style={{ color: '#ffffff' }} className="text-3xl sm:text-4xl font-black tracking-tight">
-              Sign In to Your Dedicated Campus Portal
-            </h2>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-black tracking-tight text-white">
+            Ready to Access Your Dedicated Campus Portal?
+          </h2>
 
-            <p style={{ color: '#cbd5e1' }} className="text-sm leading-relaxed font-bold">
-              Access administrative dashboards, teacher gradebooks, student portals, and parent mobile tracking. Select any demo account below to test the full system with a single click.
-            </p>
+          <p className="text-sm sm:text-base text-slate-300 max-w-2xl mx-auto font-medium leading-relaxed">
+            Sign in to administrative dashboards, teacher gradebooks, student portals, and parent apps with role-based secure access.
+          </p>
 
-            {/* DEMO ACCOUNTS SELECTOR TILES */}
-            <div id="demo" className="space-y-3 pt-2">
-              <h4 style={{ color: '#fbbf24' }} className="text-xs font-black uppercase tracking-wider flex items-center gap-2">
-                <Zap className="w-4 h-4 fill-current" />
-                <span>One-Click Demo Test Accounts</span>
-              </h4>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                {demoAccounts.map((acc, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => handleQuickLogin(acc.email, acc.pass)}
-                    style={{ backgroundColor: '#020617', borderColor: acc.color }}
-                    className="p-3 rounded-2xl border text-left hover:scale-[1.02] active:scale-[0.98] transition-all group shadow-md"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span style={{ color: acc.color }} className="text-xs font-black uppercase tracking-wide truncate">
-                        {acc.role}
-                      </span>
-                      <span style={{ color: acc.color }} className="text-[9px] font-bold bg-white/10 px-2 py-0.5 rounded">
-                        {acc.tag}
-                      </span>
-                    </div>
-                    <div style={{ color: '#ffffff' }} className="text-[11px] font-mono font-bold truncate mt-1">
-                      {acc.email}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
+          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <button 
+              onClick={() => router.push('/login')}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-black px-8 py-4 rounded-2xl transition-all shadow-xl shadow-emerald-950/60 flex items-center gap-2"
+            >
+              <Key className="w-4 h-4" />
+              <span>Go to Dedicated Login Page</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
-
-          {/* Right Credentials Form Card */}
-          <div className="lg:col-span-6">
-            <div style={{ backgroundColor: '#090d16', borderColor: 'rgba(255,255,255,0.25)' }} className="p-6 sm:p-8 rounded-3xl border shadow-2xl space-y-6">
-              
-              <div className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <span style={{ color: '#34d399', backgroundColor: 'rgba(16, 185, 129, 0.2)', borderColor: 'rgba(52, 211, 153, 0.5)' }} className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-lg border">
-                    SSO LOGIN PORTAL
-                  </span>
-                  <span style={{ color: '#cbd5e1' }} className="text-xs font-mono font-bold">Campus OS v2.0</span>
-                </div>
-                <h3 style={{ color: '#ffffff' }} className="text-2xl font-black tracking-tight pt-1">Sign In to Account</h3>
-                <p style={{ color: '#cbd5e1' }} className="text-xs font-bold">Enter your registered email and password to log in</p>
-              </div>
-
-              {/* ERROR ALERT */}
-              {(localError || authError) && (
-                <div style={{ backgroundColor: 'rgba(136, 19, 55, 0.95)', borderColor: '#f43f5e', color: '#ffe4e6' }} className="p-3.5 rounded-2xl border text-xs font-bold flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-rose-300 shrink-0 mt-0.5" />
-                  <span>{localError || authError}</span>
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                
-                <div>
-                  <label style={{ color: '#ffffff' }} className="text-xs font-bold block mb-1">Work Email Address</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                      <Mail className="w-4 h-4 text-amber-400" />
-                    </div>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      placeholder="e.g. admin@school.com"
-                      style={{ backgroundColor: '#020617', color: '#ffffff', borderColor: 'rgba(255,255,255,0.3)' }}
-                      className="w-full border rounded-xl pl-10 pr-3 py-3 text-xs placeholder-slate-400 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40 transition-all font-bold shadow-inner"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label style={{ color: '#ffffff' }} className="text-xs font-bold block mb-1">Password</label>
-                  <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                      <Lock className="w-4 h-4 text-amber-400" />
-                    </div>
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      placeholder="••••••••••••"
-                      style={{ backgroundColor: '#020617', color: '#ffffff', borderColor: 'rgba(255,255,255,0.3)' }}
-                      className="w-full border rounded-xl pl-10 pr-10 py-3 text-xs placeholder-slate-400 focus:outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-500/40 transition-all font-mono font-bold shadow-inner"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      style={{ color: '#cbd5e1' }}
-                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center hover:text-white"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  style={{ backgroundColor: '#059669', color: '#ffffff', borderColor: 'rgba(52, 211, 153, 0.5)' }}
-                  className="w-full py-3.5 rounded-xl font-black text-xs tracking-wide shadow-xl shadow-emerald-950/60 flex items-center justify-center space-x-2 hover:bg-emerald-600 active:scale-[0.98] transition-all disabled:opacity-50 border"
-                >
-                  <span>{loading ? 'Verifying Access Credentials...' : 'Sign In to Workspace'}</span>
-                  <ArrowRight className="w-4 h-4 text-white" />
-                </button>
-
-              </form>
-
-            </div>
-          </div>
-
         </div>
       </section>
 

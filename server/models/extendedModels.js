@@ -111,12 +111,27 @@ const TransportSchema = new mongoose.Schema({
   capacity: { type: Number, default: 40 },
   driverName: { type: String, required: true },
   driverPhone: { type: String, required: true },
+  helperName: { type: String },
+  helperPhone: { type: String },
   routeName: { type: String, required: true },
+  monthlyFee: { type: Number, default: 0 },
   isActive: { type: Boolean, default: true },
   stops: [{
     stopName: String,
+    monthlyFee: { type: Number, default: 0 },
     pickupTime: String,
     dropTime: String
+  }],
+  assignedStudents: [{
+    studentId: { type: mongoose.Schema.Types.ObjectId, ref: 'Student' },
+    studentName: String,
+    rollNo: String,
+    classId: String,
+    sectionId: String,
+    pickupStop: String,
+    monthlyFee: { type: Number, default: 0 },
+    parentPhone: String,
+    assignedAt: { type: Date, default: Date.now }
   }],
   currentLocation: {
     lat: { type: Number, default: 28.6139 },
@@ -124,7 +139,7 @@ const TransportSchema = new mongoose.Schema({
     lastUpdated: { type: Date, default: Date.now },
     status: { type: String, enum: ['ON_ROUTE', 'STOPPED', 'IDLE'], default: 'ON_ROUTE' }
   }
-});
+}, { timestamps: true, strict: false });
 
 // 5. INVENTORY SCHEMA
 const InventorySchema = new mongoose.Schema({
@@ -646,7 +661,25 @@ const AttendanceSettingSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
-delete mongoose.models.StaffHRMS;
+if (mongoose.models) {
+  delete mongoose.models.StaffHRMS;
+  delete mongoose.models.Transport;
+}
+
+const TransportModel = mongoose.models.Transport || mongoose.model('Transport', TransportSchema);
+if (TransportModel && TransportModel.schema) {
+  TransportModel.schema.add({
+    helperName: { type: String, default: '' },
+    helperPhone: { type: String, default: '' },
+    monthlyFee: { type: Number, default: 0 }
+  });
+  if (TransportModel.schema.path('stops') && TransportModel.schema.path('stops').schema) {
+    TransportModel.schema.path('stops').schema.add({
+      pickupTime: { type: String, default: '07:30 AM' },
+      dropTime: { type: String, default: '04:30 PM' }
+    });
+  }
+}
 
 module.exports = {
   Timetable: mongoose.models.Timetable || mongoose.model('Timetable', TimetableSchema),
@@ -654,7 +687,7 @@ module.exports = {
   Mark: mongoose.models.Mark || mongoose.model('Mark', MarkSchema),
   Homework: mongoose.models.Homework || mongoose.model('Homework', HomeworkSchema),
   LMSContent: mongoose.models.LMSContent || mongoose.model('LMSContent', LMSContentSchema),
-  Transport: mongoose.models.Transport || mongoose.model('Transport', TransportSchema),
+  Transport: TransportModel,
   Inventory: mongoose.models.Inventory || mongoose.model('Inventory', InventorySchema),
   StaffHRMS: mongoose.model('StaffHRMS', StaffHRMSSchema),
 

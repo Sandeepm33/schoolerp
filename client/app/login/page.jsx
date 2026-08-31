@@ -1,4 +1,4 @@
-import LoginPage from '../components/LoginPage';
+import StandaloneLoginPage from '../components/StandaloneLoginPage';
 
 export const metadata = {
   title: 'Login • AI SaaS School ERP Platform',
@@ -6,5 +6,5 @@ export const metadata = {
 };
 
 export default function Page() {
-  return <LoginPage />;
+  return <StandaloneLoginPage />;
 }
