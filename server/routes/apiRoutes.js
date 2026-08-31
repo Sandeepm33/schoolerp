@@ -22,6 +22,7 @@ router.put('/auth/theme', authMiddleware, authAndAdmission.updateThemePreference
 router.get('/users', authMiddleware, authAndAdmission.getSchoolUsers);
 router.post('/users', authMiddleware, authAndAdmission.createSchoolUser);
 router.post('/users/create', authMiddleware, authAndAdmission.createSchoolUser);
+router.put('/users/:id', authMiddleware, authAndAdmission.updateSchoolUser);
 router.delete('/users/:id', authMiddleware, authAndAdmission.deleteSchoolUser);
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -223,12 +224,14 @@ router.post('/admin/timetable', authMiddleware, admin.saveTimetable);
 // ─────────────────────────────────────────────────────────────────────────────
 // Legacy
 router.get('/homework', authMiddleware, academicAndOp.getHomework);
+router.post('/homework/:id/submit', authMiddleware, academicAndOp.submitHomework);
 router.get('/lms', authMiddleware, academicAndOp.getLMSContent);
 
 // Admin full CRUD
 router.get('/admin/homework', authMiddleware, admin.getHomework);
 router.post('/admin/homework', authMiddleware, admin.createHomework);
 router.put('/admin/homework/:id', authMiddleware, admin.updateHomework);
+router.patch('/admin/homework/:id/verify', authMiddleware, admin.verifyHomeworkSubmission);
 router.delete('/admin/homework/:id', authMiddleware, admin.deleteHomework);
 
 router.get('/admin/lms', authMiddleware, admin.getLMSContent);
@@ -280,6 +283,8 @@ router.get('/admin/transport', authMiddleware, admin.getTransport);
 router.post('/admin/transport', authMiddleware, admin.createTransport);
 router.put('/admin/transport/:id', authMiddleware, admin.updateTransport);
 router.delete('/admin/transport/:id', authMiddleware, admin.deleteTransport);
+router.post('/admin/transport/:id/assign-student', authMiddleware, admin.assignStudentToTransport);
+router.post('/admin/transport/:id/remove-student', authMiddleware, admin.removeStudentFromTransport);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 16. HOSTEL

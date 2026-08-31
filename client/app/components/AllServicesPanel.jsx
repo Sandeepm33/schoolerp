@@ -10,6 +10,8 @@ import {
   Users, MessageSquare, LayoutDashboard
 } from 'lucide-react';
 
+import { useRouter } from 'next/navigation';
+
 // Color map: Tailwind class → hex (for inline style hover effects)
 const BG_COLOR_MAP = {
   'text-blue-500': '#3b82f6', 'text-sky-500': '#0ea5e9', 'text-indigo-500': '#6366f1',
@@ -99,6 +101,7 @@ const CATEGORIES = [
 ];
 
 export default function AllServicesPanel({ role = 'SCHOOL_ADMIN' }) {
+  const router = useRouter();
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [hoveredId, setHoveredId] = useState(null);
@@ -186,7 +189,7 @@ export default function AllServicesPanel({ role = 'SCHOOL_ADMIN' }) {
             return (
               <button
                 key={s.id}
-                onClick={() => { window.location.href = getRoute(s.id); }}
+                onClick={() => { router.push(getRoute(s.id), { scroll: false }); }}
                 onMouseEnter={() => setHoveredId(s.id)}
                 onMouseLeave={() => setHoveredId(null)}
                 style={{

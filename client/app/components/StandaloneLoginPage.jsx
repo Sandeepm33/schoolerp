@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { 
   Key, Lock, Eye, EyeOff, 
   Sparkles, ArrowRight, AlertCircle, ArrowLeft, CheckCircle2,
-  X, ShieldCheck, Smartphone
+  X, ShieldCheck, Smartphone, Compass
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -94,14 +94,16 @@ export default function StandaloneLoginPage() {
 
             {/* Top Logo & Brand Name */}
             <div className="relative z-10 flex items-center gap-3">
-              <div className="w-11 h-11 rounded-2xl bg-white p-2 flex items-center justify-center shadow-md">
-                <Sparkles style={{ color: '#059669' }} className="w-6 h-6 animate-pulse" />
-              </div>
+              <img 
+                src="/track360_logo.png" 
+                alt="Track 360 Logo" 
+                className="w-11 h-11 rounded-2xl object-cover border border-white/20 shadow-md shrink-0" 
+              />
               <div>
                 <div className="flex items-center space-x-1.5">
-                  <span style={{ color: '#ffffff' }} className="text-xl font-black tracking-tight">AI SCHOOL ERP</span>
+                  <span style={{ color: '#ffffff' }} className="text-xl font-black tracking-tight">Track 360</span>
                 </div>
-                <p style={{ color: '#34d399' }} className="text-[11px] font-extrabold tracking-wide">Campus OS Redefined</p>
+                <p style={{ color: '#34d399' }} className="text-[11px] font-extrabold tracking-wide">360° School OS Redefined</p>
               </div>
             </div>
 

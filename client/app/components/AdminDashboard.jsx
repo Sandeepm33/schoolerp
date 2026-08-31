@@ -12,7 +12,7 @@ import {
   Building2, BookMarked, Calculator, Scroll, MapPin, ShieldCheck,
   HeartHandshake, ClipboardList, Eye, XCircle, CheckCircle, Loader2,
   User, Mail, Phone, Shield, Lock, Camera, Save, Coffee, History,
-  Wallet, CalendarCheck, MessageSquare
+  Wallet, CalendarCheck, MessageSquare, UserCheck, UserPlus
 } from 'lucide-react';
 import AllServicesPanel from './AllServicesPanel';
 import { useTheme } from '../context/ThemeContext';
@@ -960,7 +960,7 @@ function ModuleTable({ title, icon: Icon, color = 'indigo', columns, rows, onAdd
 }
 
 // Stat Card
-function StatCard({ label, value, icon: Icon, color = 'indigo', sub }) {
+function StatCard({ label, value, icon: Icon, color = 'indigo', sub, onClick }) {
   const colors = {
     indigo: { bg: 'bg-blue-50/70 border-blue-200/60', icon: 'bg-blue-100 text-blue-600', text: 'text-blue-600' },
     emerald: { bg: 'bg-emerald-50/70 border-emerald-200/60', icon: 'bg-emerald-100 text-emerald-600', text: 'text-emerald-600' },
@@ -972,8 +972,11 @@ function StatCard({ label, value, icon: Icon, color = 'indigo', sub }) {
   };
   const c = colors[color] || colors.indigo;
   return (
-    <div className={`rounded-2xl border ${c.bg} bg-white p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition-all group`}>
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${c.icon} shrink-0 shadow-sm group-hover:scale-105 transition-transform`}>
+    <div
+      onClick={onClick}
+      className={`rounded-2xl border ${c.bg} bg-white p-4 flex items-center gap-4 shadow-sm hover:shadow-md transition-all group ${onClick ? 'cursor-pointer hover:scale-[1.03] active:scale-95' : ''}`}
+    >
+      <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${c.icon} shrink-0 shadow-sm group-hover:scale-110 transition-transform`}>
         <Icon className="w-5 h-5" />
       </div>
       <div>
@@ -996,8 +999,20 @@ function AllServicesTab() {
 
 // 1. OVERVIEW DASHBOARD
 function OverviewTab({ token }) {
+  const router = useRouter();
+  const { user } = useAuth();
+  const { currentTheme } = useTheme();
   const [stats, setStats] = useState({});
   const [loading, setLoading] = useState(true);
+
+  const brandColor = currentTheme?.accentPrimary || '#02563d';
+  const brandSecondary = currentTheme?.accentSecondary || '#02422f';
+
+  const adminName = user?.name || user?.username || 'svm admin';
+  const adminEmail = user?.email || 'admin@school.com';
+  const adminPhone = user?.phone || '9963887021';
+  const adminRole = user?.designation || user?.role || 'School Admin / Principal';
+  const schoolName = user?.schoolName || 'St. Xavier’s / SVM School';
 
   useEffect(() => {
     apiFetch('/admin/reports').then(d => { setStats(d); setLoading(false); }).catch(() => {
@@ -1008,19 +1023,115 @@ function OverviewTab({ token }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-lg font-black text-slate-900">Executive Dashboard</h2>
-        <p className="text-slate-600 text-xs mt-0.5 font-medium">Real-time school operations overview</p>
+      
+      {/* DEEP EMERALD HERO BANNER CARD (DYNAMIC BRAND THEME - MATCHES PARENT DASHBOARD) */}
+      <div 
+        className="p-6 sm:p-8 rounded-3xl relative overflow-hidden space-y-4 shadow-2xl border"
+        style={{ 
+          background: `linear-gradient(135deg, ${brandSecondary} 0%, ${brandColor} 100%)`,
+          borderColor: 'rgba(255,255,255,0.2)',
+          color: '#ffffff'
+        }}
+      >
+        <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full blur-3xl -z-10 pointer-events-none" />
+        
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center space-x-4">
+            <div 
+              className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center text-xl sm:text-2xl font-black shadow-xl border-2 shrink-0 uppercase"
+              style={{ backgroundColor: '#ffffff', color: brandColor, borderColor: '#ffffff' }}
+            >
+              {adminName[0]}
+            </div>
+            <div>
+              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                <span 
+                  className="px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-md"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.3)' }}
+                >
+                  SCHOOL ADMIN PORTAL
+                </span>
+                <span 
+                  className="px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 border backdrop-blur-md"
+                  style={{ backgroundColor: 'rgba(52,211,153,0.25)', color: '#a7f3d0', borderColor: 'rgba(52,211,153,0.4)' }}
+                >
+                  <CheckCircle className="w-3 h-3" style={{ color: '#6ee7b7' }} /> Active Session
+                </span>
+              </div>
+              
+              <h1 className="text-xl sm:text-2xl font-black mt-1 tracking-tight" style={{ color: '#ffffff' }}>
+                Administrator: <span style={{ color: '#ffffff' }}>{adminName}</span>
+              </h1>
+              <p className="text-xs font-semibold mt-1" style={{ color: '#f1f5f9' }}>
+                Role: <strong style={{ color: '#fde047' }}>{adminRole}</strong> • Campus: <span style={{ color: '#ffffff' }}>{schoolName}</span> • Real-time Operations Overseer
+              </p>
+            </div>
+          </div>
+
+          {/* DYNAMIC METRICS BOX */}
+          <div 
+            className="grid grid-cols-2 gap-3 text-xs p-3.5 rounded-2xl border"
+            style={{ backgroundColor: 'rgba(0,0,0,0.35)', borderColor: 'rgba(255,255,255,0.2)' }}
+          >
+            <div>
+              <span className="text-[10px] uppercase font-bold block" style={{ color: '#cbd5e1' }}>Admin Account</span>
+              <span className="font-bold text-xs" style={{ color: '#ffffff' }}>{adminName}</span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold block" style={{ color: '#cbd5e1' }}>System Designation</span>
+              <span className="font-bold text-xs" style={{ color: '#fde047' }}>{adminRole}</span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold block" style={{ color: '#cbd5e1' }}>Registered Email</span>
+              <span className="font-mono font-bold" style={{ color: '#6ee7b7' }}>{adminEmail}</span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold block" style={{ color: '#cbd5e1' }}>Contact Phone</span>
+              <span className="font-mono font-bold" style={{ color: '#34d399' }}>{adminPhone}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Tab Navigation Pills inside Banner */}
+        <div className="flex items-center gap-2 pt-3 border-t flex-wrap" style={{ borderColor: 'rgba(255,255,255,0.2)' }}>
+          {[
+            { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+            { id: 'admissions', label: 'Admissions', icon: GraduationCap },
+            { id: 'students', label: 'Students', icon: Users },
+            { id: 'timetable', label: 'Timetable', icon: Clock },
+            { id: 'attendance', label: 'Attendance', icon: Calendar },
+            { id: 'student-fees', label: 'Finance & Fees', icon: DollarSign },
+            { id: 'employees', label: 'Staff HRMS', icon: UserCog },
+            { id: 'services', label: 'All Services', icon: Box },
+          ].map(t => {
+            const Icon = t.icon;
+            const isSel = t.id === 'overview';
+            return (
+              <button key={t.id}
+                onClick={() => { router.push(`/admin/dashboard?tab=${t.id}`, { scroll: false }); }}
+                style={isSel 
+                  ? { backgroundColor: '#ffffff', color: brandColor, borderColor: '#ffffff' } 
+                  : { backgroundColor: 'rgba(0,0,0,0.3)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.2)' }
+                }
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border cursor-pointer ${
+                  isSel ? 'shadow-lg shadow-black/40 font-black' : 'hover:bg-black/40'
+                }`}>
+                <Icon className="w-4 h-4" style={{ color: isSel ? brandColor : '#ffffff' }} />
+                <span style={{ color: isSel ? brandColor : '#ffffff' }}>{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard label="Total Students" value={stats.totalStudents} icon={GraduationCap} color="indigo" />
-        <StatCard label="Total Staff" value={stats.totalStaff} icon={Users} color="emerald" />
-        <StatCard label="Active Exams" value={stats.totalExams} icon={ClipboardList} color="blue" />
-        <StatCard label="Library Books" value={stats.totalLibraryBooks} icon={Library} color="amber" />
-        <StatCard label="Transport Vehicles" value={stats.totalTransport} icon={Bus} color="violet" />
-        <StatCard label="Pending Leaves" value={stats.pendingLeaves} icon={Calendar} color="amber" sub="Awaiting approval" />
-        <StatCard label="Open Tickets" value={stats.openTickets} icon={Ticket} color="rose" sub="Helpdesk" />
-        <StatCard label="Payroll Pending" value={stats.pendingPayrolls} icon={TrendingUp} color="teal" sub="To approve" />
+        <StatCard label="Total Students" value={stats.totalStudents} icon={GraduationCap} color="indigo" onClick={() => router.push('/admin/dashboard?tab=students', { scroll: false })} />
+        <StatCard label="Total Staff" value={stats.totalStaff} icon={Users} color="emerald" onClick={() => router.push('/admin/dashboard?tab=employees', { scroll: false })} />
+        <StatCard label="Active Exams" value={stats.totalExams} icon={ClipboardList} color="blue" onClick={() => router.push('/admin/dashboard?tab=exams', { scroll: false })} />
+        <StatCard label="Library Books" value={stats.totalLibraryBooks} icon={Library} color="amber" onClick={() => router.push('/admin/dashboard?tab=library', { scroll: false })} />
+        <StatCard label="Transport Vehicles" value={stats.totalTransport} icon={Bus} color="violet" onClick={() => router.push('/admin/dashboard?tab=transport', { scroll: false })} />
+        <StatCard label="Pending Leaves" value={stats.pendingLeaves} icon={Calendar} color="amber" sub="Awaiting approval" onClick={() => router.push('/admin/dashboard?tab=leave', { scroll: false })} />
+        <StatCard label="Open Tickets" value={stats.openTickets} icon={Ticket} color="rose" sub="Helpdesk" onClick={() => router.push('/admin/dashboard?tab=helpdesk', { scroll: false })} />
+        <StatCard label="Payroll Pending" value={stats.pendingPayrolls} icon={TrendingUp} color="teal" sub="To approve" onClick={() => router.push('/admin/dashboard?tab=payroll', { scroll: false })} />
       </div>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
         <div className="md:col-span-2 bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
@@ -1036,7 +1147,7 @@ function OverviewTab({ token }) {
             ].map(a => (
               <button 
                 key={a.label} 
-                onClick={() => window.location.href = `/admin/dashboard?tab=${a.tab}`}
+                onClick={() => router.push(`/admin/dashboard?tab=${a.tab}`, { scroll: false })}
                 className="text-xs font-bold py-2.5 px-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 hover:bg-[var(--accent-primary)] hover:text-white hover:border-[var(--accent-primary)] transition-all shadow-sm flex items-center justify-center gap-2 group cursor-pointer"
               >
                 <span>{a.label}</span>
@@ -1333,6 +1444,7 @@ function StudentsTab() {
   };
 
   const [editStudentModal, setEditStudentModal] = React.useState(null);
+  const [viewStudentProfileModal, setViewStudentProfileModal] = React.useState(null);
   const [editStudentSaving, setEditStudentSaving] = React.useState(false);
   const handleEditSave = async (form) => {
     setEditStudentSaving(true);
@@ -1575,17 +1687,44 @@ function StudentsTab() {
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead><tr className="border-b border-slate-800">
-                      {['Roll No', 'Name', 'Section', 'Gender', 'Attendance', 'Student Email', 'Parent Name', 'Parent Phone', 'Actions'].map(h => (
+                      {['Roll No', 'Name', 'Section', 'Bus Transport', 'Attendance', 'Student Email', 'Parent Name', 'Parent Phone', 'Actions'].map(h => (
                         <th key={h} className="px-4 py-3 text-left text-[11px] font-bold text-slate-500 uppercase tracking-wider">{h}</th>
                       ))}
                     </tr></thead>
                     <tbody className="divide-y divide-slate-800/60">
                       {students.map(s => (
-                        <tr key={s._id} className="hover:bg-slate-900/40 transition-colors">
-                          <td className="px-4 py-3 text-xs font-mono font-bold text-indigo-300">{s.rollNo}</td>
-                          <td className="px-4 py-3 text-xs text-white font-semibold">{s.firstName} {s.lastName}</td>
+                        <tr key={s._id} className="hover:bg-slate-900/60 transition-colors group">
+                          <td className="px-4 py-3 text-xs font-mono font-bold">
+                            <button 
+                              onClick={() => setViewStudentProfileModal(s)}
+                              className="text-indigo-400 hover:text-indigo-300 hover:underline cursor-pointer font-mono font-bold"
+                              title="View Full 360° Profile"
+                            >
+                              {s.rollNo}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3 text-xs font-semibold">
+                            <button
+                              onClick={() => setViewStudentProfileModal(s)}
+                              className="text-left text-white hover:text-indigo-300 font-bold flex items-center gap-2 cursor-pointer transition-colors"
+                              title="View Full 360° Profile"
+                            >
+                              <span className="w-6 h-6 rounded-lg gradient-primary flex items-center justify-center text-[10px] font-black text-white group-hover:scale-110 transition-transform">
+                                {s.firstName ? s.firstName[0].toUpperCase() : 'S'}
+                              </span>
+                              <span>{s.firstName} {s.lastName}</span>
+                            </button>
+                          </td>
                           <td className="px-4 py-3 text-xs text-slate-300">{s.sectionId && s.sectionId !== '-' ? `Section ${s.sectionId}` : '—'}</td>
-                          <td className="px-4 py-3 text-xs text-slate-300">{s.gender}</td>
+                          <td className="px-4 py-3 text-xs">
+                            {s.transportRoute ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-500/20 text-indigo-300 font-semibold text-[11px] border border-indigo-500/30">
+                                🚌 {s.transportRoute} <span className="text-slate-400">({s.pickupStop || 'Stop'})</span>
+                              </span>
+                            ) : (
+                              <span className="text-slate-500 text-[11px]">No Bus</span>
+                            )}
+                          </td>
                           <td className="px-4 py-3">
                             <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${s.attendancePercentage >= 90 ? BADGE.green : s.attendancePercentage >= 75 ? BADGE.amber : BADGE.red}`}>
                               {s.attendancePercentage || 0}%
@@ -1595,10 +1734,13 @@ function StudentsTab() {
                           <td className="px-4 py-3 text-xs text-slate-200 font-semibold">{s.parentName || '—'}</td>
                           <td className="px-4 py-3 text-xs text-slate-300">{s.parentPhone || '—'}</td>
                           <td className="px-4 py-3 text-right whitespace-nowrap">
-                            <button onClick={() => setEditStudentModal(s)} className="p-1.5 rounded-lg hover:bg-indigo-500/20 text-slate-400 hover:text-indigo-400 transition-colors mr-1">
+                            <button onClick={() => setViewStudentProfileModal(s)} title="View Full 360° Profile" className="p-1.5 rounded-lg hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-300 transition-colors mr-1 cursor-pointer">
+                              <Eye className="w-3.5 h-3.5" />
+                            </button>
+                            <button onClick={() => setEditStudentModal(s)} title="Edit Student Profile" className="p-1.5 rounded-lg hover:bg-indigo-500/20 text-slate-400 hover:text-indigo-400 transition-colors mr-1 cursor-pointer">
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
-                            <button onClick={() => handleDeleteStudent(s._id)} className="p-1.5 rounded-lg hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-colors">
+                            <button onClick={() => handleDeleteStudent(s._id)} title="Delete Student" className="p-1.5 rounded-lg hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 transition-colors cursor-pointer">
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </td>
@@ -1613,23 +1755,23 @@ function StudentsTab() {
         </div>
       )}
 
-      {/* Edit Student Modal */}
+      {/* 360° Innovative Student Profile Modal */}
+      {viewStudentProfileModal && (
+        <InnovativeStudentProfileModal
+          student={viewStudentProfileModal}
+          isOpen={!!viewStudentProfileModal}
+          onClose={() => setViewStudentProfileModal(null)}
+          onEdit={(std) => { setViewStudentProfileModal(null); setEditStudentModal(std); }}
+        />
+      )}
+
+      {/* Edit Student Modal with Transport Card */}
       {editStudentModal && (
-        <CrudModal
-          title={`Edit Student — ${editStudentModal.firstName} ${editStudentModal.lastName}`}
-          fields={[
-            { key: 'firstName', label: 'First Name', required: true },
-            { key: 'lastName', label: 'Last Name' },
-            { key: 'dob', label: 'Date of Birth', type: 'date' },
-            { key: 'gender', label: 'Gender', type: 'select', options: ['Male', 'Female', 'Other'] },
-            { key: 'bloodGroup', label: 'Blood Group', type: 'select', options: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'] },
-            { key: 'studentEmail', label: 'Student Email (Login)' },
-            { key: 'parentPhone', label: 'Parent Phone' },
-            { key: 'address', label: 'Address', type: 'textarea' },
-          ]}
-          initial={editStudentModal}
-          onSave={handleEditSave}
+        <CustomEditStudentModal
+          student={editStudentModal}
+          isOpen={!!editStudentModal}
           onClose={() => setEditStudentModal(null)}
+          onSave={handleEditSave}
           loading={editStudentSaving}
         />
       )}
@@ -2218,11 +2360,16 @@ const DepartmentsTab = makeSimpleCRUDTab({
   ]
 });
 
+const getLocalDateStr = (d = new Date()) => {
+  const dt = new Date(d);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+};
+
 // FULL FEATURED ATTENDANCE MANAGEMENT MODULE
 function AttendanceTab() {
   const [activeSubTab, setActiveSubTab] = useState('dashboard');
 
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(getLocalDateStr());
   const [selectedClass, setSelectedClass] = useState('LKG');
   const [selectedSection, setSelectedSection] = useState('A');
   const [classList, setClassList] = useState([]);
@@ -2922,9 +3069,9 @@ function AttendanceTab() {
                     All Dates
                   </button>
                   <button
-                    onClick={() => setAdminAttFilterDate(new Date().toISOString().split('T')[0])}
+                    onClick={() => setAdminAttFilterDate(getLocalDateStr())}
                     className={`px-3 py-1.5 rounded-xl font-bold transition ${
-                      adminAttFilterDate === new Date().toISOString().split('T')[0] ? 'bg-cyan-500 text-slate-950 font-extrabold' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      adminAttFilterDate === getLocalDateStr() ? 'bg-cyan-500 text-slate-950 font-extrabold' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                     }`}
                   >
                     Today
@@ -3371,26 +3518,1520 @@ const LibraryTab = makeSimpleCRUDTab({
   ]
 });
 
-const TransportTab = makeSimpleCRUDTab({
-  title: 'Transport Management', icon: Bus, color: 'blue', endpoint: '/admin/transport',
-  columns: [
-    { key: 'vehicleNo', label: 'Vehicle No' },
-    { key: 'vehicleType', label: 'Type' },
-    { key: 'driverName', label: 'Driver' },
-    { key: 'driverPhone', label: 'Phone' },
-    { key: 'routeName', label: 'Route' },
-    { key: 'capacity', label: 'Capacity' },
-    { key: 'isActive', label: 'Active', render: v => v ? <span className="text-emerald-400">âœ“ Active</span> : <span className="text-slate-500">Inactive</span> },
-  ],
-  fields: [
-    { key: 'vehicleNo', label: 'Vehicle Number', required: true },
-    { key: 'vehicleType', label: 'Vehicle Type', type: 'select', options: ['Bus', 'Van', 'Mini Bus', 'Auto'] },
-    { key: 'driverName', label: 'Driver Name', required: true },
-    { key: 'driverPhone', label: 'Driver Phone', required: true },
-    { key: 'routeName', label: 'Route Name', required: true },
-    { key: 'capacity', label: 'Capacity', type: 'number' },
-  ]
-});
+function TransportTab() {
+  const [routes, setRoutes] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [msg, setMsg] = useState(null);
+  const [routeModal, setRouteModal] = useState(null);
+  const [studentAllocationModal, setStudentAllocationModal] = useState(null);
+  const [saving, setSaving] = useState(false);
+
+  const showMsg = (type, text) => {
+    setMsg({ type, text });
+    setTimeout(() => setMsg(null), 4000);
+  };
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [tRes, sRes] = await Promise.all([
+        apiFetch('/admin/transport'),
+        apiFetch('/students')
+      ]);
+      setRoutes(Array.isArray(tRes) ? tRes : []);
+      setStudents(Array.isArray(sRes) ? sRes : []);
+    } catch (e) {
+      showMsg('error', e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { loadData(); }, []);
+
+  const handleSaveRoute = async (form) => {
+    setSaving(true);
+    try {
+      if (routeModal.editing && routeModal.editing._id) {
+        await apiFetch(`/admin/transport/${routeModal.editing._id}`, { method: 'PUT', body: JSON.stringify(form) });
+        showMsg('success', '✅ Bus Route & Driver details updated!');
+      } else {
+        await apiFetch('/admin/transport', { method: 'POST', body: JSON.stringify(form) });
+        showMsg('success', '✅ Bus Route created successfully!');
+      }
+      setRouteModal(null);
+      loadData();
+    } catch (e) {
+      showMsg('error', e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteRoute = async (id) => {
+    if (!confirm('Are you sure you want to delete this bus route?')) return;
+    try {
+      await apiFetch(`/admin/transport/${id}`, { method: 'DELETE' });
+      showMsg('success', '✅ Route deleted.');
+      loadData();
+    } catch (e) {
+      showMsg('error', e.message);
+    }
+  };
+
+  const handleAssignStudent = async (routeId, studentId, pickupStop, monthlyFee) => {
+    try {
+      const res = await apiFetch(`/admin/transport/${routeId}/assign-student`, {
+        method: 'POST',
+        body: JSON.stringify({ studentId, pickupStop, monthlyFee })
+      });
+      showMsg('success', '✅ Student assigned to bus route!');
+      setStudentAllocationModal(res);
+      setRoutes(prev => prev.map(r => r._id === res._id ? res : r));
+    } catch (e) {
+      showMsg('error', e.message);
+    }
+  };
+
+  const handleRemoveStudent = async (routeId, studentId) => {
+    try {
+      const res = await apiFetch(`/admin/transport/${routeId}/remove-student`, {
+        method: 'POST',
+        body: JSON.stringify({ studentId })
+      });
+      showMsg('success', '✅ Student removed from bus route.');
+      setStudentAllocationModal(res);
+      setRoutes(prev => prev.map(r => r._id === res._id ? res : r));
+    } catch (e) {
+      showMsg('error', e.message);
+    }
+  };
+
+  const cleanClass = (cls) => String(cls || '').replace(/^class\s*/i, '').trim();
+  const cleanSection = (sec) => String(sec || '').replace(/^sec(tion)?\s*/i, '').trim().toUpperCase();
+
+  const totalVehicles = routes.length;
+  const totalCapacity = routes.reduce((acc, r) => acc + (Number(r.capacity) || 0), 0);
+  const totalAssigned = routes.reduce((acc, r) => acc + ((r.assignedStudents || []).length), 0);
+
+  return (
+    <div className="space-y-4">
+      {msg && (
+        <div className={`p-3 rounded-xl text-xs font-semibold ${msg.type === 'success' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/20' : 'bg-rose-500/15 text-rose-300 border border-rose-500/20'}`}>
+          {msg.text}
+        </div>
+      )}
+
+      {/* Header Banner */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+        <div className="flex items-center gap-3">
+          <Bus className="w-5 h-5 text-indigo-400 shrink-0" />
+          <div>
+            <h3 className="text-xs font-bold text-white uppercase tracking-wider">Transport & Fleet Management</h3>
+            <p className="text-[11px] text-slate-400">Bus Routes, Driver & Helper details, and Student Fleet Allocation</p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] text-slate-300 bg-slate-900 border border-slate-800 px-3 py-1 rounded-xl font-medium">
+            🚌 <strong className="text-white">{totalVehicles}</strong> Routes
+          </span>
+          <span className="text-[11px] text-slate-300 bg-slate-900 border border-slate-800 px-3 py-1 rounded-xl font-medium">
+            👥 <strong className="text-emerald-400">{totalAssigned}</strong> / {totalCapacity} Seats Filled
+          </span>
+          <button
+            onClick={() => setRouteModal({ editing: null })}
+            className="px-4 py-2 rounded-xl gradient-primary text-white text-xs font-bold flex items-center gap-1.5 shadow-md shadow-indigo-500/20 hover:opacity-95"
+          >
+            <Plus className="w-4 h-4" /> Add Bus Route
+          </button>
+        </div>
+      </div>
+
+      {/* Routes Directory Table */}
+      <ModuleTable
+        title="Bus Routes & Drivers" icon={Bus} color="indigo"
+        loading={loading} rows={routes}
+        columns={[
+          { key: 'routeName', label: 'Route Name', render: v => <span className="font-bold text-white">{v}</span> },
+          { 
+            key: 'vehicleNo', label: 'Vehicle Number & Type', 
+            render: (v, r) => (
+              <div>
+                <span className="font-mono font-bold text-indigo-300">{v}</span>
+                <span className="text-[10px] text-slate-400 block font-medium">{r.vehicleType || 'Bus'}</span>
+              </div>
+            ) 
+          },
+          { 
+            key: 'driverName', label: 'Driver Info', 
+            render: (v, r) => (
+              <div>
+                <span className="font-semibold text-slate-200">{v}</span>
+                <span className="text-[10px] text-slate-400 font-mono block">{r.driverPhone}</span>
+              </div>
+            ) 
+          },
+          { 
+            key: 'helperName', label: 'Helper / Attendant', 
+            render: (v, r) => (
+              <div>
+                <span className="font-semibold text-slate-200">{v || '—'}</span>
+                {r.helperPhone && <span className="text-[10px] text-slate-400 font-mono block">{r.helperPhone}</span>}
+              </div>
+            ) 
+          },
+          { 
+            key: 'assignedStudents', label: 'Seat Occupancy', 
+            render: (v, r) => {
+              const count = (v || []).length;
+              const cap = r.capacity || 40;
+              const pct = Math.min(100, Math.round((count / cap) * 100));
+              return (
+                <div className="w-32">
+                  <div className="flex justify-between text-[10px] font-bold mb-1">
+                    <span className="text-slate-300">{count} / {cap} Seats</span>
+                    <span className={pct > 90 ? 'text-rose-400' : 'text-emerald-400'}>{pct}%</span>
+                  </div>
+                  <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                    <div className={`h-full ${pct > 90 ? 'bg-rose-500' : 'bg-indigo-500'}`} style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            } 
+          },
+          { key: 'monthlyFee', label: 'Monthly Fee', render: v => <span className="font-mono font-bold text-emerald-400">₹{v || 0}</span> },
+          { key: 'isActive', label: 'Status', render: v => v !== false ? <span className="text-emerald-400 font-bold text-xs">✓ Active</span> : <span className="text-slate-500 text-xs">Inactive</span> },
+        ]}
+        onEdit={(row) => setRouteModal({ editing: row })}
+        onDelete={(id) => handleDeleteRoute(id)}
+        extraActions={(row) => (
+          <button
+            onClick={() => setStudentAllocationModal(row)}
+            className="px-2.5 py-1.5 rounded-lg bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 text-xs font-bold flex items-center gap-1 border border-indigo-500/30 transition-all shrink-0"
+            title="Manage Students on this Bus"
+          >
+            <Users className="w-3.5 h-3.5" />
+            <span>Students ({(row.assignedStudents || []).length})</span>
+          </button>
+        )}
+        searchable
+      />
+
+      {/* Add / Edit Route Modal */}
+      {routeModal && (
+        <TransportRouteModal
+          isOpen={true}
+          editing={routeModal.editing}
+          onSave={handleSaveRoute}
+          onClose={() => setRouteModal(null)}
+          loading={saving}
+        />
+      )}
+
+      {/* Student Allocation Modal */}
+      {studentAllocationModal && (
+        <TransportStudentAllocationModal
+          isOpen={true}
+          route={studentAllocationModal}
+          students={students}
+          cleanClass={cleanClass}
+          cleanSection={cleanSection}
+          onAssign={handleAssignStudent}
+          onRemove={handleRemoveStudent}
+          onClose={() => setStudentAllocationModal(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function InnovativeStudentProfileModal({ student, isOpen, onClose, onEdit }) {
+  const { currentTheme } = useTheme();
+  const brandColor = currentTheme?.accentPrimary || '#02563d';
+  const brandSecondary = currentTheme?.accentSecondary || '#02422f';
+  const cyanColor = currentTheme?.accentCyan || '#12c4ac';
+
+  const [activeTab, setActiveTab] = useState('overview');
+  const [routeInfo, setRouteInfo] = useState(null);
+  const [loadingRoute, setLoadingRoute] = useState(false);
+
+  useEffect(() => {
+    if (isOpen && student) {
+      setLoadingRoute(true);
+      apiFetch('/admin/transport')
+        .then(routes => {
+          if (Array.isArray(routes)) {
+            const matched = routes.find(r => 
+              (student.transportRoute && r.routeName === student.transportRoute) ||
+              (r.assignedStudents || []).some(s => String(s.studentId) === String(student._id))
+            );
+            setRouteInfo(matched || null);
+          }
+          setLoadingRoute(false);
+        })
+        .catch(() => setLoadingRoute(false));
+    }
+  }, [isOpen, student]);
+
+  if (!isOpen || !student) return null;
+
+  const assignedStopName = student.pickupStop || (routeInfo?.assignedStudents || []).find(s => String(s.studentId) === String(student._id))?.pickupStop;
+  const stopObj = (routeInfo?.stops || []).find(s => (typeof s === 'string' ? s : s.stopName) === assignedStopName);
+  const stopFee = student.transportFee || (typeof stopObj === 'object' && stopObj?.monthlyFee ? stopObj.monthlyFee : (routeInfo?.monthlyFee || 1500));
+
+  return (
+    <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[99999] flex items-start justify-center p-4 pt-20 sm:pt-24 pb-12 overflow-y-auto">
+      <div 
+        className="rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl space-y-0 my-0 border animate-in fade-in zoom-in-95 duration-200"
+        style={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.2)', color: '#ffffff' }}
+      >
+        
+        {/* HERO BANNER HEADER - DYNAMIC BRAND THEME */}
+        <div 
+          className="relative p-6 sm:p-8 border-b space-y-4"
+          style={{ 
+            background: `linear-gradient(135deg, ${brandSecondary} 0%, ${brandColor} 100%)`,
+            borderColor: 'rgba(255,255,255,0.2)' 
+          }}
+        >
+          <div className="absolute top-0 right-0 w-72 h-72 bg-white/10 rounded-full blur-3xl pointer-events-none" />
+          
+          <div className="flex items-start justify-between gap-4 flex-wrap relative z-10">
+            <div className="flex items-center gap-4">
+              <div 
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl flex items-center justify-center text-3xl font-black shadow-2xl border-2 shrink-0"
+                style={{ backgroundColor: '#ffffff', color: brandColor, borderColor: '#ffffff' }}
+              >
+                {student.firstName ? student.firstName[0].toUpperCase() : 'S'}
+              </div>
+              <div className="space-y-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span 
+                    className="px-3 py-0.5 rounded-full text-xs font-black uppercase tracking-wider backdrop-blur-md border"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.25)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.4)' }}
+                  >
+                    Class {student.classId} — Sec {student.sectionId || 'A'}
+                  </span>
+                  <span 
+                    className="px-3 py-0.5 rounded-full text-xs font-black flex items-center gap-1 backdrop-blur-md border"
+                    style={{ backgroundColor: 'rgba(52,211,153,0.25)', color: '#a7f3d0', borderColor: 'rgba(52,211,153,0.4)' }}
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" style={{ color: '#6ee7b7' }} /> Verified Student
+                  </span>
+                </div>
+                <h2 className="text-2xl sm:text-3xl font-black tracking-tight" style={{ color: '#ffffff' }}>
+                  {student.firstName} {student.lastName || ''}
+                </h2>
+                <p className="text-xs font-semibold flex items-center gap-2" style={{ color: '#f1f5f9' }}>
+                  <span>Roll: <strong className="font-mono font-black" style={{ color: '#6ee7b7' }}>{student.rollNo || 'LKGA01'}</strong></span>
+                  <span>•</span>
+                  <span>Parent: <strong className="font-bold" style={{ color: '#fde047' }}>{student.parentName || 'Guardian'}</strong> (<span style={{ color: '#e2e8f0' }}>{student.parentPhone || '—'}</span>)</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={() => onEdit(student)}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer backdrop-blur-md border"
+                style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.3)' }}
+              >
+                <Edit2 className="w-3.5 h-3.5" style={{ color: '#ffffff' }} /> Edit Profile
+              </button>
+              <button 
+                onClick={onClose} 
+                className="p-2 rounded-xl transition cursor-pointer"
+                style={{ backgroundColor: 'rgba(0,0,0,0.4)', color: '#ffffff' }}
+              >
+                <X className="w-4 h-4" style={{ color: '#ffffff' }} />
+              </button>
+            </div>
+          </div>
+
+          {/* TAB STRIP */}
+          <div className="flex items-center gap-2 pt-3 border-t flex-wrap relative z-10" style={{ borderColor: 'rgba(255,255,255,0.2)' }}>
+            {[
+              { id: 'overview', label: 'Overview 360°', icon: User },
+              { id: 'transport', label: 'Bus Transport & Timings', icon: Bus },
+              { id: 'parent', label: 'Parent & Guardian Details', icon: Phone },
+              { id: 'idcard', label: 'Digital ID Card Badge', icon: FileBadge2 }
+            ].map(tab => {
+              const Icon = tab.icon;
+              const isSel = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  style={isSel 
+                    ? { backgroundColor: '#ffffff', color: brandColor, borderColor: '#ffffff' } 
+                    : { backgroundColor: 'rgba(0,0,0,0.3)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.2)' }
+                  }
+                  className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
+                    isSel ? 'shadow-lg shadow-black/40 font-black' : 'hover:bg-black/50'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" style={{ color: isSel ? brandColor : '#ffffff' }} /> 
+                  <span style={{ color: isSel ? brandColor : '#ffffff' }}>{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* MODAL BODY CONTENT */}
+        <div className="p-6 space-y-5 max-h-[65vh] overflow-y-auto" style={{ backgroundColor: '#0f172a', color: '#ffffff' }}>
+          
+          {/* TAB 1: OVERVIEW 360° */}
+          {activeTab === 'overview' && (
+            <div className="space-y-5">
+              {/* METRICS GRID */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div className="p-4 rounded-2xl border space-y-1" style={{ backgroundColor: '#1e293b', borderColor: 'rgba(52,211,153,0.4)' }}>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider block" style={{ color: '#94a3b8' }}>Attendance Rate</span>
+                  <p className="text-2xl font-black" style={{ color: '#34d399' }}>{student.attendancePercentage || 100}%</p>
+                  <span className="text-[10px] font-semibold block" style={{ color: '#6ee7b7' }}>Verified Present</span>
+                </div>
+
+                <div className="p-4 rounded-2xl border space-y-1" style={{ backgroundColor: '#1e293b', borderColor: 'rgba(56,189,248,0.4)' }}>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider block" style={{ color: '#94a3b8' }}>Assigned Bus Route</span>
+                  <p className="text-sm font-black truncate" style={{ color: cyanColor || '#38bdf8' }}>{student.transportRoute || 'No Transport'}</p>
+                  <span className="text-[10px] font-semibold block" style={{ color: '#cbd5e1' }}>Stop: {assignedStopName || 'Walk-in'}</span>
+                </div>
+
+                <div className="p-4 rounded-2xl border space-y-1" style={{ backgroundColor: '#1e293b', borderColor: 'rgba(251,191,36,0.4)' }}>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider block" style={{ color: '#94a3b8' }}>Parent Contact</span>
+                  <p className="text-xs font-mono font-black" style={{ color: '#fcd34d' }}>{student.parentPhone || '—'}</p>
+                  <span className="text-[10px] font-semibold block" style={{ color: '#fef08a' }}>{student.parentName || 'Guardian'}</span>
+                </div>
+
+                <div className="p-4 rounded-2xl border space-y-1" style={{ backgroundColor: '#1e293b', borderColor: 'rgba(192,132,252,0.4)' }}>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider block" style={{ color: '#94a3b8' }}>Class & Sec</span>
+                  <p className="text-sm font-black" style={{ color: '#c084fc' }}>{student.classId} — {student.sectionId || 'A'}</p>
+                  <span className="text-[10px] font-semibold block" style={{ color: '#e9d5ff' }}>Roll: {student.rollNo || 'LKGA01'}</span>
+                </div>
+              </div>
+
+              {/* DETAILED STUDENT INFO TABLE */}
+              <div className="p-5 rounded-2xl border space-y-3" style={{ backgroundColor: '#1e293b', borderColor: 'rgba(255,255,255,0.15)' }}>
+                <h4 className="text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 border-b pb-2" style={{ color: '#ffffff', borderColor: 'rgba(255,255,255,0.15)' }}>
+                  <User className="w-4 h-4" style={{ color: cyanColor || '#38bdf8' }} /> Student Profile Specifications
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                      <span className="font-semibold" style={{ color: '#94a3b8' }}>Full Name</span>
+                      <strong className="font-black text-sm" style={{ color: '#ffffff' }}>{student.firstName} {student.lastName || ''}</strong>
+                    </div>
+                    <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                      <span className="font-semibold" style={{ color: '#94a3b8' }}>Roll Number / ID</span>
+                      <strong className="font-mono font-black text-sm" style={{ color: cyanColor || '#38bdf8' }}>{student.rollNo || 'LKGA01'}</strong>
+                    </div>
+                    <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                      <span className="font-semibold" style={{ color: '#94a3b8' }}>Class & Section</span>
+                      <strong className="font-bold" style={{ color: '#ffffff' }}>{student.classId} - Section {student.sectionId || 'A'}</strong>
+                    </div>
+                    <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                      <span className="font-semibold" style={{ color: '#94a3b8' }}>Blood Group</span>
+                      <strong className="font-black" style={{ color: '#fb7185' }}>{student.bloodGroup || 'O+'}</strong>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                      <span className="font-semibold" style={{ color: '#94a3b8' }}>Student Email</span>
+                      <strong className="font-mono text-xs font-bold" style={{ color: cyanColor || '#38bdf8' }}>{student.studentEmail || '—'}</strong>
+                    </div>
+                    <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                      <span className="font-semibold" style={{ color: '#94a3b8' }}>Father / Parent Name</span>
+                      <strong className="font-bold" style={{ color: '#fcd34d' }}>{student.parentName || '—'}</strong>
+                    </div>
+                    <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                      <span className="font-semibold" style={{ color: '#94a3b8' }}>Parent Phone</span>
+                      <strong className="font-mono font-black" style={{ color: '#34d399' }}>{student.parentPhone || '—'}</strong>
+                    </div>
+                    <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                      <span className="font-semibold" style={{ color: '#94a3b8' }}>Residential Address</span>
+                      <strong className="font-medium truncate max-w-[180px]" style={{ color: '#e2e8f0' }}>{student.address || 'Local School Area'}</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2: BUS TRANSPORT & TIMINGS */}
+          {activeTab === 'transport' && (
+            <div className="space-y-4">
+              {!student.transportRoute && !routeInfo ? (
+                <div className="p-8 text-center text-xs rounded-2xl border space-y-2" style={{ backgroundColor: '#1e293b', borderColor: 'rgba(255,255,255,0.15)', color: '#e2e8f0' }}>
+                  <Bus className="w-10 h-10 mx-auto" style={{ color: '#64748b' }} />
+                  <p className="font-bold text-sm" style={{ color: '#ffffff' }}>No Bus Route Assigned</p>
+                  <p style={{ color: '#cbd5e1' }}>This student is currently set to self / walk-in mode.</p>
+                </div>
+              ) : (
+                <div className="p-5 rounded-2xl border space-y-4" style={{ backgroundColor: '#1e293b', borderColor: 'rgba(56,189,248,0.3)' }}>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <h4 className="font-black text-base flex items-center gap-2" style={{ color: '#ffffff' }}>
+                        <span>🚌 Route: {student.transportRoute || routeInfo?.routeName}</span>
+                        <span className="text-xs font-normal" style={{ color: '#94a3b8' }}>({routeInfo?.vehicleType || 'School Bus'})</span>
+                      </h4>
+                      <p className="text-xs mt-0.5" style={{ color: '#cbd5e1' }}>
+                        Vehicle Number: <strong className="font-mono font-black text-sm" style={{ color: cyanColor || '#38bdf8' }}>{routeInfo?.vehicleNo || 'TG30A8948'}</strong>
+                      </p>
+                    </div>
+                    <span className="px-3 py-1 rounded-xl font-extrabold text-xs border flex items-center gap-1.5" style={{ backgroundColor: 'rgba(52,211,153,0.2)', color: '#34d399', borderColor: 'rgba(52,211,153,0.4)' }}>
+                      <span className="w-2 h-2 rounded-full animate-ping" style={{ backgroundColor: '#34d399' }} /> GPS TRACKER ACTIVE
+                    </span>
+                  </div>
+
+                  {/* STOP & TIMINGS CARD */}
+                  <div className="p-4 rounded-xl border space-y-3" style={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.15)' }}>
+                    <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4" style={{ color: '#34d399' }} />
+                        <span className="text-xs font-bold uppercase tracking-wider" style={{ color: '#cbd5e1' }}>Pickup & Drop Stop:</span>
+                        <strong className="text-xs font-black" style={{ color: '#34d399' }}>{assignedStopName || 'Main Stop'}</strong>
+                      </div>
+                      <span className="font-mono font-bold text-xs px-2.5 py-1 rounded-lg border" style={{ backgroundColor: 'rgba(52,211,153,0.2)', color: '#34d399', borderColor: 'rgba(52,211,153,0.4)' }}>
+                        ₹{stopFee} / month
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
+                      <div className="flex items-center gap-2.5 p-2.5 rounded-xl border" style={{ backgroundColor: 'rgba(251,191,36,0.15)', borderColor: 'rgba(251,191,36,0.3)' }}>
+                        <Clock className="w-4 h-4 shrink-0" style={{ color: '#fcd34d' }} />
+                        <div>
+                          <span className="text-[10px] uppercase font-bold block" style={{ color: '#fde047' }}>🌅 Morning Pickup Time</span>
+                          <span className="font-mono font-black text-sm" style={{ color: '#ffffff' }}>
+                            {typeof stopObj === 'object' && stopObj?.pickupTime ? stopObj.pickupTime : '07:30 AM'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2.5 p-2.5 rounded-xl border" style={{ backgroundColor: 'rgba(99,102,241,0.15)', borderColor: 'rgba(99,102,241,0.3)' }}>
+                        <Clock className="w-4 h-4 shrink-0" style={{ color: '#818cf8' }} />
+                        <div>
+                          <span className="text-[10px] uppercase font-bold block" style={{ color: '#a5b4fc' }}>🌆 Evening Drop Time</span>
+                          <span className="font-mono font-black text-sm" style={{ color: '#ffffff' }}>
+                            {typeof stopObj === 'object' && stopObj?.dropTime ? stopObj.dropTime : '04:30 PM'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* DRIVER & HELPER CONTACT CARDS */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="p-3 rounded-xl border flex items-center justify-between" style={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.15)' }}>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold block" style={{ color: '#94a3b8' }}>Driver Name</span>
+                        <p className="font-bold text-xs" style={{ color: '#ffffff' }}>{routeInfo?.driverName || 'RAMESH'}</p>
+                      </div>
+                      <a href={`tel:${routeInfo?.driverPhone || '9542803315'}`} className="font-bold text-xs font-mono px-2.5 py-1 rounded-lg border" style={{ backgroundColor: 'rgba(251,191,36,0.2)', color: '#fcd34d', borderColor: 'rgba(251,191,36,0.3)' }}>
+                        📞 {routeInfo?.driverPhone || '9542803315'}
+                      </a>
+                    </div>
+
+                    <div className="p-3 rounded-xl border flex items-center justify-between" style={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.15)' }}>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold block" style={{ color: '#94a3b8' }}>Helper / Attendant</span>
+                        <p className="font-bold text-xs" style={{ color: '#ffffff' }}>{routeInfo?.helperName || 'raju'}</p>
+                      </div>
+                      <a href={`tel:${routeInfo?.helperPhone || '7075040344'}`} className="font-bold text-xs font-mono px-2.5 py-1 rounded-lg border" style={{ backgroundColor: 'rgba(56,189,248,0.2)', color: '#38bdf8', borderColor: 'rgba(56,189,248,0.3)' }}>
+                        📞 {routeInfo?.helperPhone || '7075040344'}
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB 3: PARENT & GUARDIAN DETAILS */}
+          {activeTab === 'parent' && (
+            <div className="p-5 rounded-2xl border space-y-4" style={{ backgroundColor: '#1e293b', borderColor: 'rgba(255,255,255,0.15)' }}>
+              <h4 className="text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 border-b pb-2" style={{ color: '#fde047', borderColor: 'rgba(255,255,255,0.15)' }}>
+                <Phone className="w-4 h-4" style={{ color: '#fcd34d' }} /> Parent / Guardian Contact Records
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div className="p-4 rounded-xl border space-y-2" style={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.15)' }}>
+                  <span className="text-[10px] uppercase font-bold block" style={{ color: '#94a3b8' }}>Primary Guardian Name</span>
+                  <p className="font-bold text-sm" style={{ color: '#ffffff' }}>{student.parentName || 'Not Specified'}</p>
+                  <p className="text-xs" style={{ color: '#cbd5e1' }}>Relationship: Father / Primary Contact</p>
+                </div>
+
+                <div className="p-4 rounded-xl border space-y-2" style={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.15)' }}>
+                  <span className="text-[10px] uppercase font-bold block" style={{ color: '#94a3b8' }}>Guardian Phone</span>
+                  <p className="font-mono font-bold text-sm" style={{ color: '#34d399' }}>{student.parentPhone || '—'}</p>
+                  {student.parentPhone && (
+                    <a href={`tel:${student.parentPhone}`} className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-lg border" style={{ backgroundColor: 'rgba(52,211,153,0.2)', color: '#34d399', borderColor: 'rgba(52,211,153,0.4)' }}>
+                      📞 Direct Dial Call
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-xl border space-y-1 text-xs" style={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.15)' }}>
+                <span className="text-[10px] uppercase font-bold block" style={{ color: '#94a3b8' }}>Home Address</span>
+                <p className="font-medium" style={{ color: '#e2e8f0' }}>{student.address || 'School Residential Zone'}</p>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: DIGITAL ID CARD BADGE */}
+          {activeTab === 'idcard' && (
+            <div className="flex justify-center p-2">
+              <div className="w-full max-w-sm border-2 rounded-3xl p-6 shadow-2xl space-y-4 relative overflow-hidden text-center" style={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.2)' }}>
+                <div 
+                  className="p-3 rounded-2xl font-black"
+                  style={{ backgroundColor: brandColor, color: '#ffffff' }}
+                >
+                  <span className="text-[10px] tracking-widest uppercase block style={{ color: 'rgba(255,255,255,0.9)' }}">STUDENT ID BADGE</span>
+                  <h4 className="text-sm font-black tracking-wider" style={{ color: '#ffffff' }}>SCHOOL ERP VERIFIED</h4>
+                </div>
+
+                {/* Avatar */}
+                <div 
+                  className="relative mx-auto w-24 h-24 rounded-2xl flex items-center justify-center text-3xl font-black shadow-xl border-2"
+                  style={{ backgroundColor: brandColor, color: '#ffffff', borderColor: '#ffffff' }}
+                >
+                  {student.firstName ? student.firstName[0].toUpperCase() : 'S'}
+                </div>
+
+                {/* Name & Class */}
+                <div>
+                  <h3 className="text-lg font-black uppercase tracking-tight" style={{ color: '#ffffff' }}>{student.firstName} {student.lastName || ''}</h3>
+                  <p className="text-xs font-bold" style={{ color: cyanColor || '#38bdf8' }}>Class {student.classId} - Section {student.sectionId || 'A'}</p>
+                  <p className="text-xs font-mono font-bold mt-0.5" style={{ color: '#fcd34d' }}>Roll No: {student.rollNo || 'LKGA01'}</p>
+                </div>
+
+                {/* Badges Grid */}
+                <div className="grid grid-cols-2 gap-2 text-[11px] p-3 rounded-2xl border text-left font-mono" style={{ backgroundColor: '#1e293b', borderColor: 'rgba(255,255,255,0.15)' }}>
+                  <div>
+                    <span className="text-[9px] block uppercase font-bold" style={{ color: '#94a3b8' }}>Blood Group</span>
+                    <span className="font-bold" style={{ color: '#fb7185' }}>{student.bloodGroup || 'O+'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] block uppercase font-bold" style={{ color: '#94a3b8' }}>Bus Route</span>
+                    <span className="font-bold truncate block" style={{ color: cyanColor || '#38bdf8' }}>{student.transportRoute || 'Walk-in'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] block uppercase font-bold" style={{ color: '#94a3b8' }}>Parent Phone</span>
+                    <span className="font-bold" style={{ color: '#34d399' }}>{student.parentPhone || '—'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[9px] block uppercase font-bold" style={{ color: '#94a3b8' }}>Status</span>
+                    <span className="font-bold" style={{ color: '#34d399' }}>ACTIVE</span>
+                  </div>
+                </div>
+
+                <div className="pt-2 flex items-center justify-between text-[10px] font-mono" style={{ color: '#94a3b8' }}>
+                  <span>ID: {student._id ? student._id.slice(-8) : '2026-STU'}</span>
+                  <span>VERIFIED BADGE</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+
+        {/* FOOTER */}
+        <div className="flex items-center justify-between p-4 px-6 border-t text-xs" style={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.15)' }}>
+          <button 
+            onClick={() => onEdit(student)}
+            style={{ backgroundColor: brandColor, color: '#ffffff' }}
+            className="px-4 py-2 rounded-xl font-bold shadow-md hover:opacity-90 flex items-center gap-1.5 cursor-pointer border border-white/20"
+          >
+            <Edit2 className="w-3.5 h-3.5" style={{ color: '#ffffff' }} /> Edit Student Data
+          </button>
+          <button 
+            onClick={onClose} 
+            className="px-4 py-2 rounded-xl font-bold transition cursor-pointer border"
+            style={{ backgroundColor: '#1e293b', color: '#ffffff', borderColor: 'rgba(255,255,255,0.2)' }}
+          >
+            Close Profile
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CustomEditStudentModal({ student, isOpen, onClose, onSave, loading }) {
+  const [form, setForm] = useState({
+    firstName: student?.firstName || '',
+    lastName: student?.lastName || '',
+    dob: student?.dob ? new Date(student.dob).toISOString().split('T')[0] : '',
+    gender: student?.gender || 'Male',
+    bloodGroup: student?.bloodGroup || 'O+',
+    studentEmail: student?.studentEmail || '',
+    parentPhone: student?.parentPhone || '',
+    address: student?.address || '',
+    transportRoute: student?.transportRoute || '',
+    pickupStop: student?.pickupStop || '',
+    transportFee: student?.transportFee || 0
+  });
+
+  const [routes, setRoutes] = useState([]);
+  const [routesLoading, setRoutesLoading] = useState(false);
+
+  useEffect(() => {
+    if (student) {
+      setForm({
+        firstName: student.firstName || '',
+        lastName: student.lastName || '',
+        dob: student.dob ? new Date(student.dob).toISOString().split('T')[0] : '',
+        gender: student.gender || 'Male',
+        bloodGroup: student.bloodGroup || 'O+',
+        studentEmail: student.studentEmail || '',
+        parentPhone: student.parentPhone || '',
+        address: student.address || '',
+        transportRoute: student.transportRoute || '',
+        pickupStop: student.pickupStop || '',
+        transportFee: student.transportFee || 0
+      });
+    }
+  }, [student]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setRoutesLoading(true);
+      apiFetch('/admin/transport')
+        .then(d => { 
+          const rList = Array.isArray(d) ? d : [];
+          setRoutes(rList);
+          setRoutesLoading(false);
+
+          if (student && rList.length > 0) {
+            for (const r of rList) {
+              const found = (r.assignedStudents || []).find(as => String(as.studentId) === String(student._id));
+              if (found) {
+                setForm(f => ({
+                  ...f,
+                  transportRoute: r.routeName,
+                  pickupStop: found.pickupStop || f.pickupStop,
+                  transportFee: found.monthlyFee || f.transportFee
+                }));
+                break;
+              }
+            }
+          }
+        })
+        .catch(() => setRoutesLoading(false));
+    }
+  }, [isOpen, student]);
+
+  if (!isOpen || !student) return null;
+
+  const selectedRouteObj = routes.find(r => r.routeName === form.transportRoute);
+  const selectedStopObj = selectedRouteObj?.stops?.find(s => (typeof s === 'string' ? s : s.stopName) === form.pickupStop);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave(form);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[99999] flex items-start justify-center p-4 pt-20 sm:pt-24 pb-12 overflow-y-auto">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl space-y-0 my-0">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+            <UserCheck className="w-4 h-4 text-indigo-400" />
+            Edit Student Profile — {student.firstName} {student.lastName}
+          </h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-200"><X className="w-4 h-4" /></button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+          
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-slate-300 mb-1 block">First Name <span className="text-rose-400">*</span></label>
+              <input 
+                required 
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 font-medium" 
+                value={form.firstName} 
+                onChange={e => setForm(f => ({ ...f, firstName: e.target.value }))} 
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-300 mb-1 block">Last Name</label>
+              <input 
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 font-medium" 
+                value={form.lastName} 
+                onChange={e => setForm(f => ({ ...f, lastName: e.target.value }))} 
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-slate-300 mb-1 block">Date of Birth</label>
+              <input 
+                type="date" 
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-white focus:border-indigo-500 font-medium" 
+                value={form.dob} 
+                onChange={e => setForm(f => ({ ...f, dob: e.target.value }))} 
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-300 mb-1 block">Gender</label>
+              <select 
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-white focus:border-indigo-500 font-semibold" 
+                value={form.gender} 
+                onChange={e => setForm(f => ({ ...f, gender: e.target.value }))}
+              >
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-300 mb-1 block">Blood Group</label>
+              <select 
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-white focus:border-indigo-500 font-semibold" 
+                value={form.bloodGroup} 
+                onChange={e => setForm(f => ({ ...f, bloodGroup: e.target.value }))}
+              >
+                {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map(bg => <option key={bg} value={bg}>{bg}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-slate-300 mb-1 block">Student Email (Login)</label>
+              <input 
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 font-medium" 
+                value={form.studentEmail} 
+                onChange={e => setForm(f => ({ ...f, studentEmail: e.target.value }))} 
+              />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-slate-300 mb-1 block">Parent Phone</label>
+              <input 
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 font-mono" 
+                value={form.parentPhone} 
+                onChange={e => setForm(f => ({ ...f, parentPhone: e.target.value }))} 
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-300 mb-1 block">Address</label>
+            <textarea 
+              rows={2} 
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 font-medium" 
+              value={form.address} 
+              onChange={e => setForm(f => ({ ...f, address: e.target.value }))} 
+            />
+          </div>
+
+          {/* ══════════════════════════════════════════════════
+              TRANSPORT & BUS ROUTE PROFILE SECTION
+          ══════════════════════════════════════════════════ */}
+          <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+                <Bus className="w-4 h-4 text-indigo-400" /> Bus Transport Allocation
+              </h4>
+              {form.transportRoute ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  🚌 BUS USER
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400">
+                  NO TRANSPORT
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Assigned Bus Route</label>
+                <select 
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 font-semibold"
+                  value={form.transportRoute}
+                  onChange={e => {
+                    const rName = e.target.value;
+                    const rObj = routes.find(r => r.routeName === rName);
+                    const firstStop = rObj?.stops?.[0];
+                    const firstStopName = typeof firstStop === 'string' ? firstStop : firstStop?.stopName || '';
+                    const firstFee = typeof firstStop === 'object' && firstStop?.monthlyFee ? Number(firstStop.monthlyFee) : (Number(rObj?.monthlyFee) || 0);
+                    setForm(f => ({ ...f, transportRoute: rName, pickupStop: firstStopName, transportFee: firstFee }));
+                  }}
+                >
+                  <option value="">No Transport (Self / Walk-in)</option>
+                  {routes.map(r => <option key={r._id} value={r.routeName}>{r.routeName} ({r.vehicleNo})</option>)}
+                </select>
+              </div>
+
+              {form.transportRoute && selectedRouteObj && (
+                <div>
+                  <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Pickup & Drop Stop</label>
+                  <select
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:border-indigo-500 font-semibold"
+                    value={form.pickupStop}
+                    onChange={e => {
+                      const sName = e.target.value;
+                      const sObj = selectedRouteObj.stops?.find(s => (typeof s === 'string' ? s : s.stopName) === sName);
+                      const sFee = typeof sObj === 'object' && sObj?.monthlyFee ? Number(sObj.monthlyFee) : (Number(selectedRouteObj.monthlyFee) || 0);
+                      setForm(f => ({ ...f, pickupStop: sName, transportFee: sFee }));
+                    }}
+                  >
+                    {(selectedRouteObj.stops || []).map((s, idx) => {
+                      const name = typeof s === 'string' ? s : s.stopName;
+                      const fee = typeof s === 'object' && s.monthlyFee ? s.monthlyFee : selectedRouteObj.monthlyFee;
+                      return <option key={idx} value={name}>{name} (₹{fee}/mo)</option>;
+                    })}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            {/* STOP TIMINGS & FARE CARD */}
+            {form.transportRoute && selectedRouteObj && (
+              <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400 font-medium">Monthly Bus Fee:</span>
+                  <span className="font-mono font-bold text-emerald-400 text-sm">₹{form.transportFee || selectedRouteObj.monthlyFee || 0} / month</span>
+                </div>
+                {selectedStopObj && typeof selectedStopObj === 'object' && (
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800 text-[11px]">
+                    <div className="flex items-center gap-1.5 text-amber-300 font-mono">
+                      <span>🌅 Pickup:</span>
+                      <strong className="text-white">{selectedStopObj.pickupTime || '07:30 AM'}</strong>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-indigo-300 font-mono">
+                      <span>🌆 Drop:</span>
+                      <strong className="text-white">{selectedStopObj.dropTime || '04:30 PM'}</strong>
+                    </div>
+                  </div>
+                )}
+                {selectedRouteObj.driverName && (
+                  <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1">
+                    <span>Driver: <strong className="text-slate-200">{selectedRouteObj.driverName}</strong> ({selectedRouteObj.driverPhone})</span>
+                    {selectedRouteObj.helperName && <span>Helper: <strong className="text-slate-200">{selectedRouteObj.helperName}</strong></span>}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-bold hover:bg-slate-700">Cancel</button>
+            <button type="submit" disabled={loading} className="px-5 py-2 rounded-xl gradient-primary text-white text-xs font-bold shadow-lg shadow-indigo-500/20 hover:scale-105 transition-transform flex items-center gap-1.5">
+              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />} Save Student Profile
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function TransportRouteModal({ isOpen, editing, onSave, onClose, loading }) {
+  const mapStop = (s, baseFee) => {
+    if (typeof s === 'string') return { stopName: s, monthlyFee: Number(baseFee) || 1500, pickupTime: '07:30 AM', dropTime: '04:30 PM' };
+    const fee = (s.monthlyFee !== undefined && s.monthlyFee !== null && s.monthlyFee !== '' && !isNaN(s.monthlyFee) && Number(s.monthlyFee) > 0)
+      ? Number(s.monthlyFee)
+      : (Number(baseFee) || 1500);
+    return {
+      stopName: s.stopName || '',
+      monthlyFee: fee,
+      pickupTime: s.pickupTime || '07:30 AM',
+      dropTime: s.dropTime || '04:30 PM'
+    };
+  };
+
+  const [form, setForm] = useState(editing ? {
+    routeName: editing.routeName || '',
+    vehicleNo: editing.vehicleNo || '',
+    vehicleType: editing.vehicleType || 'School Bus',
+    driverName: editing.driverName || '',
+    driverPhone: editing.driverPhone || '',
+    helperName: editing.helperName || '',
+    helperPhone: editing.helperPhone || '',
+    capacity: editing.capacity || 40,
+    monthlyFee: editing.monthlyFee || 1500,
+    stops: (editing.stops && editing.stops.length > 0) 
+      ? editing.stops.map(s => mapStop(s, editing.monthlyFee))
+      : [{ stopName: '', monthlyFee: 1500, pickupTime: '07:30 AM', dropTime: '04:30 PM' }],
+    isActive: editing.isActive !== false
+  } : {
+    routeName: '', vehicleNo: '', vehicleType: 'School Bus', driverName: '', driverPhone: '', helperName: '', helperPhone: '', capacity: 40, monthlyFee: 1500, 
+    stops: [{ stopName: '', monthlyFee: 1500, pickupTime: '07:30 AM', dropTime: '04:30 PM' }], isActive: true
+  });
+
+  useEffect(() => {
+    if (editing) {
+      setForm({
+        routeName: editing.routeName || '',
+        vehicleNo: editing.vehicleNo || '',
+        vehicleType: editing.vehicleType || 'School Bus',
+        driverName: editing.driverName || '',
+        driverPhone: editing.driverPhone || '',
+        helperName: editing.helperName || '',
+        helperPhone: editing.helperPhone || '',
+        capacity: editing.capacity || 40,
+        monthlyFee: editing.monthlyFee || 1500,
+        stops: (editing.stops && editing.stops.length > 0) 
+          ? editing.stops.map(s => mapStop(s, editing.monthlyFee))
+          : [{ stopName: '', monthlyFee: 1500, pickupTime: '07:30 AM', dropTime: '04:30 PM' }],
+        isActive: editing.isActive !== false
+      });
+    } else {
+      setForm({
+        routeName: '', vehicleNo: '', vehicleType: 'School Bus', driverName: '', driverPhone: '', helperName: '', helperPhone: '', capacity: 40, monthlyFee: 1500, 
+        stops: [{ stopName: '', monthlyFee: 1500, pickupTime: '07:30 AM', dropTime: '04:30 PM' }], isActive: true
+      });
+    }
+  }, [editing, isOpen]);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    const cleanStops = (form.stops || []).filter(s => s.stopName && s.stopName.trim());
+    onSave({ ...form, stops: cleanStops });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 pt-16 pb-8 overflow-y-auto">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl space-y-0 my-auto">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+            <Bus className="w-4 h-4 text-indigo-400" />
+            {editing ? `Edit Bus Route — ${editing.routeName}` : '➕ Add Bus Route & Staff'}
+          </h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-200"><X className="w-4 h-4" /></button>
+        </div>
+
+        {/* Body */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+          
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-slate-300 mb-1 block">Route Name <span className="text-rose-400">*</span></label>
+              <input 
+                required
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium" 
+                value={form.routeName} 
+                onChange={e => setForm(f => ({ ...f, routeName: e.target.value }))}
+                placeholder="e.g. North Line Route 5"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-300 mb-1 block">Vehicle Number <span className="text-rose-400">*</span></label>
+              <input 
+                required
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono font-bold" 
+                value={form.vehicleNo} 
+                onChange={e => setForm(f => ({ ...f, vehicleNo: e.target.value }))}
+                placeholder="e.g. KA-05-AB-1234"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <label className="text-xs font-semibold text-slate-300 mb-1 block">Vehicle Type</label>
+              <select 
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold"
+                value={form.vehicleType} 
+                onChange={e => setForm(f => ({ ...f, vehicleType: e.target.value }))}
+              >
+                <option value="School Bus">School Bus</option>
+                <option value="Mini Bus">Mini Bus</option>
+                <option value="Van">Van</option>
+                <option value="AC Bus">AC Bus</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-300 mb-1 block">Capacity (Seats) <span className="text-rose-400">*</span></label>
+              <input 
+                type="number"
+                min="1"
+                required
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono font-bold" 
+                value={form.capacity} 
+                onChange={e => setForm(f => ({ ...f, capacity: Number(e.target.value) }))}
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-300 mb-1 block">Base Fee (₹)</label>
+              <input 
+                type="number"
+                min="0"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono" 
+                value={form.monthlyFee} 
+                onChange={e => setForm(f => ({ ...f, monthlyFee: Number(e.target.value) }))}
+              />
+            </div>
+          </div>
+
+          {/* DRIVER & HELPER SECTION */}
+          <div className="p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/20 space-y-3">
+            <h4 className="text-xs font-bold text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+              <UserCheck className="w-4 h-4 text-indigo-400" /> Assigned Bus Staff (Driver & Helper)
+            </h4>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Driver Name <span className="text-rose-400">*</span></label>
+                <input 
+                  required
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium" 
+                  value={form.driverName} 
+                  onChange={e => setForm(f => ({ ...f, driverName: e.target.value }))}
+                  placeholder="e.g. Ramesh Kumar"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Driver Phone <span className="text-rose-400">*</span></label>
+                <input 
+                  required
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono" 
+                  value={form.driverPhone} 
+                  onChange={e => setForm(f => ({ ...f, driverPhone: e.target.value }))}
+                  placeholder="e.g. 9876543210"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Helper / Attendant Name</label>
+                <input 
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium" 
+                  value={form.helperName} 
+                  onChange={e => setForm(f => ({ ...f, helperName: e.target.value }))}
+                  placeholder="e.g. Suresh Singh"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Helper Phone</label>
+                <input 
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono" 
+                  value={form.helperPhone} 
+                  onChange={e => setForm(f => ({ ...f, helperPhone: e.target.value }))}
+                  placeholder="e.g. 9123456789"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* MULTI-STOP PRICING MANAGER */}
+          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                <MapPin className="w-4 h-4 text-emerald-400" /> Route Stops & Individual Monthly Fares
+              </h4>
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, stops: [...(f.stops || []), { stopName: '', monthlyFee: f.monthlyFee || 1500 }] }))}
+                className="px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 text-[11px] font-bold border border-indigo-500/30 flex items-center gap-1"
+              >
+                <Plus className="w-3 h-3" /> Add Stop
+              </button>
+            </div>
+
+            {(form.stops || []).length === 0 ? (
+              <div className="p-3 text-center text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl">
+                No stops configured. Click "+ Add Stop" to add pickup points with custom fares and timings.
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                {form.stops.map((st, idx) => (
+                  <div key={idx} className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <input
+                        required
+                        className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium"
+                        placeholder={`Stop ${idx + 1} Name (e.g. bibinagar)`}
+                        value={st.stopName}
+                        onChange={e => {
+                          const val = e.target.value;
+                          setForm(f => ({
+                            ...f,
+                            stops: f.stops.map((s, i) => i === idx ? { ...s, stopName: val } : s)
+                          }));
+                        }}
+                      />
+                      <div className="flex items-center gap-1">
+                        <span className="text-xs text-slate-400 font-bold">₹</span>
+                        <input
+                          type="number"
+                          min="0"
+                          required
+                          className="w-24 bg-slate-950 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono font-bold text-emerald-400"
+                          placeholder="Fare"
+                          value={st.monthlyFee}
+                          onChange={e => {
+                            const val = Number(e.target.value);
+                            setForm(f => ({
+                              ...f,
+                              stops: f.stops.map((s, i) => i === idx ? { ...s, monthlyFee: val } : s)
+                            }));
+                          }}
+                        />
+                        <span className="text-[10px] text-slate-400 font-semibold">/mo</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, stops: f.stops.filter((_, i) => i !== idx) }))}
+                        className="p-1 rounded-lg text-rose-400 hover:bg-rose-500/20"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800/60">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold text-amber-400 uppercase shrink-0">🌅 Pickup:</span>
+                        <input
+                          type="text"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-indigo-500 font-mono font-semibold"
+                          placeholder="07:30 AM"
+                          value={st.pickupTime || '07:30 AM'}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setForm(f => ({
+                              ...f,
+                              stops: f.stops.map((s, i) => i === idx ? { ...s, pickupTime: val } : s)
+                            }));
+                          }}
+                        />
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold text-indigo-400 uppercase shrink-0">🌆 Drop:</span>
+                        <input
+                          type="text"
+                          className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1 text-[11px] text-white focus:outline-none focus:border-indigo-500 font-mono font-semibold"
+                          placeholder="04:30 PM"
+                          value={st.dropTime || '04:30 PM'}
+                          onChange={e => {
+                            const val = e.target.value;
+                            setForm(f => ({
+                              ...f,
+                              stops: f.stops.map((s, i) => i === idx ? { ...s, dropTime: val } : s)
+                            }));
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-300 mb-1 block">Route Status</label>
+            <select 
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              value={form.isActive ? 'ACTIVE' : 'INACTIVE'} 
+              onChange={e => setForm(f => ({ ...f, isActive: e.target.value === 'ACTIVE' }))}
+            >
+              <option value="ACTIVE">ACTIVE</option>
+              <option value="INACTIVE">INACTIVE</option>
+            </select>
+          </div>
+
+          {/* Footer */}
+          <div className="pt-3 border-t border-slate-800 flex justify-end gap-3">
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700">Cancel</button>
+            <button type="submit" disabled={loading} className="px-5 py-2 rounded-xl gradient-primary text-white text-xs font-bold flex items-center gap-2 disabled:opacity-60">
+              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+              Save Bus Route
+            </button>
+          </div>
+
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function TransportStudentAllocationModal({ isOpen, route, students, cleanClass, cleanSection, onAssign, onRemove, onClose }) {
+  const [filterClass, setFilterClass] = useState('');
+  const [filterSection, setFilterSection] = useState('');
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [selectedStop, setSelectedStop] = useState('');
+  const [customFee, setCustomFee] = useState('');
+  const [assigning, setAssigning] = useState(false);
+
+  if (!isOpen || !route) return null;
+
+  const assignedList = route.assignedStudents || [];
+  const routeStops = route.stops || [];
+
+  const capacity = Number(route.capacity) || 40;
+  const occupiedCount = assignedList.length;
+  const remainingSeats = Math.max(0, capacity - occupiedCount);
+  const isFull = remainingSeats <= 0;
+
+  const getStopName = (st) => typeof st === 'string' ? st : (st?.stopName || 'Stop');
+  const getStopFee = (st) => {
+    if (typeof st === 'object' && st && Number(st.monthlyFee) > 0) {
+      return Number(st.monthlyFee);
+    }
+    return Number(route.monthlyFee) > 0 ? Number(route.monthlyFee) : 1500;
+  };
+
+  const classList = Array.from(new Set((students || []).map(s => cleanClass(s.classId)).filter(Boolean))).sort((a,b)=>a.localeCompare(b, undefined, {numeric: true}));
+  const sectionList = Array.from(new Set((students || []).map(s => cleanSection(s.sectionId)).filter(Boolean))).sort();
+
+  const availableStudents = (students || []).filter(s => {
+    const matchesClass = !filterClass || cleanClass(s.classId).toLowerCase() === filterClass.toLowerCase();
+    const matchesSection = !filterSection || cleanSection(s.sectionId).toLowerCase() === filterSection.toLowerCase();
+    const notAlreadyAssigned = !assignedList.some(as => String(as.studentId) === String(s._id));
+    return matchesClass && matchesSection && notAlreadyAssigned;
+  });
+
+  const handleStopSelect = (stopNameVal) => {
+    setSelectedStop(stopNameVal);
+    const found = routeStops.find(s => getStopName(s).toLowerCase() === stopNameVal.toLowerCase());
+    const defaultFee = found ? getStopFee(found) : (Number(route.monthlyFee) > 0 ? Number(route.monthlyFee) : 1500);
+    setCustomFee(defaultFee);
+  };
+
+  const handleAdd = async () => {
+    if (!selectedStudentId || isFull) return;
+    setAssigning(true);
+    await onAssign(route._id, selectedStudentId, selectedStop, customFee);
+    setSelectedStudentId('');
+    setAssigning(false);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 pt-16 pb-8 overflow-y-auto">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl space-y-0 my-auto">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+          <div>
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Bus className="w-4 h-4 text-indigo-400" />
+              Bus Student Allocation — {route.routeName} ({route.vehicleNo})
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Driver: <strong>{route.driverName}</strong> ({route.driverPhone}) • Helper: <strong>{route.helperName || 'None'}</strong>
+            </p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-200"><X className="w-4 h-4" /></button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+
+          {/* LIVE REMAINING SEATS COUNTER CARD */}
+          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 grid grid-cols-3 gap-3 text-center">
+            <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Total Capacity</span>
+              <span className="text-sm font-extrabold text-white font-mono">{capacity} Seats</span>
+            </div>
+            <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800">
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Onboard Students</span>
+              <span className="text-sm font-extrabold text-indigo-400 font-mono">{occupiedCount} Assigned</span>
+            </div>
+            <div className={`p-2.5 rounded-lg border flex flex-col justify-center ${
+              isFull 
+                ? 'bg-rose-500/15 border-rose-500/30 text-rose-300' 
+                : remainingSeats <= 5 
+                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-300' 
+                  : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+            }`}>
+              <span className="text-[10px] font-bold uppercase block opacity-80">Remaining Seats</span>
+              <span className="text-xs font-black font-mono">
+                {isFull ? '🚨 BUS FULL (0 Left)' : `🪑 ${remainingSeats} Seats Available`}
+              </span>
+            </div>
+          </div>
+
+          {/* ADD STUDENT SECTION */}
+          <div className="p-4 rounded-xl bg-slate-950 border border-slate-800 space-y-3">
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+              <UserPlus className="w-4 h-4 text-emerald-400" /> Assign Student to this Bus Route
+            </h4>
+
+            {/* Class & Section Filters */}
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Filter Class</label>
+                <select
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold"
+                  value={filterClass}
+                  onChange={e => setFilterClass(e.target.value)}
+                >
+                  <option value="">All Classes ({students.length})</option>
+                  {classList.map(c => <option key={c} value={c}>Class {c}</option>)}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Filter Section</label>
+                <select
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold"
+                  value={filterSection}
+                  onChange={e => setFilterSection(e.target.value)}
+                >
+                  <option value="">All Sections</option>
+                  {sectionList.map(s => <option key={s} value={s}>Section {s}</option>)}
+                </select>
+              </div>
+            </div>
+
+            {/* Select Student, Stop & Editable Price */}
+            <div className="grid grid-cols-12 gap-2 items-end">
+              <div className="col-span-5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Select Unassigned Student</label>
+                <select
+                  className="w-full bg-slate-900 border border-indigo-500/40 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-bold"
+                  value={selectedStudentId}
+                  onChange={e => setSelectedStudentId(e.target.value)}
+                  disabled={isFull}
+                >
+                  <option value="">-- Select Student ({availableStudents.length} Available) --</option>
+                  {availableStudents.map(s => {
+                    const cls = cleanClass(s.classId);
+                    const sec = cleanSection(s.sectionId);
+                    return (
+                      <option key={s._id} value={s._id}>
+                        {s.firstName} {s.lastName || ''} — Class {cls}{sec ? ` Sec ${sec}` : ''} ({s.rollNo || 'No Roll'})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div className="col-span-4">
+                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Pickup / Drop Stop</label>
+                <select
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold"
+                  value={selectedStop}
+                  onChange={e => handleStopSelect(e.target.value)}
+                  disabled={isFull}
+                >
+                  <option value="">-- Select Stop --</option>
+                  {routeStops.map((st, idx) => {
+                    const name = getStopName(st);
+                    const fee = getStopFee(st);
+                    return (
+                      <option key={idx} value={name}>
+                        {name} — ₹{fee.toLocaleString()} / mo
+                      </option>
+                    );
+                  })}
+                  {routeStops.length === 0 && <option value="Main Stop">Main Stop — ₹{Number(route.monthlyFee) || 1500} / mo</option>}
+                </select>
+              </div>
+
+              <div className="col-span-3">
+                <label className="text-[10px] font-bold text-slate-400 uppercase mb-1 block">Monthly Fee (₹)</label>
+                <input
+                  type="number"
+                  min="0"
+                  className="w-full bg-slate-900 border border-emerald-500/30 rounded-xl px-2.5 py-1.5 text-xs text-emerald-400 font-mono font-bold focus:outline-none focus:border-emerald-500"
+                  value={customFee}
+                  onChange={e => setCustomFee(e.target.value)}
+                  placeholder="₹ Fare"
+                  disabled={isFull}
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end">
+              <button
+                onClick={handleAdd}
+                disabled={!selectedStudentId || assigning || isFull}
+                className="px-4 py-2 rounded-xl gradient-primary text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-50 shadow-md"
+              >
+                {assigning ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+                {isFull ? 'Bus Full' : 'Add Student to Bus Route'}
+              </button>
+            </div>
+          </div>
+
+          {/* ASSIGNED STUDENTS LIST */}
+          <div className="space-y-2">
+            <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between">
+              <span>Onboard Students ({assignedList.length})</span>
+            </h4>
+
+            {assignedList.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl">
+                No students assigned to this bus route yet. Select a student above to assign them.
+              </div>
+            ) : (
+              <div className="border border-slate-800 rounded-xl overflow-hidden">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-950 border-b border-slate-800 text-[10px] font-bold text-slate-400 uppercase">
+                    <tr>
+                      <th className="p-3">Student Name</th>
+                      <th className="p-3">Class & Sec</th>
+                      <th className="p-3">Roll No</th>
+                      <th className="p-3">Pickup Stop & Monthly Fee</th>
+                      <th className="p-3 text-right">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800/60">
+                    {assignedList.map((as, idx) => {
+                      const cls = cleanClass(as.classId);
+                      const sec = cleanSection(as.sectionId);
+                      return (
+                        <tr key={idx} className="hover:bg-slate-800/40">
+                          <td className="p-3 font-bold text-white">{as.studentName}</td>
+                          <td className="p-3 text-slate-300">Class {cls}{sec ? `-${sec}` : ''}</td>
+                          <td className="p-3 font-mono text-slate-400">{as.rollNo || '—'}</td>
+                          <td className="p-3 font-medium text-indigo-300">
+                            {as.pickupStop || 'Main Stop'} 
+                            <span className="font-mono font-bold text-emerald-400 ml-2">(₹{as.monthlyFee || route.monthlyFee || 0}/mo)</span>
+                          </td>
+                          <td className="p-3 text-right">
+                            <button
+                              onClick={() => onRemove(route._id, as.studentId)}
+                              className="px-2.5 py-1 rounded-lg bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 text-[11px] font-bold border border-rose-500/20 transition-all"
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3.5 border-t border-slate-800 flex justify-end">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700">Done / Close</button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
 
 const HostelTab = makeSimpleCRUDTab({
   title: 'Hostel Rooms', icon: Home, color: 'amber', endpoint: '/admin/hostel/rooms',
@@ -3875,6 +5516,7 @@ function ParentsTab() {
   const [students, setStudents] = useState([]);
   const [classes, setClasses] = useState([]);
   const [selectedClassFilter, setSelectedClassFilter] = useState('');
+  const [selectedSectionFilter, setSelectedSectionFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -3924,6 +5566,15 @@ function ParentsTab() {
     return Array.from(set).filter(Boolean).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   }, [classes, students]);
 
+  // Collect all unique available sections
+  const availableSections = React.useMemo(() => {
+    const set = new Set();
+    students.forEach(s => {
+      if (s.sectionId) set.add(cleanSection(s.sectionId));
+    });
+    return Array.from(set).filter(Boolean).sort();
+  }, [students]);
+
   // Merge Parents with their linked Student child details
   const mergedParents = React.useMemo(() => {
     const map = new Map();
@@ -3954,13 +5605,16 @@ function ParentsTab() {
 
       map.set(p.email.toLowerCase(), {
         _id: p._id,
+        name: p.name,
         parentName: p.name,
         email: p.email,
         phone: p.phone || child?.parentPhone || '—',
         status: p.status || 'ACTIVE',
+        mappedStudentId: p.mappedStudentId || child?._id || '',
         childName: child ? `${child.firstName} ${child.lastName}` : 'Unlinked',
         childClass: child ? `Class ${clsName}${secName ? ` — Section ${secName}` : ''}` : 'N/A',
         rawClassId: clsName,
+        rawSectionId: secName,
         createdAt: p.createdAt
       });
     });
@@ -3972,13 +5626,16 @@ function ParentsTab() {
         const secName = cleanSection(s.sectionId);
         map.set(pEmail, {
           _id: `st-parent-${s._id}`,
+          name: s.parentName || 'Parent / Guardian',
           parentName: s.parentName || 'Parent / Guardian',
           email: s.parentEmail,
           phone: s.parentPhone || '—',
           status: 'ACTIVE',
+          mappedStudentId: s._id,
           childName: `${s.firstName} ${s.lastName}`,
           childClass: `Class ${clsName}${secName ? ` — Section ${secName}` : ''}`,
           rawClassId: clsName,
+          rawSectionId: secName,
           createdAt: s.createdAt
         });
       }
@@ -3988,21 +5645,26 @@ function ParentsTab() {
   }, [rows, students]);
 
   const filteredParents = React.useMemo(() => {
-    if (!selectedClassFilter) return mergedParents;
-    return mergedParents.filter(p => 
-      p.rawClassId && p.rawClassId.toLowerCase() === selectedClassFilter.toLowerCase()
-    );
-  }, [mergedParents, selectedClassFilter]);
+    return mergedParents.filter(p => {
+      const matchesClass = !selectedClassFilter || (p.rawClassId && p.rawClassId.toLowerCase() === selectedClassFilter.toLowerCase());
+      const matchesSection = !selectedSectionFilter || (p.rawSectionId && p.rawSectionId.toLowerCase() === selectedSectionFilter.toLowerCase());
+      return matchesClass && matchesSection;
+    });
+  }, [mergedParents, selectedClassFilter, selectedSectionFilter]);
 
   const handleSave = async (form) => {
     setSaving(true);
     try {
-      if (modal.editing) {
-        await apiFetch(`/users/${modal.editing._id}`, { method: 'PUT', body: JSON.stringify(form) });
-        showMsg('success', '✅ Parent updated.');
+      const targetId = (form._id && !String(form._id).startsWith('st-parent-'))
+        ? form._id
+        : (modal.editing && modal.editing._id && !String(modal.editing._id).startsWith('st-parent-') ? modal.editing._id : null);
+
+      if (targetId) {
+        await apiFetch(`/users/${targetId}`, { method: 'PUT', body: JSON.stringify(form) });
+        showMsg('success', '✅ Existing parent account updated & linked to student.');
       } else {
         await apiFetch('/users', { method: 'POST', body: JSON.stringify({ ...form, role: 'PARENT' }) });
-        showMsg('success', '✅ Parent account created.');
+        showMsg('success', '✅ Parent account created & linked to student.');
       }
       setModal(null); load();
     } catch (e) { showMsg('error', `❌ ${e.message}`); } finally { setSaving(false); }
@@ -4018,14 +5680,6 @@ function ParentsTab() {
     catch (e) { showMsg('error', e.message); }
   };
 
-  const fields = [
-    { key: 'name', label: 'Parent / Guardian Name', required: true },
-    { key: 'email', label: 'Login Email', type: 'email', required: true },
-    { key: 'phone', label: 'Phone Number' },
-    { key: 'password', label: 'Password (leave blank to keep unchanged)', type: 'password' },
-    { key: 'status', label: 'Account Status', type: 'select', options: ['ACTIVE', 'INACTIVE'] },
-  ];
-
   return (
     <div className="space-y-4">
       {msg && <div className={`p-3 rounded-xl text-xs font-semibold ${msg.type === 'success' ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/20' : 'bg-rose-500/15 text-rose-300 border border-rose-500/20'}`}>{msg.text}</div>}
@@ -4035,20 +5689,34 @@ function ParentsTab() {
           <HeartHandshake className="w-5 h-5 text-indigo-400 shrink-0" />
           <div>
             <h3 className="text-xs font-bold text-white uppercase tracking-wider">Parent Directory & Child Linkages</h3>
-            <p className="text-[11px] text-slate-400">Class-wise parent contacts and student enrollment links</p>
+            <p className="text-[11px] text-slate-400">Class & Section-wise parent contacts and student enrollment links</p>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-slate-400 font-semibold">Filter by Class:</span>
-          <select 
-            className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
-            value={selectedClassFilter} 
-            onChange={e => setSelectedClassFilter(e.target.value)}
-          >
-            <option value="">All Classes ({mergedParents.length})</option>
-            {availableClasses.map(c => <option key={c} value={c}>Class {c}</option>)}
-          </select>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-slate-400 font-semibold">Class:</span>
+            <select 
+              className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold"
+              value={selectedClassFilter} 
+              onChange={e => setSelectedClassFilter(e.target.value)}
+            >
+              <option value="">All Classes ({mergedParents.length})</option>
+              {availableClasses.map(c => <option key={c} value={c}>Class {c}</option>)}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-slate-400 font-semibold">Section:</span>
+            <select 
+              className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold"
+              value={selectedSectionFilter} 
+              onChange={e => setSelectedSectionFilter(e.target.value)}
+            >
+              <option value="">All Sections</option>
+              {availableSections.map(s => <option key={s} value={s}>Section {s}</option>)}
+            </select>
+          </div>
         </div>
       </div>
 
@@ -4056,9 +5724,9 @@ function ParentsTab() {
       {availableClasses.length > 0 && (
         <div className="flex items-center gap-2 overflow-x-auto pb-1">
           <button
-            onClick={() => setSelectedClassFilter('')}
+            onClick={() => { setSelectedClassFilter(''); setSelectedSectionFilter(''); }}
             className={`px-3 py-1 rounded-xl text-xs font-bold transition-all border ${
-              !selectedClassFilter 
+              !selectedClassFilter && !selectedSectionFilter
                 ? 'gradient-primary text-white border-indigo-400/40 shadow-md shadow-indigo-500/20' 
                 : 'bg-slate-900 text-slate-400 hover:text-white border-slate-800'
             }`}
@@ -4099,16 +5767,14 @@ function ParentsTab() {
           { key: 'phone', label: 'Parent Phone' },
           { key: 'status', label: 'Status', badge: true },
         ]}
-        onAdd={() => setModal({ editing: null })}
         onEdit={(row) => setModal({ editing: row })}
         onDelete={handleDelete}
         searchable
       />
       {modal && (
-        <CrudModal
-          title={modal.editing ? `Edit Parent — ${modal.editing.parentName}` : '➕ Add Parent Account'}
-          fields={fields}
-          initial={modal.editing ? { name: modal.editing.parentName, email: modal.editing.email, phone: modal.editing.phone, status: modal.editing.status } : {}}
+        <ParentAccountModal
+          isOpen={true}
+          editing={modal.editing}
           onSave={handleSave}
           onClose={() => setModal(null)}
           loading={saving}
@@ -4118,11 +5784,118 @@ function ParentsTab() {
   );
 }
 
+function ParentAccountModal({ isOpen, editing, onSave, onClose, loading }) {
+  const [form, setForm] = useState(editing ? {
+    _id: editing._id && !String(editing._id).startsWith('st-parent-') ? editing._id : '',
+    name: editing.parentName || editing.name || '',
+    email: editing.email || '',
+    phone: editing.phone || '',
+    password: '',
+    status: editing.status || 'ACTIVE'
+  } : {
+    _id: '', name: '', email: '', phone: '', password: '', status: 'ACTIVE'
+  });
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-[99999] flex items-center justify-center p-4 pt-16 pb-8 overflow-y-auto">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl space-y-0 my-auto">
+        
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800">
+          <h3 className="text-sm font-bold text-white flex items-center gap-2">
+            <HeartHandshake className="w-4 h-4 text-indigo-400" />
+            {editing ? `Edit Parent — ${editing.parentName || editing.name}` : 'Edit Parent Account'}
+          </h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-200"><X className="w-4 h-4" /></button>
+        </div>
+
+        {/* Body */}
+        <div className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+
+          {editing && editing.childName && (
+            <div className="p-3 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-xs flex items-center justify-between">
+              <span className="text-slate-400 font-semibold">Child Student:</span>
+              <span className="font-bold text-indigo-300">{editing.childName} ({editing.childClass})</span>
+            </div>
+          )}
+
+          <div>
+            <label className="text-xs font-semibold text-slate-300 mb-1 block">Parent / Guardian Name <span className="text-rose-400">*</span></label>
+            <input 
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium" 
+              value={form.name} 
+              onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder="e.g. Rajesh Sharma"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-300 mb-1 block">Login Email <span className="text-rose-400">*</span></label>
+            <input 
+              type="email"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium" 
+              value={form.email} 
+              onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              placeholder="e.g. parent@gmail.com"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-300 mb-1 block">Phone Number</label>
+            <input 
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium" 
+              value={form.phone} 
+              onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+              placeholder="e.g. 9876543210"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-300 mb-1 block">Password (leave blank to keep unchanged)</label>
+            <input 
+              type="password"
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500" 
+              value={form.password} 
+              onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+              placeholder="••••••••"
+            />
+          </div>
+
+          <div>
+            <label className="text-xs font-semibold text-slate-300 mb-1 block">Account Status</label>
+            <select 
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+              value={form.status} 
+              onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
+            >
+              <option value="ACTIVE">ACTIVE</option>
+              <option value="INACTIVE">INACTIVE</option>
+            </select>
+          </div>
+
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-slate-800 flex justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-xs font-semibold hover:bg-slate-700">Cancel</button>
+          <button onClick={() => onSave(form)} disabled={loading} className="px-5 py-2 rounded-xl gradient-primary text-white text-xs font-bold flex items-center gap-2 disabled:opacity-60">
+            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+            Save Changes
+          </button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 // Staff Attendance Tab
 function StaffAttendanceTab() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(getLocalDateStr());
   const [modal, setModal] = useState(null);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState(null);
@@ -4459,68 +6232,84 @@ function AdminProfileTab() {
         </div>
       )}
 
-      {/* HERO BANNER CARD — DYNAMICALLY THEMED */}
-      <div className="relative bg-[#0d1117] border border-slate-800 rounded-3xl overflow-hidden shadow-2xl">
-        <div 
-          className="h-36 border-b border-slate-800/80 relative transition-all duration-500 overflow-hidden"
-          style={{
-            background: `linear-gradient(135deg, ${brandPrimary} 0%, ${brandSecondary} 60%, #0d1117 100%)`
-          }}
-        >
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.2),transparent_60%)]" />
-        </div>
-
-        <div className="px-6 pb-6 pt-0 relative flex flex-col sm:flex-row items-start sm:items-end justify-between gap-4 -mt-12 sm:-mt-10">
-          <div className="flex items-end gap-4">
+      {/* HERO BANNER CARD (DYNAMIC DEEP EMERALD BRAND THEME COLOR - MATCHES PARENT PORTAL) */}
+      <div 
+        className="p-6 sm:p-8 rounded-3xl relative overflow-hidden space-y-4 shadow-2xl border"
+        style={{ 
+          background: `linear-gradient(135deg, ${brandSecondary} 0%, ${brandPrimary} 100%)`,
+          borderColor: 'rgba(255,255,255,0.2)',
+          color: '#ffffff'
+        }}
+      >
+        <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full blur-3xl -z-10 pointer-events-none" />
+        
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center space-x-4">
             <div className="relative group">
               <img
                 src={form.avatar || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=300&auto=format&fit=crop'}
                 alt="Profile Avatar"
-                className="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-4 border-[#0d1117] shadow-xl bg-slate-900"
+                className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover border-2 border-white shadow-xl bg-white shrink-0"
               />
               {!isReadOnlyRole && (
-                <div className="absolute inset-0 bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
-                     onClick={() => {
-                       const url = prompt('Enter Avatar Image URL:', form.avatar);
-                       if (url !== null) setForm(f => ({ ...f, avatar: url }));
-                     }}>
-                  <Camera className="w-6 h-6 text-white" />
+                <div 
+                  className="absolute inset-0 bg-black/40 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                  onClick={() => {
+                    const url = prompt('Enter Avatar Image URL:', form.avatar);
+                    if (url !== null) setForm(f => ({ ...f, avatar: url }));
+                  }}
+                >
+                  <Camera className="w-5 h-5 text-white" />
                 </div>
               )}
             </div>
-
-            <div className="mb-1">
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg sm:text-xl font-black text-white">{form.name}</h1>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 flex items-center gap-1 uppercase">
-                  <ShieldCheck className="w-3 h-3 text-indigo-400" /> {displayRole}
+            
+            <div>
+              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                <span 
+                  className="px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-md"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.3)' }}
+                >
+                  {displayRole}
+                </span>
+                <span 
+                  className="px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 border backdrop-blur-md"
+                  style={{ backgroundColor: 'rgba(52,211,153,0.25)', color: '#a7f3d0', borderColor: 'rgba(52,211,153,0.4)' }}
+                >
+                  <CheckCircle className="w-3 h-3" style={{ color: '#6ee7b7' }} /> Verified Profile
                 </span>
               </div>
-              <p className="text-xs text-slate-400 font-semibold">
-                {form.designation || (
-                  currentRole === 'STUDENT' ? 'Enrolled Student' :
-                  currentRole === 'TEACHER' ? 'Faculty Member' :
-                  currentRole === 'PARENT' ? 'Parent / Guardian' :
-                  currentRole === 'ACCOUNTANT' ? 'Finance Officer' :
-                  'Campus Administrator'
-                )}
+              
+              <h1 className="text-xl sm:text-2xl font-black mt-1 tracking-tight" style={{ color: '#ffffff' }}>
+                Administrator: <span style={{ color: '#ffffff' }}>{form.name}</span>
+              </h1>
+              <p className="text-xs font-semibold mt-1" style={{ color: '#f1f5f9' }}>
+                Designation: <strong style={{ color: '#fde047' }}>{form.designation || 'School Admin / Principal'}</strong> • Campus: <span style={{ color: '#ffffff' }}>{profile?.schoolName || 'School ERP Campus'}</span> • Email: <span className="font-mono font-bold" style={{ color: '#6ee7b7' }}>{form.email}</span>
               </p>
-              <p className="text-[11px] text-slate-500">{profile?.schoolName || 'School ERP Campus'}</p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2 self-stretch sm:self-auto">
-            <span className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> Active Session
-            </span>
-            {currentRole === 'SCHOOL_ADMIN' && (
-              <button
-                onClick={() => window.location.href = '/admin/dashboard?tab=settings'}
-                className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-semibold text-white flex items-center gap-1.5 transition-colors"
-              >
-                <Settings className="w-3.5 h-3.5 text-slate-400" /> School Settings
-              </button>
-            )}
+          {/* DYNAMIC METRICS BOX */}
+          <div 
+            className="grid grid-cols-2 gap-3 text-xs p-3.5 rounded-2xl border"
+            style={{ backgroundColor: 'rgba(0,0,0,0.35)', borderColor: 'rgba(255,255,255,0.2)' }}
+          >
+            <div>
+              <span className="text-[10px] uppercase font-bold block" style={{ color: '#cbd5e1' }}>Admin Account</span>
+              <span className="font-bold text-xs" style={{ color: '#ffffff' }}>{form.name}</span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold block" style={{ color: '#cbd5e1' }}>System Role</span>
+              <span className="font-bold text-xs" style={{ color: '#fde047' }}>{displayRole}</span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold block" style={{ color: '#cbd5e1' }}>Registered Email</span>
+              <span className="font-mono font-bold" style={{ color: '#6ee7b7' }}>{form.email}</span>
+            </div>
+            <div>
+              <span className="text-[10px] uppercase font-bold block" style={{ color: '#cbd5e1' }}>Contact Phone</span>
+              <span className="font-mono font-bold" style={{ color: '#34d399' }}>{form.phone || '+91 9963887021'}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -5253,6 +7042,7 @@ function TimetableTab() {
     </div>
   );
 }
+
 
 // School Settings Tab
 function SchoolSettingsTab() {

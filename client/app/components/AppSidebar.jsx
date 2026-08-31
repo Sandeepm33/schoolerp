@@ -11,7 +11,7 @@ import {
   Stethoscope, AlertTriangle, Megaphone, Ticket, FileBadge2,
   BarChart3, Settings, HeartHandshake, UserCog, BookMarked,
   Calculator, TrendingUp, MapPin, Scroll, ClipboardList,
-  ChevronLeft, ChevronRight, Bot
+  ChevronLeft, ChevronRight, Bot, Compass
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -175,19 +175,18 @@ function SidebarContent({ isCollapsed, onToggle }) {
         
         {/* Compact Logo Header */}
         <div className="p-2.5 border-b border-slate-100 flex flex-col items-center justify-center bg-white shrink-0">
-          <div 
+          <img 
             onClick={onToggle}
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-white shadow-xs cursor-pointer hover:scale-105 transition-transform"
-            style={{ backgroundColor: currentAccent }}
+            src="/track360_logo.png" 
+            alt="Track 360 Logo" 
+            className="w-9 h-9 rounded-xl object-cover border border-slate-200 shadow-md cursor-pointer hover:scale-105 transition-transform shrink-0" 
             title="Expand Sidebar"
-          >
-            <Sparkles className="w-4 h-4 animate-pulse text-white" />
-          </div>
+          />
           <span 
-            className="text-[8px] font-black tracking-wider mt-1 text-center truncate max-w-full"
+            className="text-[8px] font-black tracking-wider mt-1 text-center truncate max-w-full uppercase"
             style={{ color: currentAccent }}
           >
-            ERP OS
+            Track 360
           </span>
         </div>
 
@@ -284,14 +283,13 @@ function SidebarContent({ isCollapsed, onToggle }) {
       {/* FULL BRANDING HEADER */}
       <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-white">
         <div className="flex items-center space-x-3 overflow-hidden">
-          <div 
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-white shadow-md shrink-0"
-            style={{ backgroundColor: currentAccent }}
-          >
-            <Sparkles className="w-5 h-5 animate-pulse text-white" />
-          </div>
+          <img 
+            src="/track360_logo.png" 
+            alt="Track 360 Logo" 
+            className="w-9 h-9 rounded-xl object-cover border border-slate-200 shadow-md shrink-0" 
+          />
           <div className="truncate">
-            <h1 className="text-sm font-black text-slate-900 tracking-wide truncate">AI SCHOOL ERP</h1>
+            <h1 className="text-sm font-black text-slate-900 tracking-wide truncate">Track 360</h1>
             <p 
               className="text-[10px] font-extrabold uppercase tracking-widest truncate"
               style={{ color: currentAccent }}

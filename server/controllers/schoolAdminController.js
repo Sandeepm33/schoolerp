@@ -352,7 +352,33 @@ const createStudentRecord = async (req, res) => {
 const updateStudentRecord = async (req, res) => {
   try {
     const old = await Student.findById(req.params.id);
-    const doc = await Student.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const doc = await Student.findByIdAndUpdate(req.params.id, req.body, { new: true, strict: false });
+    
+    // Sync with Transport routes if transportRoute field is present in payload
+    if (req.body.transportRoute !== undefined) {
+      // Remove student from any previous transport routes first
+      await Transport.updateMany(
+        { 'assignedStudents.studentId': doc._id },
+        { $pull: { assignedStudents: { studentId: doc._id } } }
+      );
+      if (req.body.transportRoute) {
+        const transport = await Transport.findOne({ routeName: req.body.transportRoute });
+        if (transport) {
+          transport.assignedStudents.push({
+            studentId: doc._id,
+            studentName: `${doc.firstName} ${doc.lastName}`,
+            rollNo: doc.rollNo,
+            classId: doc.classId,
+            sectionId: doc.sectionId,
+            pickupStop: req.body.pickupStop || doc.pickupStop || '',
+            monthlyFee: req.body.transportFee || 0,
+            parentPhone: doc.parentPhone || ''
+          });
+          await transport.save();
+        }
+      }
+    }
+
     await logAudit(req, 'UPDATE', 'Student', doc._id, old, doc);
     ok(res, doc);
   } catch (e) { err(res, e.message); }
@@ -1040,6 +1066,36 @@ const deleteHomework = async (req, res) => {
     ok(res, { message: 'Deleted' });
   } catch (e) { err(res, e.message); }
 };
+const verifyHomeworkSubmission = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { studentId, studentName, status, teacherComment, grade } = req.body;
+    const targetStatus = status || 'VERIFIED';
+
+    const hw = await Homework.findById(id);
+    if (!hw) return err(res, 'Homework not found', 404);
+
+    if (!hw.submissions) hw.submissions = [];
+    const subIdx = hw.submissions.findIndex(s => String(s.studentId) === String(studentId) || s.studentName === studentName);
+    if (subIdx >= 0) {
+      hw.submissions[subIdx].status = targetStatus;
+      if (teacherComment) hw.submissions[subIdx].teacherComment = teacherComment;
+      if (grade) hw.submissions[subIdx].grade = grade;
+    } else {
+      hw.submissions.push({
+        studentId,
+        studentName: studentName || 'Student',
+        submittedAt: new Date(),
+        status: targetStatus,
+        teacherComment: teacherComment || 'Verified & marked completed by faculty',
+        grade: grade || 'A+'
+      });
+    }
+
+    await hw.save();
+    ok(res, hw);
+  } catch (e) { err(res, e.message); }
+};
 
 // ─────────────────────────────────────────────────────────
 // 11. LMS CONTENT
@@ -1396,19 +1452,76 @@ const returnBook = async (req, res) => {
 // ─────────────────────────────────────────────────────────
 const getTransport = async (req, res) => {
   try {
-    const docs = await Transport.find({ schoolId: getSchoolId(req) });
+    const schoolId = getSchoolId(req);
+    const query = schoolId 
+      ? { $or: [{ schoolId }, { schoolId: null }, { schoolId: { $exists: false } }] }
+      : {};
+    const docs = await Transport.find(query);
     ok(res, docs);
   } catch (e) { err(res, e.message); }
 };
 const createTransport = async (req, res) => {
   try {
-    const doc = await Transport.create({ ...req.body, schoolId: getSchoolId(req) });
+    const { routeName, vehicleNo, vehicleType, driverName, driverPhone, helperName, helperPhone, capacity, monthlyFee, stops, isActive } = req.body;
+    const baseFee = Number(monthlyFee) || 1500;
+    const formattedStops = Array.isArray(stops) ? stops.map(s => {
+      if (typeof s === 'string') return { stopName: s, monthlyFee: baseFee, pickupTime: '07:30 AM', dropTime: '04:30 PM' };
+      const stopFare = (s && s.monthlyFee !== undefined && s.monthlyFee !== null && s.monthlyFee !== '' && !isNaN(s.monthlyFee)) 
+        ? Number(s.monthlyFee) 
+        : baseFee;
+      return {
+        stopName: String(s.stopName || '').trim(),
+        monthlyFee: stopFare,
+        pickupTime: s.pickupTime || '07:30 AM',
+        dropTime: s.dropTime || '04:30 PM'
+      };
+    }) : [];
+    const doc = await Transport.create({
+      schoolId: getSchoolId(req),
+      routeName, vehicleNo, vehicleType, driverName, driverPhone,
+      helperName: helperName || '',
+      helperPhone: helperPhone || '',
+      capacity: Number(capacity) || 40,
+      monthlyFee: baseFee,
+      stops: formattedStops,
+      isActive: isActive !== false
+    });
+    console.log("CREATED TRANSPORT DOC:", JSON.stringify(doc));
     ok(res, doc, 201);
   } catch (e) { err(res, e.message); }
 };
 const updateTransport = async (req, res) => {
   try {
-    const doc = await Transport.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const { routeName, vehicleNo, vehicleType, driverName, driverPhone, helperName, helperPhone, capacity, monthlyFee, stops, isActive } = req.body;
+    const baseFee = Number(monthlyFee) || 1500;
+    const formattedStops = Array.isArray(stops) ? stops.map(s => {
+      if (typeof s === 'string') return { stopName: s, monthlyFee: baseFee, pickupTime: '07:30 AM', dropTime: '04:30 PM' };
+      const stopFare = (s && s.monthlyFee !== undefined && s.monthlyFee !== null && s.monthlyFee !== '' && !isNaN(s.monthlyFee)) 
+        ? Number(s.monthlyFee) 
+        : baseFee;
+      return {
+        stopName: String(s.stopName || '').trim(),
+        monthlyFee: stopFare,
+        pickupTime: s.pickupTime || '07:30 AM',
+        dropTime: s.dropTime || '04:30 PM'
+      };
+    }) : [];
+    const doc = await Transport.findByIdAndUpdate(
+      req.params.id, 
+      {
+        $set: {
+          routeName, vehicleNo, vehicleType, driverName, driverPhone,
+          helperName: helperName || '',
+          helperPhone: helperPhone || '',
+          capacity: Number(capacity) || 40,
+          monthlyFee: baseFee,
+          stops: formattedStops,
+          isActive: isActive !== false
+        }
+      },
+      { new: true, strict: false }
+    );
+    console.log("UPDATED TRANSPORT DOC:", JSON.stringify(doc));
     ok(res, doc);
   } catch (e) { err(res, e.message); }
 };
@@ -1416,6 +1529,71 @@ const deleteTransport = async (req, res) => {
   try {
     await Transport.findByIdAndDelete(req.params.id);
     ok(res, { message: 'Deleted' });
+  } catch (e) { err(res, e.message); }
+};
+
+const assignStudentToTransport = async (req, res) => {
+  try {
+    const { studentId, pickupStop, monthlyFee } = req.body;
+    const transport = await Transport.findById(req.params.id);
+    if (!transport) return err(res, 'Transport route not found');
+
+    const student = await Student.findById(studentId);
+    if (!student) return err(res, 'Student not found');
+
+    const matchedStop = (transport.stops || []).find(st => 
+      typeof st === 'string' 
+        ? st.toLowerCase() === String(pickupStop || '').toLowerCase()
+        : (st.stopName || '').toLowerCase() === String(pickupStop || '').toLowerCase()
+    );
+    const calculatedFee = Number(monthlyFee) > 0 
+      ? Number(monthlyFee) 
+      : (matchedStop && typeof matchedStop === 'object' && matchedStop.monthlyFee > 0 
+          ? Number(matchedStop.monthlyFee) 
+          : (Number(transport.monthlyFee) || 1500));
+
+    const alreadyAssigned = (transport.assignedStudents || []).some(s => String(s.studentId) === String(studentId));
+    if (!alreadyAssigned) {
+      if ((transport.assignedStudents || []).length >= (transport.capacity || 40)) {
+        return err(res, `Cannot assign student: Bus route has reached full capacity (${transport.capacity} seats).`);
+      }
+
+      if (!transport.assignedStudents) transport.assignedStudents = [];
+      transport.assignedStudents.push({
+        studentId: student._id,
+        studentName: `${student.firstName} ${student.lastName || ''}`.trim(),
+        rollNo: student.rollNo || '',
+        classId: student.classId,
+        sectionId: student.sectionId,
+        pickupStop: pickupStop || 'Main Stop',
+        monthlyFee: calculatedFee,
+        parentPhone: student.parentPhone || ''
+      });
+      await transport.save();
+    }
+
+    await Student.findByIdAndUpdate(studentId, {
+      transportRoute: transport.routeName,
+      pickupStop: pickupStop || 'Main Stop',
+      transportFee: calculatedFee
+    });
+
+    ok(res, transport);
+  } catch (e) { err(res, e.message); }
+};
+
+const removeStudentFromTransport = async (req, res) => {
+  try {
+    const { studentId } = req.body;
+    const transport = await Transport.findById(req.params.id);
+    if (!transport) return err(res, 'Transport route not found');
+
+    transport.assignedStudents = (transport.assignedStudents || []).filter(s => String(s.studentId) !== String(studentId));
+    await transport.save();
+
+    await Student.findByIdAndUpdate(studentId, { transportRoute: '', pickupStop: '' });
+
+    ok(res, transport);
   } catch (e) { err(res, e.message); }
 };
 
@@ -1791,7 +1969,7 @@ module.exports = {
   // Academics
   getExams, createExam, updateExam, deleteExam, publishExam,
   getMarks, createMark, updateMark, deleteMark, publishMarks,
-  getHomework, createHomework, updateHomework, deleteHomework,
+  getHomework, createHomework, updateHomework, deleteHomework, verifyHomeworkSubmission,
   getLMSContent, createLMSContent, updateLMSContent, deleteLMSContent,
   getTimetable, saveTimetable,
   // Finance
@@ -1805,7 +1983,7 @@ module.exports = {
   // Campus
   getLibraryBooks, createLibraryBook, updateLibraryBook, deleteLibraryBook,
   getLibraryTransactions, issueBook, returnBook,
-  getTransport, createTransport, updateTransport, deleteTransport,
+  getTransport, createTransport, updateTransport, deleteTransport, assignStudentToTransport, removeStudentFromTransport,
   getHostelRooms, createHostelRoom, updateHostelRoom, deleteHostelRoom,
   getHostelAllocations, createHostelAllocation, vacateHostelAllocation,
   getInventory, createInventoryItem, updateInventoryItem, deleteInventoryItem,

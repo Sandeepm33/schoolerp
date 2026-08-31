@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { 
   Home, User, Calendar, BookOpen, Clock, Award, 
   Truck, Bell, CheckCircle, FileText, ChevronRight, ShieldAlert,
@@ -9,11 +9,22 @@ import {
   GraduationCap, Search, ShieldCheck, UserCheck, Phone, Mail, Building
 } from 'lucide-react';
 import { useAuth, API_BASE } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import AllServicesPanel from './AllServicesPanel';
+
+const getLocalDateStr = (d = new Date()) => {
+  const dt = new Date(d);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+};
 
 function ParentDashboardContent() {
   const { token, user } = useAuth();
+  const { currentTheme } = useTheme();
+  const brandColor = currentTheme?.accentPrimary || '#02563d';
+  const brandSecondary = currentTheme?.accentSecondary || '#02422f';
+  const cyanColor = currentTheme?.accentCyan || '#12c4ac';
   const searchParams = useSearchParams();
+  const router = useRouter();
   const activeTab = searchParams.get('tab') || 'overview';
 
   const [childMarks, setChildMarks] = useState([]);
@@ -22,6 +33,38 @@ function ParentDashboardContent() {
   const [timetable, setTimetable] = useState({ schedule: [] });
   const [leaveForm, setLeaveForm] = useState({ startDate: '', reason: '' });
   const [leaveSubmitted, setLeaveSubmitted] = useState(false);
+
+  const handleMarkHomeworkCompleted = async (hwId) => {
+    try {
+      const stId = String(mapped?._id || user?._id || '');
+      const stName = childName || user?.name || 'Student';
+
+      // Instant optimistic UI update
+      setHomework(prev => prev.map(hw => {
+        if (hw._id === hwId) {
+          const subs = Array.isArray(hw.submissions) ? [...hw.submissions] : [];
+          const existingIdx = subs.findIndex(s => String(s.studentId) === stId || s.studentName === stName);
+          if (existingIdx >= 0) {
+            subs[existingIdx].status = 'COMPLETED';
+            subs[existingIdx].submittedAt = new Date();
+          } else {
+            subs.push({ studentId: stId, studentName: stName, status: 'COMPLETED', submittedAt: new Date() });
+          }
+          return { ...hw, submissions: subs };
+        }
+        return hw;
+      }));
+
+      // API Sync
+      await fetch(`${API_BASE}/homework/${hwId}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ studentId: stId, studentName: stName, status: 'COMPLETED' })
+      });
+    } catch (e) {
+      console.error('Homework completion error', e);
+    }
+  };
 
   // Clean Class and Section string format helpers
   const cleanClass = (classId) => {
@@ -74,6 +117,10 @@ function ParentDashboardContent() {
     ? `${childMarks[0].percentage}%`
     : 'N/A';
   const busRouteName = transport?.routeName ? transport.routeName : 'Unassigned';
+  const cardAssignedStopName = mapped?.pickupStop || (transport?.assignedStudents || []).find(s => String(s.studentId) === String(mapped?._id))?.pickupStop || (transport?.stops && transport.stops[0] ? (typeof transport.stops[0] === 'string' ? transport.stops[0] : transport.stops[0].stopName) : '');
+  const cardStopObj = (transport?.stops || []).find(st => (typeof st === 'string' ? st : st.stopName) === cardAssignedStopName) || (typeof transport?.stops?.[0] === 'object' ? transport.stops[0] : null);
+  const cardPickupTime = typeof cardStopObj === 'object' && cardStopObj?.pickupTime ? cardStopObj.pickupTime : '07:30 AM';
+  const cardDropTime = typeof cardStopObj === 'object' && cardStopObj?.dropTime ? cardStopObj.dropTime : '04:30 PM';
 
   const [studentAttendanceLogs, setStudentAttendanceLogs] = useState([]);
   const [periodAttendanceLogs, setPeriodAttendanceLogs] = useState([]);
@@ -176,7 +223,13 @@ function ParentDashboardContent() {
         const res = await fetch(`${API_BASE}/transport`, { headers: { 'Authorization': `Bearer ${token}` } });
         if (res.ok) {
           const routes = await res.json().catch(() => []);
-          if (Array.isArray(routes) && routes.length > 0) setTransport(routes[0]);
+          if (Array.isArray(routes) && routes.length > 0) {
+            const matchedRoute = routes.find(r => 
+              (mapped?.transportRoute && r.routeName === mapped.transportRoute) ||
+              (r.assignedStudents || []).some(s => String(s.studentId) === String(mapped?._id))
+            ) || routes[0];
+            setTransport(matchedRoute);
+          }
         }
       }
       if (activeTab === 'timetable' || activeTab === 'overview') {
@@ -209,58 +262,77 @@ function ParentDashboardContent() {
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-10">
       
-      {/* HERO BANNER CARD (SHOWS BOTH CHILD NAME & PARENT NAME) */}
-      <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-indigo-500/30 relative overflow-hidden space-y-4">
-        <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-600/10 rounded-full blur-3xl -z-10 pointer-events-none" />
+      {/* HERO BANNER CARD (SHOWS BOTH CHILD NAME & PARENT NAME - DYNAMIC THEME COLOR) */}
+      <div 
+        className="p-6 sm:p-8 rounded-3xl relative overflow-hidden space-y-4 shadow-2xl border"
+        style={{ 
+          background: `linear-gradient(135deg, ${brandSecondary} 0%, ${brandColor} 100%)`,
+          borderColor: 'rgba(255,255,255,0.2)',
+          color: '#ffffff'
+        }}
+      >
+        <div className="absolute top-0 right-0 w-80 h-80 bg-white/10 rounded-full blur-3xl -z-10 pointer-events-none" />
         
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center space-x-4">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl gradient-primary flex items-center justify-center text-white text-xl sm:text-2xl font-black shadow-xl shadow-indigo-500/20 border border-indigo-400/30">
+            <div 
+              className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl flex items-center justify-center text-xl sm:text-2xl font-black shadow-xl border-2 shrink-0"
+              style={{ backgroundColor: '#ffffff', color: brandColor, borderColor: '#ffffff' }}
+            >
               {childName[0]}
             </div>
             <div>
-              <div className="flex items-center space-x-2">
-                <span className="px-3 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase tracking-wider">
+              <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                <span 
+                  className="px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border backdrop-blur-md"
+                  style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.3)' }}
+                >
                   {isParentRole ? 'Parent Portal' : 'Student Portal'}
                 </span>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 flex items-center gap-1">
-                  <CheckCircle className="w-3 h-3 text-emerald-400" /> Active Student
+                <span 
+                  className="px-2.5 py-0.5 rounded-full text-[10px] font-bold flex items-center gap-1 border backdrop-blur-md"
+                  style={{ backgroundColor: 'rgba(52,211,153,0.25)', color: '#a7f3d0', borderColor: 'rgba(52,211,153,0.4)' }}
+                >
+                  <CheckCircle className="w-3 h-3" style={{ color: '#6ee7b7' }} /> Active Student
                 </span>
               </div>
               
               {/* DISPLAY BOTH CHILD NAME AND PARENT NAME */}
-              <h1 className="text-xl sm:text-2xl font-black text-white mt-1 tracking-tight">
-                Student: <span className="text-indigo-300">{childName}</span>
+              <h1 className="text-xl sm:text-2xl font-black mt-1 tracking-tight" style={{ color: '#ffffff' }}>
+                Student: <span style={{ color: '#ffffff' }}>{childName}</span>
               </h1>
-              <p className="text-xs text-slate-300 font-semibold mt-1">
-                Parent / Guardian: <strong className="text-amber-300">{parentName}</strong> • {formattedClassStr} • Roll: <span className="text-indigo-400 font-mono font-bold">{childRollNo}</span> • <span className="text-slate-400">{schoolName}</span>
+              <p className="text-xs font-semibold mt-1" style={{ color: '#f1f5f9' }}>
+                Parent / Guardian: <strong style={{ color: '#fde047' }}>{parentName}</strong> • <span style={{ color: '#ffffff' }}>{formattedClassStr}</span> • Roll: <span className="font-mono font-bold" style={{ color: '#6ee7b7' }}>{childRollNo}</span> • <span style={{ color: '#e2e8f0' }}>{schoolName}</span>
               </p>
             </div>
           </div>
 
           {/* DYNAMIC STUDENT & PARENT METRICS */}
-          <div className="grid grid-cols-2 gap-3 text-xs bg-slate-900/90 border border-slate-800 p-3.5 rounded-2xl">
+          <div 
+            className="grid grid-cols-2 gap-3 text-xs p-3.5 rounded-2xl border"
+            style={{ backgroundColor: 'rgba(0,0,0,0.35)', borderColor: 'rgba(255,255,255,0.2)' }}
+          >
             <div>
-              <span className="text-[10px] text-slate-500 uppercase font-bold block">Child Student</span>
-              <span className="font-bold text-white text-xs">{childName}</span>
+              <span className="text-[10px] uppercase font-bold block" style={{ color: '#cbd5e1' }}>Child Student</span>
+              <span className="font-bold text-xs" style={{ color: '#ffffff' }}>{childName}</span>
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 uppercase font-bold block">Parent / Guardian</span>
-              <span className="font-bold text-amber-300 text-xs">{parentName}</span>
+              <span className="text-[10px] uppercase font-bold block" style={{ color: '#cbd5e1' }}>Parent / Guardian</span>
+              <span className="font-bold text-xs" style={{ color: '#fde047' }}>{parentName}</span>
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 uppercase font-bold block">Roll / Admission</span>
-              <span className="font-mono font-bold text-indigo-400">{childRollNo} ({childAdmissionNo})</span>
+              <span className="text-[10px] uppercase font-bold block" style={{ color: '#cbd5e1' }}>Roll / Admission</span>
+              <span className="font-mono font-bold" style={{ color: '#6ee7b7' }}>{childRollNo} ({childAdmissionNo})</span>
             </div>
             <div>
-              <span className="text-[10px] text-slate-500 uppercase font-bold block">Contact Phone</span>
-              <span className="font-mono font-bold text-emerald-400">{parentPhone}</span>
+              <span className="text-[10px] uppercase font-bold block" style={{ color: '#cbd5e1' }}>Contact Phone</span>
+              <span className="font-mono font-bold" style={{ color: '#34d399' }}>{parentPhone}</span>
             </div>
           </div>
         </div>
 
         {/* Tab Nav */}
-        <div className="flex items-center gap-2 pt-2 border-t border-slate-800 flex-wrap">
+        <div className="flex items-center gap-2 pt-3 border-t flex-wrap" style={{ borderColor: 'rgba(255,255,255,0.2)' }}>
           {[
             { id: 'overview', label: 'Overview', icon: Home },
             { id: 'homework', label: 'Homework', icon: BookOpen },
@@ -275,11 +347,16 @@ function ParentDashboardContent() {
             const isSel = activeTab === tab.id;
             return (
               <button key={tab.id}
-                onClick={() => { window.history.pushState(null, '', `?tab=${tab.id}`); window.location.search = `?tab=${tab.id}`; }}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border ${
-                  isSel ? 'gradient-primary text-white border-indigo-400/40 shadow-lg shadow-indigo-500/20' : 'bg-slate-900 text-slate-400 hover:text-white border-slate-800'
+                onClick={() => { router.push(`?tab=${tab.id}`, { scroll: false }); }}
+                style={isSel 
+                  ? { backgroundColor: '#ffffff', color: brandColor, borderColor: '#ffffff' } 
+                  : { backgroundColor: 'rgba(0,0,0,0.3)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.2)' }
+                }
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 border cursor-pointer ${
+                  isSel ? 'shadow-lg shadow-black/40 font-black' : 'hover:bg-black/40'
                 }`}>
-                <Icon className="w-4 h-4" /><span>{tab.label}</span>
+                <Icon className="w-4 h-4" style={{ color: isSel ? brandColor : '#ffffff' }} />
+                <span style={{ color: isSel ? brandColor : '#ffffff' }}>{tab.label}</span>
               </button>
             );
           })}
@@ -290,7 +367,7 @@ function ParentDashboardContent() {
       {activeTab !== 'overview' && activeTab !== 'services' && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
           <button
-            onClick={() => { window.location.href = `?tab=services`; }}
+            onClick={() => { router.push(`?tab=services`, { scroll: false }); }}
             style={{
               display: 'flex', alignItems: 'center', gap: '7px',
               padding: '6px 14px 6px 10px', borderRadius: '10px',
@@ -311,74 +388,160 @@ function ParentDashboardContent() {
       {activeTab === 'overview' && (
         <div className="space-y-6">
           
-          {/* STAT CARDS GRID (100% REAL DYNAMIC DB VALUES) */}
+          {/* STAT CARDS GRID - INNOVATIVE NEXT-GEN DESIGN */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="glass-card p-5 rounded-2xl border border-emerald-500/20 space-y-2">
-              <div className="flex items-center justify-between text-slate-400 text-xs">
-                <span className="font-semibold uppercase tracking-wider">Attendance Rate</span>
-                <Calendar className="w-4 h-4 text-emerald-400" />
+            
+            {/* Card 1: Attendance */}
+            <div 
+              onClick={() => router.push('?tab=attendance', { scroll: false })}
+              className="p-5 rounded-2xl border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl space-y-3 cursor-pointer relative overflow-hidden group bg-white border-emerald-200/80"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Attendance Rate</span>
+                <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 group-hover:scale-110 transition-transform">
+                  <Calendar className="w-4 h-4" />
+                </div>
               </div>
-              <h3 className="text-2xl font-black text-white">{attendanceRate}</h3>
-              <p className="text-[11px] text-emerald-400 font-semibold">Verified Daily Attendance</p>
+              <div className="space-y-1">
+                <div className="flex items-baseline justify-between">
+                  <h3 className="text-3xl font-black text-slate-900 tracking-tight">{attendanceRate}</h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    ✓ Present
+                  </span>
+                </div>
+                <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                  <div className="bg-emerald-500 h-full rounded-full transition-all duration-500" style={{ width: attendanceRate }} />
+                </div>
+              </div>
+              <p className="text-[11px] text-emerald-700 font-bold flex items-center gap-1 pt-1 border-t border-slate-100">
+                <CheckCircle className="w-3 h-3 text-emerald-600 shrink-0" /> Verified Daily Attendance
+              </p>
             </div>
 
-            <div className="glass-card p-5 rounded-2xl border border-purple-500/20 space-y-2">
-              <div className="flex items-center justify-between text-slate-400 text-xs">
-                <span className="font-semibold uppercase tracking-wider">Assigned Homework</span>
-                <BookOpen className="w-4 h-4 text-purple-400" />
+            {/* Card 2: Assigned Homework */}
+            <div 
+              onClick={() => router.push('?tab=homework', { scroll: false })}
+              className="p-5 rounded-2xl border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl space-y-3 cursor-pointer relative overflow-hidden group bg-white border-purple-200/80"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Assigned Homework</span>
+                <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600 border border-purple-200 group-hover:scale-110 transition-transform">
+                  <BookOpen className="w-4 h-4" />
+                </div>
               </div>
-              <h3 className="text-2xl font-black text-white">{homework.length} Tasks</h3>
-              <p className="text-[11px] text-purple-400 font-semibold">{homework.length > 0 ? 'Active LMS Assignments' : 'No LMS Tasks Currently Assigned'}</p>
+              <div className="flex items-baseline justify-between">
+                <h3 className="text-3xl font-black text-slate-900 tracking-tight">{homework.length} <span className="text-sm font-bold text-slate-600">Tasks</span></h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800 border border-purple-300">
+                  LMS Active
+                </span>
+              </div>
+              <p className="text-[11px] text-purple-700 font-bold flex items-center justify-between pt-1 border-t border-slate-100">
+                <span>{homework.length > 0 ? 'Active Assignments' : 'No Tasks Currently'}</span>
+                <ChevronRight className="w-3.5 h-3.5 text-purple-500 group-hover:translate-x-1 transition-transform" />
+              </p>
             </div>
 
-            <div className="glass-card p-5 rounded-2xl border border-cyan-500/20 space-y-2">
-              <div className="flex items-center justify-between text-slate-400 text-xs">
-                <span className="font-semibold uppercase tracking-wider">Academic Score</span>
-                <Award className="w-4 h-4 text-cyan-400" />
+            {/* Card 3: Academic Score */}
+            <div 
+              onClick={() => router.push('?tab=results', { scroll: false })}
+              className="p-5 rounded-2xl border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl space-y-3 cursor-pointer relative overflow-hidden group bg-white border-cyan-200/80"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Academic Score</span>
+                <div className="p-2.5 rounded-xl bg-cyan-50 text-cyan-600 border border-cyan-200 group-hover:scale-110 transition-transform">
+                  <Award className="w-4 h-4" />
+                </div>
               </div>
-              <h3 className="text-2xl font-black text-white">{latestExamScore}</h3>
-              <p className="text-[11px] text-cyan-400 font-semibold">{childMarks.length > 0 ? 'Overall Exam Score' : 'No Exam Report Cards Published Yet'}</p>
+              <div className="flex items-baseline justify-between">
+                <h3 className="text-3xl font-black text-slate-900 tracking-tight">{latestExamScore}</h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-cyan-100 text-cyan-800 border border-cyan-300">
+                  Report Cards
+                </span>
+              </div>
+              <p className="text-[11px] text-cyan-700 font-bold flex items-center justify-between pt-1 border-t border-slate-100">
+                <span>{childMarks.length > 0 ? 'Overall Exam Marks' : 'No Report Cards Published'}</span>
+                <ChevronRight className="w-3.5 h-3.5 text-cyan-500 group-hover:translate-x-1 transition-transform" />
+              </p>
             </div>
 
-            <div className="glass-card p-5 rounded-2xl border border-amber-500/20 space-y-2">
-              <div className="flex items-center justify-between text-slate-400 text-xs">
-                <span className="font-semibold uppercase tracking-wider">Bus Transport</span>
-                <Truck className="w-4 h-4 text-amber-400" />
+            {/* Card 4: Bus Transport */}
+            <div 
+              onClick={() => router.push('?tab=transport', { scroll: false })}
+              className="p-5 rounded-2xl border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl space-y-3 cursor-pointer relative overflow-hidden group bg-white border-amber-200/80"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Bus Transport</span>
+                <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 group-hover:scale-110 transition-transform">
+                  <Truck className="w-4 h-4" />
+                </div>
               </div>
-              <h3 className="text-2xl font-black text-white">{busRouteName}</h3>
-              <p className="text-[11px] text-amber-400 font-semibold">{transport ? 'Live GPS Tracker Active' : 'No Bus Route Assigned'}</p>
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-black text-slate-900 truncate tracking-tight">{busRouteName}</h3>
+                {transport && (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" /> GPS
+                  </span>
+                )}
+              </div>
+              {transport ? (
+                <div className="space-y-1.5 pt-1.5 border-t border-slate-100">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-emerald-700 font-bold flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span className="truncate max-w-[130px]">{cardAssignedStopName || 'Assigned Stop'}</span>
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-mono font-bold">₹{transport.monthlyFee || 1500}/mo</span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px] font-mono font-bold text-slate-700 pt-0.5 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
+                    <span>🌅 <strong className="text-slate-900">{cardPickupTime}</strong></span>
+                    <span>🌆 <strong className="text-slate-900">{cardDropTime}</strong></span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[11px] text-amber-600 font-semibold pt-1 border-t border-slate-100">No Bus Route Assigned</p>
+              )}
             </div>
+
           </div>
 
           {/* 2-COLUMN MAIN CONTENT GRID */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
             {/* HOMEWORK LMS CARD */}
-            <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-indigo-400" /> Recent LMS & Homework Assignments
+            <div className="p-6 rounded-3xl border border-slate-200/80 bg-white shadow-xl space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
+                    <BookOpen className="w-4 h-4" />
+                  </div>
+                  <span>Recent LMS & Homework Assignments</span>
                 </h3>
+                <button 
+                  onClick={() => router.push('?tab=homework', { scroll: false })}
+                  className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer hover:underline"
+                >
+                  View All <ChevronRight className="w-3 h-3" />
+                </button>
               </div>
 
               {homework.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400 bg-slate-900/50 rounded-2xl border border-slate-800 space-y-2">
-                  <BookOpen className="w-8 h-8 text-slate-600 mx-auto" />
-                  <p className="font-bold text-slate-300">No Homework Currently Assigned</p>
+                <div className="p-8 text-center text-xs text-slate-500 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                  <BookOpen className="w-10 h-10 text-slate-400 mx-auto" />
+                  <p className="font-bold text-slate-700 text-sm">No Homework Currently Assigned</p>
                   <p className="text-slate-500">Subject assignments for {formattedClassStr} will automatically display here.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {homework.slice(0, 3).map((hw, idx) => (
-                    <div key={idx} className="p-4 bg-slate-900/90 rounded-2xl border border-slate-800 space-y-1.5 hover:border-indigo-500/40 transition">
+                    <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 hover:border-indigo-400 hover:shadow-md transition-all">
                       <div className="flex items-center justify-between">
-                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                        <span className="px-3 py-1 rounded-xl text-[11px] font-extrabold bg-indigo-100 text-indigo-800 border border-indigo-200">
                           {hw.subject}
                         </span>
-                        <span className="text-[10px] text-slate-500 font-medium">{formattedClassStr}</span>
+                        <span className="text-[11px] text-slate-500 font-semibold">{formattedClassStr}</span>
                       </div>
-                      <h4 className="font-bold text-white text-xs sm:text-sm">{hw.title}</h4>
-                      <p className="text-slate-400 text-xs">{hw.description}</p>
+                      <h4 className="font-extrabold text-slate-900 text-sm">{hw.title}</h4>
+                      <p className="text-slate-600 text-xs leading-relaxed">{hw.description}</p>
                     </div>
                   ))}
                 </div>
@@ -386,30 +549,39 @@ function ParentDashboardContent() {
             </div>
 
             {/* EXAM REPORT CARDS */}
-            <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                  <Award className="w-4 h-4 text-purple-400" /> Academic Exam Report Cards
+            <div className="p-6 rounded-3xl border border-slate-200/80 bg-white shadow-xl space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-purple-50 text-purple-600">
+                    <Award className="w-4 h-4" />
+                  </div>
+                  <span>Academic Exam Report Cards</span>
                 </h3>
+                <button 
+                  onClick={() => router.push('?tab=results', { scroll: false })}
+                  className="text-xs font-bold text-purple-600 hover:text-purple-800 flex items-center gap-1 cursor-pointer hover:underline"
+                >
+                  View All <ChevronRight className="w-3 h-3" />
+                </button>
               </div>
 
               {childMarks.length === 0 ? (
-                <div className="p-6 text-center text-xs text-slate-400 bg-slate-900/50 rounded-2xl border border-slate-800 space-y-2">
-                  <Award className="w-8 h-8 text-slate-600 mx-auto" />
-                  <p className="font-bold text-slate-300">No Exam Marks Published Yet</p>
+                <div className="p-8 text-center text-xs text-slate-500 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                  <Award className="w-10 h-10 text-slate-400 mx-auto" />
+                  <p className="font-bold text-slate-700 text-sm">No Exam Marks Published Yet</p>
                   <p className="text-slate-500">Official report cards will appear after exam publication.</p>
                 </div>
               ) : (
                 <div className="space-y-3">
                   {childMarks.slice(0, 3).map((m, idx) => (
-                    <div key={idx} className="p-4 bg-slate-900/90 rounded-2xl border border-purple-500/20 flex items-center justify-between hover:border-purple-500/40 transition">
+                    <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-purple-200 flex items-center justify-between hover:border-purple-400 hover:shadow-md transition-all">
                       <div>
-                        <h4 className="font-bold text-white text-xs sm:text-sm">{m.examTitle || 'Mid-Term Examination'}</h4>
-                        <p className="text-[11px] text-slate-400">Class Grade Evaluation</p>
+                        <h4 className="font-extrabold text-slate-900 text-sm">{m.examTitle || 'Mid-Term Examination'}</h4>
+                        <p className="text-[11px] text-slate-500">Class Grade Evaluation</p>
                       </div>
                       <div className="text-right">
-                        <span className="text-lg font-black text-purple-400">{m.percentage}%</span>
-                        <span className="block text-[10px] text-emerald-400 font-bold">PASSED</span>
+                        <span className="text-xl font-black text-purple-700">{m.percentage}%</span>
+                        <span className="block text-[10px] text-emerald-700 font-extrabold">PASSED</span>
                       </div>
                     </div>
                   ))}
@@ -442,18 +614,119 @@ function ParentDashboardContent() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {homework.map((hw, idx) => (
-                <div key={idx} className="glass-card p-5 rounded-2xl border border-slate-800 space-y-2.5 hover:border-indigo-500/40 transition">
-                  <div className="flex items-center justify-between">
-                    <span className="px-3 py-1 rounded-xl text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                      {hw.subject}
-                    </span>
-                    <span className="text-[11px] text-slate-500 font-semibold">Active Assignment</span>
+              {homework.map((hw, idx) => {
+                const stId = String(mapped?._id || user?._id || '');
+                const stName = childName || user?.name || 'Student';
+                const sub = (hw.submissions || []).find(s => String(s.studentId) === stId || s.studentName === stName);
+                
+                const isVerifiedByTeacher = Boolean(hw.isCompletedByTeacher) || (hw.submissions || []).some(s => s.status === 'VERIFIED' || s.status === 'GRADED' || s.status === 'TEACHER_COMPLETED') || sub?.status === 'VERIFIED';
+                const isStudentSubmitted = Boolean(sub) || sub?.status === 'SUBMITTED' || sub?.status === 'COMPLETED';
+
+                const formattedDue = hw.dueDate ? new Date(hw.dueDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'No Due Date';
+                const formattedCreated = hw.createdAt ? new Date(hw.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) : 'Recent';
+
+                return (
+                  <div key={hw._id || idx} className="glass-card p-5 rounded-2xl border border-slate-800 space-y-3.5 hover:border-indigo-500/40 transition flex flex-col justify-between">
+                    <div className="space-y-2.5">
+                      {/* Top Badges */}
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="px-3 py-1 rounded-xl text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                            {hw.subject}
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                            Class {hw.classId}{hw.sectionId ? `-${hw.sectionId}` : ''}
+                          </span>
+                        </div>
+
+                        {/* Completion / Verification Status Pill */}
+                        {isVerifiedByTeacher ? (
+                          <span className="px-3 py-1 rounded-xl text-[10px] font-extrabold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1">
+                            <CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> COMPLETED
+                          </span>
+                        ) : isStudentSubmitted ? (
+                          <span className="px-3 py-1 rounded-xl text-[10px] font-extrabold bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1">
+                            <Clock className="w-3.5 h-3.5 text-amber-400 animate-pulse" /> WAITING FOR APPROVAL
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 rounded-xl text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700 flex items-center gap-1">
+                            <Clock className="w-3 h-3 text-slate-400" /> PENDING ASSIGNMENT
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Title & Description */}
+                      <div>
+                        <h4 className="font-extrabold text-white text-sm">{hw.title}</h4>
+                        <p className="text-xs text-slate-300 leading-relaxed mt-1">{hw.description || 'No additional instructions provided.'}</p>
+                      </div>
+
+                      {/* Details Grid: Teacher, Due Date, Posted Date */}
+                      <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
+                        <div>
+                          <span className="text-slate-500 block text-[9px] uppercase font-bold">Assigned Faculty</span>
+                          <strong className="text-white font-semibold flex items-center gap-1 mt-0.5">
+                            <User className="w-3 h-3 text-indigo-400" /> {hw.teacherName || 'Subject Faculty'}
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block text-[9px] uppercase font-bold">Submission Target Date</span>
+                          <strong className="text-amber-400 font-mono font-bold flex items-center gap-1 mt-0.5">
+                            <Calendar className="w-3 h-3 text-amber-400" /> {formattedDue}
+                          </strong>
+                        </div>
+                      </div>
+
+                      {/* Attachment link if available */}
+                      {hw.attachmentUrl && (
+                        <a 
+                          href={hw.attachmentUrl} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-xs text-indigo-300 font-bold hover:bg-indigo-500/20 flex items-center gap-2 transition"
+                        >
+                          <FileText className="w-4 h-4 text-indigo-400" />
+                          <span>View Attached Learning Material</span>
+                        </a>
+                      )}
+                    </div>
+
+                    {/* Action Button: Mark as Completed / Waiting for Approval / Completed */}
+                    <div className="pt-3 border-t border-slate-800 flex items-center justify-between">
+                      <span className="text-[10px] text-slate-500 font-semibold">Posted: {formattedCreated}</span>
+                      
+                      <button
+                        onClick={() => handleMarkHomeworkCompleted(hw._id)}
+                        disabled={isStudentSubmitted || isVerifiedByTeacher}
+                        className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                          isVerifiedByTeacher
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 cursor-not-allowed'
+                            : isStudentSubmitted
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30 cursor-not-allowed'
+                            : 'gradient-primary text-white shadow-lg shadow-indigo-500/20 hover:scale-105 active:scale-95 cursor-pointer'
+                        }`}
+                      >
+                        {isVerifiedByTeacher ? (
+                          <>
+                            <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
+                            <span>Completed ✓</span>
+                          </>
+                        ) : isStudentSubmitted ? (
+                          <>
+                            <Clock className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                            <span>Waiting for Approval</span>
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            <span>Mark as Completed</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
-                  <h4 className="font-bold text-white text-sm">{hw.title}</h4>
-                  <p className="text-xs text-slate-300 leading-relaxed">{hw.description}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -642,7 +915,7 @@ function ParentDashboardContent() {
             <h3 className="text-base font-extrabold text-white flex items-center gap-2">
               <Truck className="w-5 h-5 text-amber-400" /> Live School Bus GPS Tracking
             </h3>
-            <p className="text-xs text-slate-400">Assigned bus route, driver contact, and GPS status</p>
+            <p className="text-xs text-slate-400">Assigned bus route, driver contact, stop timings, and GPS status</p>
           </div>
 
           {!transport ? (
@@ -651,29 +924,92 @@ function ParentDashboardContent() {
               <p className="font-bold text-slate-300 text-sm">No Active Bus Route</p>
               <p>Contact transport office to assign a school bus route.</p>
             </div>
-          ) : (
-            <div className="glass-card p-6 rounded-3xl border border-amber-500/30 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-extrabold text-white text-base">{transport.routeName}</h4>
-                  <p className="text-xs text-slate-400">Bus Vehicle Number: <strong className="text-indigo-400 font-mono">KA-05-AB-1234</strong></p>
+          ) : (() => {
+            const assignedStopName = mapped?.pickupStop || (transport.assignedStudents || []).find(s => String(s.studentId) === String(mapped?._id))?.pickupStop;
+            const stopObj = (transport.stops || []).find(st => (typeof st === 'string' ? st : st.stopName) === assignedStopName) || (typeof transport.stops?.[0] === 'object' ? transport.stops[0] : null);
+            const stopFee = (typeof stopObj === 'object' && stopObj?.monthlyFee) ? stopObj.monthlyFee : (transport.monthlyFee || 1500);
+
+            return (
+              <div className="glass-card p-6 rounded-3xl border border-amber-500/30 space-y-5">
+                {/* Header info */}
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div>
+                    <h4 className="font-black text-white text-lg flex items-center gap-2">
+                      <span>🚌 {transport.routeName}</span>
+                      <span className="text-xs font-normal text-slate-400">({transport.vehicleType || 'School Bus'})</span>
+                    </h4>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Bus Vehicle Number: <strong className="text-indigo-400 font-mono font-bold">{transport.vehicleNo || 'TG30A8948'}</strong>
+                    </p>
+                  </div>
+                  <span className="px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 font-black text-xs border border-emerald-500/30 flex items-center gap-1.5 shadow-sm">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" /> GPS LIVE
+                  </span>
                 </div>
-                <span className="px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 font-extrabold text-xs border border-emerald-500/30 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" /> GPS LIVE
-                </span>
+
+                {/* STOP TIMINGS & FARE CARD */}
+                <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-4 h-4 text-emerald-400" />
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">Your Pickup & Drop Stop:</span>
+                      <strong className="text-xs font-black text-emerald-300">{assignedStopName || 'Main Stop'}</strong>
+                    </div>
+                    <span className="font-mono font-bold text-emerald-400 text-xs bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/30">
+                      ₹{stopFee} / month
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
+                    <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                      <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                      <div>
+                        <span className="text-[10px] text-amber-300 uppercase font-bold block">🌅 Morning Pickup Time</span>
+                        <span className="font-mono font-black text-white text-sm">
+                          {typeof stopObj === 'object' && stopObj?.pickupTime ? stopObj.pickupTime : '07:30 AM'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+                      <Clock className="w-4 h-4 text-indigo-400 shrink-0" />
+                      <div>
+                        <span className="text-[10px] text-indigo-300 uppercase font-bold block">🌆 Evening Drop Time</span>
+                        <span className="font-mono font-black text-white text-sm">
+                          {typeof stopObj === 'object' && stopObj?.dropTime ? stopObj.dropTime : '04:30 PM'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* STAFF CONTACT DETAILS (DRIVER & HELPER) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-2 border-t border-slate-800">
+                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase font-bold block">Driver Name</span>
+                      <p className="font-bold text-white text-sm">{transport.driverName || 'Ramesh Kumar'}</p>
+                    </div>
+                    <a href={`tel:${transport.driverPhone || '9542803315'}`} className="font-bold text-amber-400 text-xs font-mono bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20 hover:bg-amber-500/20">
+                      📞 {transport.driverPhone || '9542803315'}
+                    </a>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between">
+                    <div>
+                      <span className="text-[10px] text-slate-500 uppercase font-bold block">Helper / Attendant</span>
+                      <p className="font-bold text-white text-sm">{transport.helperName || 'Raju'}</p>
+                    </div>
+                    {transport.helperPhone && (
+                      <a href={`tel:${transport.helperPhone}`} className="font-bold text-indigo-300 text-xs font-mono bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20 hover:bg-indigo-500/20">
+                        📞 {transport.helperPhone}
+                      </a>
+                    )}
+                  </div>
+                </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-2 border-t border-slate-800">
-                <div>
-                  <span className="text-slate-500 block font-semibold mb-1">Driver Name</span>
-                  <p className="font-bold text-white text-sm">{transport.driverName || 'Ramesh Kumar'}</p>
-                </div>
-                <div>
-                  <span className="text-slate-500 block font-semibold mb-1">Contact Phone</span>
-                  <p className="font-bold text-amber-400 text-sm font-mono">{transport.driverPhone || '+91 98765 00000'}</p>
-                </div>
-              </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
       )}
 
@@ -759,9 +1095,9 @@ function ParentDashboardContent() {
                 All Dates
               </button>
               <button
-                onClick={() => setSelectedFilterDate(new Date().toISOString().split('T')[0])}
+                onClick={() => setSelectedFilterDate(getLocalDateStr())}
                 className={`px-3 py-1.5 rounded-xl font-bold transition ${
-                  selectedFilterDate === new Date().toISOString().split('T')[0] ? 'bg-cyan-500 text-slate-950 font-extrabold' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                  selectedFilterDate === getLocalDateStr() ? 'bg-cyan-500 text-slate-950 font-extrabold' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                 }`}
               >
                 Today

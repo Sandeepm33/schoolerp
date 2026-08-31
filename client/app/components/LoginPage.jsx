@@ -11,7 +11,7 @@ import {
   Star, ChevronDown, X, MessageCircle, FileCheck, Layers, Layout, ArrowUpRight, ExternalLink,
   ClipboardList, GraduationCap, HeartHandshake, Stethoscope, AlertTriangle, Calendar,
   BookMarked, CheckSquare, UserCog, TrendingUp, DollarSign, Scroll, Library, Home,
-  Box, Megaphone, MapPin, FileBadge2, Settings, Search
+  Box, Megaphone, MapPin, FileBadge2, Settings, Search, Menu, Compass
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -24,6 +24,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [localError, setLocalError] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState('ALL');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   
   // Floating Interactive Widgets State
   const [showChatWidget, setShowChatWidget] = useState(false);
@@ -161,18 +162,20 @@ export default function LoginPage() {
       
       {/* 1. FIXED HEADER NAVIGATION BAR (DYNAMIC BRAND COLOR ON SCROLL) */}
       <header style={{ backgroundColor: 'var(--accent-primary, #02563d)' }} className="fixed top-0 left-0 right-0 z-[9999] w-full backdrop-blur-md border-b border-white/10 shadow-md transition-colors duration-300">
-        <nav className="max-w-7xl mx-auto flex items-center justify-between py-3 px-4 md:px-8 min-h-[72px]">
+        <nav className="max-w-7xl mx-auto flex items-center justify-between py-2.5 px-3 md:px-8 min-h-[64px] sm:min-h-[72px]">
           
           {/* Logo & Branding */}
-          <div className="flex items-center gap-3 cursor-pointer" onClick={() => router.push('/')}>
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-700 via-indigo-600 to-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
-              <Sparkles className="w-5 h-5 animate-pulse text-white" />
-            </div>
+          <div className="flex items-center gap-2 sm:gap-3 cursor-pointer shrink-0" onClick={() => router.push('/')}>
+            <img 
+              src="/track360_logo.png" 
+              alt="Track 360 Logo" 
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover border border-white/20 shadow-md shrink-0" 
+            />
             <div>
               <div className="flex items-center space-x-2">
-                <span className="text-lg font-black text-white tracking-tight">AI SCHOOL ERP</span>
+                <span className="text-base sm:text-lg font-black text-white tracking-tight">Track 360</span>
               </div>
-              <p className="text-[10px] text-slate-200 font-semibold hidden sm:block">Complete School Management Operating System</p>
+              <p className="text-[10px] text-slate-200 font-semibold hidden sm:block">360° Complete School Management Operating System</p>
             </div>
           </div>
 
@@ -181,29 +184,120 @@ export default function LoginPage() {
             <a href="#home" className="hover:text-amber-300 transition-colors">Home</a>
             <a href="#modules" className="hover:text-amber-300 transition-colors">Application Modules</a>
             <button onClick={() => router.push('/login')} className="hover:text-amber-300 transition-colors">Portals</button>
-            <button onClick={() => router.push('/login')} className="hover:text-amber-300 transition-colors">System Support</button>
+            <button onClick={() => setShowInquiryModal(true)} className="hover:text-amber-300 transition-colors">System Support</button>
           </div>
 
-          {/* Action CTAs */}
-          <div className="flex items-center gap-3">
+          {/* Action CTAs & Prominent Mobile Menu Button */}
+          <div className="flex items-center gap-2">
+            {/* Quick Inquiry CTA (Desktop/Tablet >=640px) */}
             <button 
               onClick={() => setShowInquiryModal(true)}
-              className="bg-[#00a859] hover:bg-green-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-green-500/20 flex items-center gap-1.5"
+              className="hidden sm:flex bg-[#00a859] hover:bg-green-700 text-white text-xs font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all shadow-md shadow-green-500/20 items-center gap-1.5 shrink-0"
             >
               <span>Quick Inquiry</span>
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
 
+            {/* Workspace Sign In Button (Desktop/Tablet >=480px) */}
             <button 
               onClick={() => router.push('/login')}
-              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-blue-500/20 flex items-center gap-1.5"
+              className="hidden min-[480px]:flex bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl transition-all shadow-md shadow-blue-500/20 items-center gap-1.5 shrink-0"
             >
               <Key className="w-3.5 h-3.5" />
               <span>Workspace Sign In</span>
             </button>
+
+            {/* PROMINENT MOBILE MENU BUTTON (ALWAYS 100% VISIBLE ON MOBILE <1024px) */}
+            <button
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="lg:hidden bg-amber-400 hover:bg-amber-500 text-slate-950 text-xs font-black px-3.5 py-2 rounded-xl border border-amber-300 transition-all cursor-pointer flex items-center gap-1.5 shrink-0 shadow-lg active:scale-95"
+              title="Open Navigation Menu"
+            >
+              {mobileMenuOpen ? (
+                <>
+                  <X className="w-4 h-4 text-slate-950" />
+                  <span className="text-xs font-black text-slate-950">Close</span>
+                </>
+              ) : (
+                <>
+                  <Menu className="w-4 h-4 text-slate-950" />
+                  <span className="text-xs font-black text-slate-950">Menu</span>
+                </>
+              )}
+            </button>
           </div>
 
         </nav>
+
+        {/* MOBILE NAVIGATION DRAWER OVERLAY (HOME, APPLICATION MODULES, PORTALS, SYSTEM SUPPORT) */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden bg-slate-950/95 border-b border-slate-800 p-4 space-y-3 shadow-2xl backdrop-blur-xl text-white animate-in slide-in-from-top-4 duration-200">
+            <div className="space-y-2">
+              <span className="text-[10px] font-extrabold uppercase tracking-widest text-emerald-400 block px-1">Navigation Options</span>
+              
+              {/* 1. HOME */}
+              <a 
+                href="#home" 
+                onClick={() => setMobileMenuOpen(false)} 
+                className="p-3 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between hover:border-emerald-500 text-slate-100 font-extrabold text-sm"
+              >
+                <span className="flex items-center gap-2.5">
+                  <Home className="w-4 h-4 text-emerald-400" /> Home
+                </span>
+                <ChevronRight className="w-4 h-4 text-slate-500" />
+              </a>
+
+              {/* 2. APPLICATION MODULES */}
+              <a 
+                href="#modules" 
+                onClick={() => setMobileMenuOpen(false)} 
+                className="p-3 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between hover:border-blue-500 text-slate-100 font-extrabold text-sm"
+              >
+                <span className="flex items-center gap-2.5">
+                  <Box className="w-4 h-4 text-blue-400" /> Application Modules (36)
+                </span>
+                <ChevronRight className="w-4 h-4 text-slate-500" />
+              </a>
+
+              {/* 3. PORTALS */}
+              <button 
+                onClick={() => { setMobileMenuOpen(false); router.push('/login'); }}
+                className="w-full p-3 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between hover:border-amber-500 text-slate-100 font-extrabold text-sm text-left"
+              >
+                <span className="flex items-center gap-2.5">
+                  <UserCog className="w-4 h-4 text-amber-400" /> Portals
+                </span>
+                <ChevronRight className="w-4 h-4 text-slate-500" />
+              </button>
+
+              {/* 4. SYSTEM SUPPORT */}
+              <button 
+                onClick={() => { setMobileMenuOpen(false); setShowInquiryModal(true); }}
+                className="w-full p-3 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-between hover:border-purple-500 text-slate-100 font-extrabold text-sm"
+              >
+                <span className="flex items-center gap-2.5">
+                  <MessageSquare className="w-4 h-4 text-purple-400" /> System Support
+                </span>
+                <span className="text-[10px] bg-purple-500/20 text-purple-300 px-2 py-0.5 rounded-full border border-purple-500/30">24/7 Active</span>
+              </button>
+            </div>
+
+            <div className="pt-2 border-t border-slate-800 flex items-center justify-between gap-2">
+              <button 
+                onClick={() => { setMobileMenuOpen(false); setShowInquiryModal(true); }}
+                className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md"
+              >
+                <FileText className="w-3.5 h-3.5" /> Quick Inquiry
+              </button>
+              <button 
+                onClick={() => { setMobileMenuOpen(false); router.push('/login'); }}
+                className="flex-1 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md"
+              >
+                <Key className="w-3.5 h-3.5" /> Workspace Sign In
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
       {/* 2. HERO SECTION */}
@@ -300,10 +394,6 @@ export default function LoginPage() {
                       <p className="text-[10px] text-slate-400 font-bold">Campus OS Control Center</p>
                     </div>
                   </div>
-                  <button onClick={() => handleModuleClick('services')} className="text-[10px] bg-blue-600 hover:bg-blue-500 text-white font-black px-3 py-1.5 rounded-lg transition-all flex items-center gap-1">
-                    <span>Open Live Portal</span>
-                    <ExternalLink className="w-3 h-3" />
-                  </button>
                 </div>
 
                 {/* Dashboard Stats Widgets */}

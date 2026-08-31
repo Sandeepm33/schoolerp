@@ -9,6 +9,7 @@ import {
   Trash2, Edit3, Send, Hash, Mail, Phone, HelpCircle, Layers, PieChart, Server, Check, Flame, Box
 } from 'lucide-react';
 import { useAuth, API_BASE } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 function SaaSAdminContent(props) {
   const router = useRouter();
@@ -17,6 +18,9 @@ function SaaSAdminContent(props) {
   const [activeTab, setActiveTab] = useState(initialTab);
   
   const { token } = useAuth();
+  const { currentTheme } = useTheme();
+  const brandColor = currentTheme?.accentPrimary || '#02563d';
+  const brandSecondary = currentTheme?.accentSecondary || '#02422f';
 
   // Dynamic States
   const [schools, setSchools] = useState([]);
@@ -314,23 +318,33 @@ function SaaSAdminContent(props) {
   return (
     <div className="space-y-6">
       
-      {/* HEADER BANNER */}
-      <div className="glass-panel p-6 rounded-3xl border border-indigo-500/30 space-y-4 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl -z-10 pointer-events-none" />
+      {/* HEADER BANNER (DYNAMIC DEEP EMERALD BRAND THEME - MATCHES ALL PORTALS) */}
+      <div 
+        className="p-6 sm:p-8 rounded-3xl relative overflow-hidden space-y-4 shadow-2xl border"
+        style={{ 
+          background: `linear-gradient(135deg, ${brandSecondary} 0%, ${brandColor} 100%)`,
+          borderColor: 'rgba(255,255,255,0.2)',
+          color: '#ffffff'
+        }}
+      >
+        <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -z-10 pointer-events-none" />
         
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-1">
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 flex-wrap gap-y-1">
               <span className="relative flex h-2.5 w-2.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
               </span>
-              <span className="px-3 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase tracking-widest">
-                SaaS Master Control Engine (46 Modules Active)
+              <span 
+                className="px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest border backdrop-blur-md"
+                style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.3)' }}
+              >
+                SAAS MASTER CONTROL ENGINE (46 MODULES ACTIVE)
               </span>
             </div>
 
-            <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
+            <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2 mt-1">
               {activeTab === 'overview' && '🏠 Platform Health & SaaS Dashboard'}
               {activeTab === 'schools' && '🏫 Multi-Tenant School Directory & Impersonation'}
               {activeTab === 'plans' && '💳 Subscription Plans & Feature Matrix Engine'}
@@ -344,20 +358,23 @@ function SaaSAdminContent(props) {
               {activeTab === 'support' && '🎧 Helpdesk Tickets & Sales CRM Pipeline'}
               {activeTab === 'audit' && '📋 System Audit Logs & Health Monitor'}
             </h2>
-            <p className="text-xs text-slate-400">Live Atlas Cluster Connection • Persistent Enterprise SaaS Architecture</p>
+            <p className="text-xs font-semibold" style={{ color: '#f1f5f9' }}>
+              Live Atlas Cluster Connection • Persistent Enterprise SaaS Architecture • Full Tenant Control
+            </p>
           </div>
 
           <button 
             onClick={() => { setIsModalOpen(true); setMessage(null); }}
-            className="px-5 py-3 rounded-2xl gradient-primary text-white text-xs font-extrabold shadow-xl shadow-indigo-500/30 flex items-center gap-2 hover:scale-105 transition-all duration-300 active:scale-95"
+            className="px-5 py-3 rounded-2xl bg-white text-slate-900 text-xs font-black shadow-xl flex items-center gap-2 hover:scale-105 transition-all duration-300 active:scale-95 cursor-pointer border border-white"
+            style={{ color: brandColor }}
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-4 h-4" style={{ color: brandColor }} />
             <span>Onboard New School</span>
           </button>
         </div>
 
-        {/* TOP TAB STRIP SELECTOR BAR FOR 100% RELIABLE TAB SWITCHING */}
-        <div className="pt-2 border-t border-slate-800/80 flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+        {/* TOP TAB STRIP SELECTOR BAR WITH HIGH-CONTRAST THEMED PILLS */}
+        <div className="pt-3 border-t flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1" style={{ borderColor: 'rgba(255,255,255,0.2)' }}>
           {tabsList.map((t) => {
             const Icon = t.icon;
             const isSel = activeTab === t.key;
@@ -366,14 +383,16 @@ function SaaSAdminContent(props) {
                 key={t.key}
                 type="button"
                 onClick={() => switchTab(t.key)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 transition-all ${
-                  isSel 
-                    ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/30 border border-indigo-400' 
-                    : 'bg-slate-900/80 text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
+                style={isSel 
+                  ? { backgroundColor: '#ffffff', color: brandColor, borderColor: '#ffffff' } 
+                  : { backgroundColor: 'rgba(0,0,0,0.3)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.2)' }
+                }
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer border ${
+                  isSel ? 'shadow-lg shadow-black/40 font-black' : 'hover:bg-black/40'
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{t.label}</span>
+                <Icon className="w-3.5 h-3.5" style={{ color: isSel ? brandColor : '#ffffff' }} />
+                <span style={{ color: isSel ? brandColor : '#ffffff' }}>{t.label}</span>
               </button>
             );
           })}
