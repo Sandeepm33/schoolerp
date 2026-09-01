@@ -1,6 +1,7 @@
 import './globals.css';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { DataSyncProvider } from './context/DataSyncContext';
 import AppLayoutWrapper from './components/AppLayoutWrapper';
 
 export const metadata = {
@@ -19,9 +20,11 @@ export default function RootLayout({ children }) {
       <body className="antialiased min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors">
         <AuthProvider>
           <ThemeProvider>
-            <AppLayoutWrapper>
-              {children}
-            </AppLayoutWrapper>
+            <DataSyncProvider>
+              <AppLayoutWrapper>
+                {children}
+              </AppLayoutWrapper>
+            </DataSyncProvider>
           </ThemeProvider>
         </AuthProvider>
       </body>

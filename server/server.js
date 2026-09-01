@@ -14,6 +14,7 @@ dotenv.config();
 const connectDB = require('./config/db');
 const apiRoutes = require('./routes/apiRoutes');
 const seedData = require('./seed');
+const { handleSyncStream, handleSyncCheck, broadcastDataMutation } = require('./config/dataSync');
 
 const app = express();
 
@@ -24,6 +25,29 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
+
+// Real-Time Server-Sent Events (SSE) Sync Stream Route
+app.get('/api/sync/stream', handleSyncStream);
+app.get('/api/sync/check', handleSyncCheck);
+
+// Automatic Mutation Interceptor Middleware (Broadcasts live events to ALL connected users across ALL devices)
+app.use((req, res, next) => {
+  const method = req.method.toUpperCase();
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const originalJson = res.json;
+    res.json = function (body) {
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        try {
+          const parts = req.path.split('/').filter(Boolean);
+          const entity = (parts[1] || parts[0] || 'ALL').toUpperCase();
+          broadcastDataMutation({ entity, action: method, payload: body });
+        } catch (err) {}
+      }
+      return originalJson.apply(this, arguments);
+    };
+  }
+  next();
+});
 
 // API Routes
 app.use('/api', apiRoutes);

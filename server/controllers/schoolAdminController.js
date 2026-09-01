@@ -326,14 +326,24 @@ const deleteDesignation = async (req, res) => {
 const getStudentList = async (req, res) => {
   try {
     const { classId, sectionId, search, status } = req.query;
-    const query = { schoolId: getSchoolId(req) };
-    if (classId) query.classId = classId;
-    if (sectionId) query.sectionId = sectionId;
+    const query = {};
+    const schoolId = getSchoolId(req);
+    if (schoolId) query.schoolId = schoolId;
+
+    if (classId && classId !== 'ALL') {
+      const normClass = normalizeClassName(classId);
+      query.classId = { $regex: new RegExp(`^(${normClass}|Class\\s*${normClass})$`, 'i') };
+    }
+    if (sectionId && sectionId !== 'ALL') {
+      const normSec = String(sectionId).replace(/^Section\s+/i, '').trim();
+      query.sectionId = { $regex: new RegExp(`^(${normSec}|Section\\s*${normSec})$`, 'i') };
+    }
     if (search) {
       query.$or = [
         { firstName: { $regex: search, $options: 'i' } },
         { lastName: { $regex: search, $options: 'i' } },
-        { admissionNo: { $regex: search, $options: 'i' } }
+        { admissionNo: { $regex: search, $options: 'i' } },
+        { rollNo: { $regex: search, $options: 'i' } }
       ];
     }
     const docs = await Student.find(query).sort({ firstName: 1 });

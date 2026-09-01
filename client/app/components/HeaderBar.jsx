@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import { Sparkles, ShieldCheck, Search, Bell, Command, Palette, PanelLeftClose, PanelLeftOpen, Menu } from 'lucide-react';
+import { Sparkles, ShieldCheck, Search, Bell, Command, Palette, PanelLeftClose, PanelLeftOpen, Menu, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import AIChatModal from './AIChatModal';
@@ -108,10 +108,12 @@ export default function HeaderBar({ isSidebarCollapsed, onToggleSidebar }) {
               {getPageTitle()}
             </h2>
             <span 
-              style={{ backgroundColor: 'rgba(255, 255, 255, 0.2)', borderColor: 'rgba(255, 255, 255, 0.3)', color: '#ffffff' }}
-              className="text-[9px] font-black px-2 py-0.5 rounded-full border uppercase tracking-widest hidden md:inline-block text-white shrink-0"
+              style={{ backgroundColor: 'rgba(16, 185, 129, 0.25)', borderColor: 'rgba(52, 211, 153, 0.4)', color: '#ffffff' }}
+              className="text-[9px] font-black px-2 py-0.5 rounded-full border uppercase tracking-widest hidden md:inline-flex items-center gap-1 text-white shrink-0 shadow-xs"
+              title="Multi-User Live Server Synchronization Active"
             >
-              ACTIVE SESSION
+              <Zap className="w-2.5 h-2.5 text-amber-300 fill-amber-300 animate-pulse" />
+              LIVE SERVER SYNC
             </span>
           </div>
           <p style={{ color: 'rgba(255, 255, 255, 0.9)' }} className="text-[10px] sm:text-[11px] flex items-center gap-1.5 mt-0.5 font-semibold text-white truncate hidden sm:flex">

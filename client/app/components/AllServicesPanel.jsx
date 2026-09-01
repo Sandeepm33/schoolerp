@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 
 import { useRouter } from 'next/navigation';
+import { useDataSync } from '../context/DataSyncContext';
 
 // Color map: Tailwind class → hex (for inline style hover effects)
 const BG_COLOR_MAP = {
@@ -105,6 +106,11 @@ export default function AllServicesPanel({ role = 'SCHOOL_ADMIN' }) {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('ALL');
   const [hoveredId, setHoveredId] = useState(null);
+  const [, setTick] = useState(0);
+
+  useDataSync(React.useCallback(() => {
+    setTick(t => t + 1);
+  }, []));
 
   const isAdminRole = ADMIN_ROLES.includes(role);
 

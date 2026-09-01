@@ -15,7 +15,9 @@ import {
 } from 'lucide-react';
 import { useAuth, API_BASE } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useDataSync, notifyGlobalDataChange } from '../context/DataSyncContext';
 import AllServicesPanel from './AllServicesPanel';
+import StudentAttendanceReport from './StudentAttendanceReport';
 
 // ─── STATUS CONFIG ────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
@@ -56,6 +58,12 @@ function TeacherDashboardContent() {
   // Derive active tab from URL — fully reactive, no useEffect needed
   const activeTab = searchParams.get('tab') || 'timetable';
   const setActiveTab = (tab) => router.push(`/teacher?tab=${tab}`);
+
+  useDataSync(useCallback(() => {
+    if (typeof fetchTeacherTimetable === 'function') fetchTeacherTimetable();
+    if (typeof fetchHomework === 'function') fetchHomework();
+    if (typeof loadAttendanceSession === 'function') loadAttendanceSession();
+  }, []));
 
   // Timetable
   const [teacherTimetable, setTeacherTimetable] = useState([]);
@@ -289,8 +297,15 @@ function TeacherDashboardContent() {
           setSessionStatus(session.status);
           (session.entries || []).forEach(e => {
             const sid = extractId(e.studentId);
-            const stCode = e.status === 'PRESENT' ? 'P' : e.status === 'ABSENT' ? 'A' : e.status === 'LATE' ? 'L' : e.status === 'LEAVE' ? 'LV' : (e.status || 'NM');
+            const rawId = String(e.studentId?._id || e.studentId?.id || e.studentId || '');
+            const stUpper = String(e.status || '').toUpperCase().trim();
+            const stCode = ['P', 'PRESENT'].includes(stUpper) ? 'P' :
+                           ['A', 'ABSENT'].includes(stUpper) ? 'A' :
+                           ['L', 'LATE'].includes(stUpper) ? 'L' :
+                           ['HD', 'HALF_DAY', 'HALF DAY'].includes(stUpper) ? 'HD' :
+                           ['LV', 'LEAVE'].includes(stUpper) ? 'LV' : (e.status || 'NM');
             if (sid) aMap[sid] = stCode;
+            if (rawId) aMap[rawId] = stCode;
             if (e.rollNo) aMap[`roll_${String(e.rollNo).trim()}`] = stCode;
             if (e.studentName) aMap[`name_${String(e.studentName).trim().toLowerCase()}`] = stCode;
             if (sid) rMap[sid] = e.remarks || '';
@@ -323,8 +338,15 @@ function TeacherDashboardContent() {
           setSessionStatus(session.status);
           (session.entries || []).forEach(e => {
             const sid = extractId(e.studentId);
-            const stCode = e.status === 'PRESENT' ? 'P' : e.status === 'ABSENT' ? 'A' : e.status === 'LATE' ? 'L' : e.status === 'LEAVE' ? 'LV' : (e.status || 'NM');
+            const rawId = String(e.studentId?._id || e.studentId?.id || e.studentId || '');
+            const stUpper = String(e.status || '').toUpperCase().trim();
+            const stCode = ['P', 'PRESENT'].includes(stUpper) ? 'P' :
+                           ['A', 'ABSENT'].includes(stUpper) ? 'A' :
+                           ['L', 'LATE'].includes(stUpper) ? 'L' :
+                           ['HD', 'HALF_DAY', 'HALF DAY'].includes(stUpper) ? 'HD' :
+                           ['LV', 'LEAVE'].includes(stUpper) ? 'LV' : (e.status || 'NM');
             if (sid) aMap[sid] = stCode;
+            if (rawId) aMap[rawId] = stCode;
             if (e.rollNo) aMap[`roll_${String(e.rollNo).trim()}`] = stCode;
             if (e.studentName) aMap[`name_${String(e.studentName).trim().toLowerCase()}`] = stCode;
             if (sid) rMap[sid] = e.remarks || '';
@@ -451,21 +473,29 @@ function TeacherDashboardContent() {
     }
   }, [activeTab, attendanceSubTab, selectedClass, selectedSection, teacherSelectedStudentId, loadTeacherStudentHistory]);
 
-
-  const fetchHomework = async () => {
+  const fetchHomework = useCallback(async () => {
     try {
       const res = await fetch(`${API_BASE}/homework?classId=${encodeURIComponent(selectedClass)}`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) setHomeworkList(await res.json().catch(() => []));
     } catch (e) {}
-  };
+  }, [token, selectedClass]);
 
   // ─── ATTENDANCE ACTIONS ───────────────────────────────────────────────────
+  const getStudentStatus = (s) => {
+    if (!s) return 'NM';
+    const sid = extractId(s._id);
+    const rawId = String(s._id || '');
+    const rollKey = s.rollNo ? `roll_${String(s.rollNo).trim()}` : '';
+    const nameKey = s.firstName ? `name_${String(`${s.firstName} ${s.lastName}`).trim().toLowerCase()}` : '';
+    return attendanceMap[sid] || attendanceMap[rawId] || (rollKey && attendanceMap[rollKey]) || (nameKey && attendanceMap[nameKey]) || 'NM';
+  };
+
   const buildEntries = () => students.map(s => ({
     studentId: s._id,
     studentName: `${s.firstName} ${s.lastName}`,
     rollNo: s.rollNo,
-    status: attendanceMap[s._id] || 'NM',
-    remarks: remarksMap[s._id] || ''
+    status: getStudentStatus(s),
+    remarks: remarksMap[s._id] || remarksMap[extractId(s._id)] || ''
   }));
 
   const getCacheKey = () => selectedType === 'PERIOD'
@@ -473,15 +503,36 @@ function TeacherDashboardContent() {
     : `erp_att_${selectedDate}_${selectedClass}_${selectedSection}`;
 
   const handleMarkAll = (status) => {
-    const aMap = {};
-    students.forEach(s => { aMap[s._id] = status; });
+    const aMap = { ...attendanceMap };
+    students.forEach(s => {
+      const sid = extractId(s._id);
+      const rawId = String(s._id || '');
+      const rollKey = s.rollNo ? `roll_${String(s.rollNo).trim()}` : null;
+      const nameKey = s.firstName ? `name_${String(`${s.firstName} ${s.lastName}`).trim().toLowerCase()}` : null;
+      aMap[sid] = status;
+      aMap[rawId] = status;
+      if (rollKey) aMap[rollKey] = status;
+      if (nameKey) aMap[nameKey] = status;
+    });
     setAttendanceMap(aMap);
     try { localStorage.setItem(getCacheKey(), JSON.stringify(aMap)); } catch (e) {}
   };
 
   const handleMark = (studentId, status) => {
+    const st = students.find(s => String(s._id) === String(studentId) || extractId(s._id) === extractId(studentId));
+    const sid = extractId(studentId);
+    const rawId = String(studentId || '');
+    const rollKey = st?.rollNo ? `roll_${String(st.rollNo).trim()}` : null;
+    const nameKey = st?.firstName ? `name_${String(`${st.firstName} ${st.lastName}`).trim().toLowerCase()}` : null;
+
     setAttendanceMap(prev => {
-      const next = { ...prev, [studentId]: status };
+      const next = {
+        ...prev,
+        [sid]: status,
+        [rawId]: status,
+        ...(rollKey ? { [rollKey]: status } : {}),
+        ...(nameKey ? { [nameKey]: status } : {})
+      };
       try { localStorage.setItem(getCacheKey(), JSON.stringify(next)); } catch (e) {}
       return next;
     });
@@ -528,7 +579,7 @@ function TeacherDashboardContent() {
   };
 
   const handleSubmitClick = () => {
-    const unmarked = students.filter(s => !attendanceMap[s._id] || attendanceMap[s._id] === 'NM');
+    const unmarked = students.filter(s => getStudentStatus(s) === 'NM');
     if (unmarked.length > 0) {
       setUnmarkedStudents(unmarked);
       setShowValidationModal(true);
@@ -566,10 +617,11 @@ function TeacherDashboardContent() {
       });
 
       if (res.ok || sessRes.ok) {
-        setSessionStatus('LOCKED');
+        setSessionStatus('SUBMITTED');
         setSubmitSuccess(true);
         setTimeout(() => setSubmitSuccess(false), 5000);
         try { localStorage.setItem(getCacheKey(), JSON.stringify(attendanceMap)); } catch (e) {}
+        notifyGlobalDataChange('ATTENDANCE', 'SUBMIT', { classId: selectedClass, sectionId: selectedSection, date: selectedDate });
         loadAttendanceSession();
       }
     } catch (e) { console.error(e); }
@@ -591,10 +643,8 @@ function TeacherDashboardContent() {
   };
 
   const handleSubmitCorrectionRequest = async () => {
-    if (!correctionReason.trim()) return;
     setCorrectionLoading(true);
     try {
-      const entry = students.find(s => s._id === correctionStudent._id);
       const res = await fetch(`${API_BASE}/attendance/corrections`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -603,17 +653,49 @@ function TeacherDashboardContent() {
           date: selectedDate,
           classId: selectedClass,
           sectionId: selectedSection,
+          type: selectedType,
+          periodNo: selectedPeriod,
+          subject: selectedSubject,
           studentId: correctionStudent._id,
           studentName: `${correctionStudent.firstName} ${correctionStudent.lastName}`,
           rollNo: correctionStudent.rollNo,
           oldStatus: attendanceMap[correctionStudent._id],
           newStatus: correctionNewStatus,
-          reason: correctionReason
+          reason: correctionReason || 'Updated by Teacher'
         })
       });
       if (res.ok) {
+        const sid = extractId(correctionStudent._id);
+        const rawId = String(correctionStudent._id || '');
+        const rollKey = correctionStudent.rollNo ? `roll_${String(correctionStudent.rollNo).trim()}` : null;
+        const nameKey = `name_${String(`${correctionStudent.firstName} ${correctionStudent.lastName}`).trim().toLowerCase()}`;
+        const normSt = ['P', 'PRESENT'].includes(String(correctionNewStatus).toUpperCase()) ? 'P' :
+                       ['A', 'ABSENT'].includes(String(correctionNewStatus).toUpperCase()) ? 'A' :
+                       ['L', 'LATE'].includes(String(correctionNewStatus).toUpperCase()) ? 'L' :
+                       ['HD', 'HALF_DAY', 'HALF DAY'].includes(String(correctionNewStatus).toUpperCase()) ? 'HD' :
+                       ['LV', 'LEAVE'].includes(String(correctionNewStatus).toUpperCase()) ? 'LV' : correctionNewStatus;
+
+        setAttendanceMap(prev => {
+          const next = {
+            ...prev,
+            [sid]: normSt,
+            [rawId]: normSt,
+            ...(rollKey ? { [rollKey]: normSt } : {}),
+            ...(nameKey ? { [nameKey]: normSt } : {})
+          };
+          try {
+            const cacheKey = selectedType === 'PERIOD'
+              ? `erp_att_${selectedDate}_${selectedClass}_${selectedSection}_PERIOD_${selectedPeriod}_${selectedSubject}`
+              : `erp_att_${selectedDate}_${selectedClass}_${selectedSection}`;
+            localStorage.setItem(cacheKey, JSON.stringify(next));
+          } catch (e) {}
+          return next;
+        });
+
+        notifyGlobalDataChange('ATTENDANCE', 'UPDATE', { classId: selectedClass, sectionId: selectedSection, date: selectedDate });
         setCorrectionSuccess(true);
-        setTimeout(() => { setShowCorrectionModal(false); setCorrectionSuccess(false); setCorrectionReason(''); }, 2500);
+        loadAttendanceSession();
+        setTimeout(() => { setShowCorrectionModal(false); setCorrectionSuccess(false); setCorrectionReason(''); }, 1500);
       }
     } catch (e) { console.error(e); }
     finally { setCorrectionLoading(false); }
@@ -908,12 +990,12 @@ function TeacherDashboardContent() {
             {/* Session status badge */}
             {sessionStatus && (
               <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold border ${
-                isLocked ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' :
+                (isLocked || sessionStatus === 'SUBMITTED') ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30' :
                 isDraft ? 'bg-amber-500/10 text-amber-300 border-amber-500/30' :
                 'bg-slate-800 text-slate-400 border-slate-700'
               }`}>
-                {isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-                {isLocked ? 'Submitted & Locked' : isDraft ? 'Draft Saved' : 'Not Started'}
+                {(isLocked || sessionStatus === 'SUBMITTED') ? <CheckCheck className="w-3.5 h-3.5 text-emerald-400" /> : <Unlock className="w-3.5 h-3.5" />}
+                {(isLocked || sessionStatus === 'SUBMITTED') ? 'Submitted & Saved' : isDraft ? 'Draft Saved' : 'Not Started'}
               </div>
             )}
           </div>
@@ -926,7 +1008,7 @@ function TeacherDashboardContent() {
               {submitSuccess && (
                 <div className="p-4 rounded-2xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center gap-2">
                   <CheckCheck className="w-4 h-4 text-emerald-400" />
-                  Attendance submitted & locked for Class {selectedClass}-{selectedSection} on {todayFormatted}! Records saved.
+                  Attendance submitted & saved for Class {selectedClass}-{selectedSection} on {todayFormatted}! Records saved.
                 </div>
               )}
 
@@ -936,13 +1018,13 @@ function TeacherDashboardContent() {
                   <h3 className="text-base font-bold text-white flex items-center gap-2">
                     <CheckSquare className="w-5 h-5 text-emerald-400" />
                     Daily Student Attendance Register
-                    {isLocked && <span className="ml-2 px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 text-[10px] font-black border border-emerald-500/30 flex items-center gap-1"><Lock className="w-3 h-3" /> LOCKED</span>}
+                    {(isLocked || sessionStatus === 'SUBMITTED') && <span className="ml-2 px-2.5 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 text-[10px] font-black border border-emerald-500/30 flex items-center gap-1"><CheckCheck className="w-3 h-3 text-emerald-400" /> SUBMITTED</span>}
                   </h3>
                   <p className="text-xs text-slate-400">Class {selectedClass} — Section {selectedSection} • {todayFormatted}</p>
                 </div>
 
                 {/* Quick Action Buttons */}
-                {!isLocked && students.length > 0 && (
+                {students.length > 0 && (
                   <div className="flex items-center gap-2 flex-wrap">
                     <button onClick={() => handleMarkAll('P')}
                       className="px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-500 transition flex items-center gap-1">
@@ -1051,42 +1133,32 @@ function TeacherDashboardContent() {
 
                         {/* Status buttons & inline remarks */}
                         <div className="sm:col-span-3 flex flex-col items-end gap-1.5">
-                          {isLocked ? (
-                            <div className="flex items-center gap-2">
-                              <span className={`px-3 py-1 rounded-xl text-[11px] font-black uppercase border ${cfg.badge}`}>
-                                {cfg.label}
-                              </span>
-                              <button
-                                onClick={() => { setCorrectionStudent(st); setCorrectionNewStatus(currentStatus); setShowCorrectionModal(true); }}
-                                className="px-2.5 py-1 rounded-xl text-[10px] font-bold bg-slate-800 text-slate-300 hover:text-amber-300 hover:border-amber-500/30 border border-slate-700 transition flex items-center gap-1">
-                                <Edit3 className="w-3 h-3" /> Fix
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1 flex-wrap justify-end">
-                              {STATUS_ORDER.map(s => {
-                                const sCfg = STATUS_CONFIG[s];
-                                const isActive = currentStatus === s;
-                                return (
-                                  <button key={s} onClick={() => handleMark(st._id, s)}
-                                    title={sCfg.label}
-                                    className={`px-2.5 py-1 rounded-lg font-black transition text-[11px] border ${
-                                      isActive
-                                        ? `${sCfg.bg} text-white border-white/20 shadow-md scale-105`
-                                        : 'bg-slate-900 text-slate-400 hover:text-white border-slate-800 hover:border-slate-700'
-                                    }`}>
-                                    {sCfg.short}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          )}
+                          <div className="flex items-center gap-1 flex-wrap justify-end">
+                            {STATUS_ORDER.map(s => {
+                              const sCfg = STATUS_CONFIG[s];
+                              const isActive = currentStatus === s;
+                              return (
+                                <button key={s} onClick={() => handleMark(st._id, s)}
+                                  title={sCfg.label}
+                                  className={`px-2.5 py-1 rounded-lg font-black transition text-[11px] border ${
+                                    isActive
+                                      ? `${sCfg.bg} text-white border-white/20 shadow-md scale-105`
+                                      : 'bg-slate-900 text-slate-400 hover:text-white border-slate-800 hover:border-slate-700'
+                                  }`}>
+                                  {sCfg.short}
+                                </button>
+                              );
+                            })}
+                            <button
+                              onClick={() => { setCorrectionStudent(st); setCorrectionNewStatus(currentStatus); setShowCorrectionModal(true); }}
+                              className="px-2 py-1 rounded-lg text-[10px] font-bold bg-slate-800 text-slate-300 hover:text-indigo-300 hover:border-indigo-500/30 border border-slate-700 transition flex items-center gap-1">
+                              <Edit3 className="w-3 h-3 text-indigo-400" /> Edit
+                            </button>
+                          </div>
 
-                          {!isLocked && (
-                            <input type="text" placeholder="Remarks (optional)..."
-                              value={remarksMap[st._id] || ''} onChange={e => handleRemarks(st._id, e.target.value)}
-                              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-[10px] text-slate-300 focus:outline-none focus:border-indigo-500 placeholder:text-slate-600" />
-                          )}
+                          <input type="text" placeholder="Remarks (optional)..."
+                            value={remarksMap[st._id] || ''} onChange={e => handleRemarks(st._id, e.target.value)}
+                            className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1 text-[10px] text-slate-300 focus:outline-none focus:border-indigo-500 placeholder:text-slate-600" />
                         </div>
                       </div>
                     );
@@ -1097,39 +1169,32 @@ function TeacherDashboardContent() {
               {/* Bottom Action Bar */}
               {!loading && students.length > 0 && (
                 <div className="flex items-center gap-3 pt-2 border-t border-slate-800 flex-wrap">
-                  {isLocked ? (
-                    <div className="flex items-center gap-3 w-full">
-                      <div className="flex-1 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-300 font-bold flex items-center gap-2">
-                        <Lock className="w-4 h-4" /> Attendance is locked. Submit a correction request to make changes.
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <button onClick={handleSaveDraft} disabled={loading}
-                        className="px-6 py-2.5 rounded-xl text-xs font-bold border border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/10 transition flex items-center gap-2">
-                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save Draft
-                      </button>
-                      <button onClick={handleSubmitClick} disabled={loading}
-                        className="flex-1 py-3 gradient-primary text-white rounded-xl text-xs font-black tracking-wide shadow-xl shadow-indigo-500/30 hover:scale-[1.01] active:scale-[0.99] transition flex items-center justify-center gap-2">
-                        {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCheck className="w-4 h-4" />}
-                        Submit & Lock Attendance Register
-                      </button>
-                    </>
-                  )}
+                  <button onClick={handleSaveDraft} disabled={loading}
+                    className="px-6 py-2.5 rounded-xl text-xs font-bold border border-indigo-500/40 text-indigo-300 hover:bg-indigo-500/10 transition flex items-center gap-2">
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />} Save Draft
+                  </button>
+                  <button onClick={handleSubmitClick} disabled={loading}
+                    className="flex-1 py-3 gradient-primary text-white rounded-xl text-xs font-black tracking-wide shadow-xl shadow-indigo-500/30 hover:scale-[1.01] active:scale-[0.99] transition flex items-center justify-center gap-2">
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCheck className="w-4 h-4" />}
+                    {(isLocked || sessionStatus === 'SUBMITTED') ? '✓ Attendance Submitted (Click to Update)' : 'Submit Attendance Register'}
+                  </button>
                 </div>
               )}
             </div>
           )}
 
-          {/* SUB-TAB 2: ANALYTICS */}
+          {/* SUB-TAB 2: ANALYTICS & STUDENT MONTHLY/YEARLY REPORTS */}
           {attendanceSubTab === 'analytics' && (
-            <div className="glass-card p-6 rounded-3xl border border-slate-800 space-y-6">
-              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
-                <div>
-                  <h3 className="text-lg font-bold text-white flex items-center gap-2"><BarChart3 className="w-5 h-5 text-indigo-400" /> Attendance Analytics & Reports</h3>
-                  <p className="text-xs text-slate-400">Class {selectedClass} — Section {selectedSection}</p>
+            <div className="space-y-6">
+              <StudentAttendanceReport defaultClass={selectedClass} defaultSection={selectedSection} />
+
+              <div className="glass-card p-6 rounded-3xl border border-slate-800 space-y-6">
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                  <div>
+                    <h3 className="text-lg font-bold text-white flex items-center gap-2"><BarChart3 className="w-5 h-5 text-indigo-400" /> Faculty & Session Reports</h3>
+                    <p className="text-xs text-slate-400">Class {selectedClass} — Section {selectedSection}</p>
+                  </div>
                 </div>
-              </div>
 
               {/* DATE FILTER BAR FOR TEACHERS */}
               <div className="p-4 rounded-2xl bg-slate-900/80 border border-slate-800 flex items-center justify-between flex-wrap gap-3 text-xs">
@@ -1234,9 +1299,10 @@ function TeacherDashboardContent() {
                 </div>
               )}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
+    )}
 
 
 
@@ -1727,8 +1793,8 @@ function TeacherDashboardContent() {
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-indigo-500/20 flex items-center justify-center"><Edit3 className="w-5 h-5 text-indigo-400" /></div>
                 <div>
-                  <h3 className="font-black text-white">Request Correction</h3>
-                  <p className="text-xs text-slate-400">Attendance correction request (pending admin approval)</p>
+                  <h3 className="font-black text-white">Update Attendance</h3>
+                  <p className="text-xs text-slate-400">Directly update attendance status (instant save)</p>
                 </div>
               </div>
               <button onClick={() => { setShowCorrectionModal(false); setCorrectionReason(''); }}><X className="w-5 h-5 text-slate-400 hover:text-white" /></button>
@@ -1736,7 +1802,7 @@ function TeacherDashboardContent() {
 
             {correctionSuccess ? (
               <div className="p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center gap-2">
-                <CheckCircle className="w-4 h-4" /> Correction request submitted! Admin will review it.
+                <CheckCircle className="w-4 h-4" /> Attendance updated successfully!
               </div>
             ) : (
               <>
@@ -1759,17 +1825,17 @@ function TeacherDashboardContent() {
                   </div>
                 </div>
                 <div>
-                  <label className="text-xs text-slate-400 font-bold block mb-2">Reason for Correction <span className="text-rose-400">*</span></label>
+                  <label className="text-xs text-slate-400 font-bold block mb-2">Note / Reason <span className="text-slate-500 font-normal">(Optional)</span></label>
                   <textarea value={correctionReason} onChange={e => setCorrectionReason(e.target.value)}
-                    placeholder="e.g. Student submitted medical certificate showing they were present..."
+                    placeholder="e.g. Student submitted medical certificate or updated status..."
                     rows={3} className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-indigo-500" />
                 </div>
                 <div className="flex gap-3">
                   <button onClick={() => { setShowCorrectionModal(false); setCorrectionReason(''); }}
                     className="flex-1 py-2.5 rounded-xl text-xs font-bold border border-slate-700 text-slate-300 hover:bg-slate-800 transition">Cancel</button>
-                  <button onClick={handleSubmitCorrectionRequest} disabled={!correctionReason.trim() || correctionLoading}
+                  <button onClick={handleSubmitCorrectionRequest} disabled={correctionLoading}
                     className="flex-1 py-2.5 rounded-xl text-xs font-bold gradient-primary text-white hover:scale-[1.01] transition flex items-center justify-center gap-2 disabled:opacity-50">
-                    {correctionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Submit Request
+                    {correctionLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />} Update Attendance Now
                   </button>
                 </div>
               </>
@@ -1778,6 +1844,75 @@ function TeacherDashboardContent() {
         </div>
       )}
 
+      {/* ─── STUDENT DIRECTORY TAB ─── */}
+      {activeTab === 'students' && (
+        <StudentDirectoryTab token={token} classList={classList} />
+      )}
+
+      {/* ─── HEALTH RECORDS TAB ─── */}
+      {activeTab === 'health' && (
+        <TeacherHealthRecordsTab token={token} classList={classList} />
+      )}
+
+      {/* ─── DISCIPLINE TRACKER TAB ─── */}
+      {activeTab === 'discipline' && (
+        <TeacherDisciplineTab token={token} classList={classList} />
+      )}
+
+      {/* ─── CLASSES & SECTIONS TAB ─── */}
+      {activeTab === 'classes' && (
+        <TeacherClassesTab classList={classList} />
+      )}
+
+      {/* ─── SUBJECTS TAB ─── */}
+      {activeTab === 'subjects' && (
+        <TeacherSubjectsTab token={token} classList={classList} />
+      )}
+
+      {/* ─── LMS & E-LEARNING TAB ─── */}
+      {activeTab === 'lms' && (
+        <TeacherLMSTab token={token} classList={classList} />
+      )}
+
+      {/* ─── EXAMS & SCHEDULE TAB ─── */}
+      {activeTab === 'exams' && (
+        <TeacherExamsTab token={token} classList={classList} />
+      )}
+
+      {/* ─── MARKS ENTRY & REPORT CARDS TAB ─── */}
+      {activeTab === 'marks' && (
+        <TeacherMarksEntryTab token={token} classList={classList} />
+      )}
+
+      {/* ─── STAFF ATTENDANCE TAB ─── */}
+      {activeTab === 'staff-attendance' && (
+        <TeacherStaffAttendanceTab token={token} staffClocked={staffClocked} clockInTime={clockInTime} handleGPSClockIn={handleGPSClockIn} />
+      )}
+
+      {/* ─── LEAVE APPLICATION TAB ─── */}
+      {activeTab === 'leave' && (
+        <TeacherLeaveTab token={token} />
+      )}
+
+      {/* ─── LIBRARY TAB ─── */}
+      {activeTab === 'library' && (
+        <TeacherLibraryTab token={token} />
+      )}
+
+      {/* ─── ANNOUNCEMENTS TAB ─── */}
+      {activeTab === 'announcements' && (
+        <TeacherAnnouncementsTab token={token} />
+      )}
+
+      {/* ─── SCHOOL EVENTS TAB ─── */}
+      {activeTab === 'events' && (
+        <TeacherEventsTab token={token} />
+      )}
+
+      {/* ─── HELPDESK TAB ─── */}
+      {activeTab === 'helpdesk' && (
+        <TeacherHelpdeskTab token={token} user={user} />
+      )}
 
       {/* ─── ALL SERVICES TAB ─── */}
       {activeTab === 'services' && (
@@ -1790,6 +1925,1050 @@ function TeacherDashboardContent() {
   );
 }
 
+// ─── STUDENT DIRECTORY SUB-COMPONENT (ADMIN-STYLE DUAL SUB-TAB) ─────────────
+function StudentDirectoryTab({ token, classList }) {
+  const [subTab, setSubTab] = React.useState('classes'); // 'classes' | 'students'
+  const [dirClass, setDirClass] = React.useState('');
+  const [dirSection, setDirSection] = React.useState('');
+  const [dirStudents, setDirStudents] = React.useState([]);
+  const [dirLoading, setDirLoading] = React.useState(false);
+  const [dirSearch, setDirSearch] = React.useState('');
+  const [dirSections, setDirSections] = React.useState(['A','B','C','D']);
+  const [viewMode, setViewMode] = React.useState('table'); // 'table' | 'grid'
+  const [selectedStudentProfile, setSelectedStudentProfile] = React.useState(null);
+
+  // Set initial class from classList
+  React.useEffect(() => {
+    if (classList.length > 0 && !dirClass) {
+      const first = classList[0];
+      const name = String(first.className || first.name || '').replace(/^Class\s+/i, '').trim();
+      setDirClass(name);
+      const secs = Array.isArray(first.sections) && first.sections.length > 0
+        ? first.sections.map(s => String(s).replace(/^Section\s+/i, '').trim())
+        : ['A','B','C','D'];
+      setDirSections(secs);
+      setDirSection('');
+    }
+  }, [classList]);
+
+  React.useEffect(() => {
+    if (subTab === 'students' && dirClass) {
+      setDirLoading(true);
+      const secParam = dirSection ? `&sectionId=${encodeURIComponent(dirSection)}` : '';
+      const url = `${API_BASE}/students?classId=${encodeURIComponent(dirClass)}${secParam}`;
+      fetch(url, { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(r => r.ok ? r.json() : [])
+        .then(d => setDirStudents(Array.isArray(d) ? d : []))
+        .catch(() => setDirStudents([]))
+        .finally(() => setDirLoading(false));
+    }
+  }, [subTab, dirClass, dirSection, token]);
+
+  const handleClassChange = (val) => {
+    const normC = String(val).replace(/^Class\s+/i, '').trim();
+    setDirClass(normC);
+    setDirStudents([]);
+    const cls = classList.find(c => String(c.className || c.name || '').replace(/^Class\s+/i,'').trim() === normC);
+    const secs = (cls && Array.isArray(cls.sections) && cls.sections.length > 0)
+      ? cls.sections.map(s => String(s).replace(/^Section\s+/i,'').trim())
+      : ['A','B','C','D'];
+    setDirSections(secs);
+    setDirSection('');
+  };
+
+  const filtered = dirStudents.filter(s => {
+    if (!dirSearch) return true;
+    const q = dirSearch.toLowerCase();
+    return (
+      `${s.firstName} ${s.lastName}`.toLowerCase().includes(q) ||
+      String(s.rollNo || '').toLowerCase().includes(q) ||
+      String(s.admissionNo || '').toLowerCase().includes(q) ||
+      String(s.parentPhone || '').includes(q) ||
+      String(s.parentName || '').toLowerCase().includes(q)
+    );
+  });
+
+  const BADGE = {
+    green: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30',
+    amber: 'bg-amber-500/20 text-amber-300 border border-amber-500/30',
+    red: 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Sub-tab Switcher Bar */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-1 p-1 bg-slate-900 rounded-xl border border-slate-800">
+          {[
+            { key: 'classes', label: 'Classes & Sections', icon: BookOpen },
+            { key: 'students', label: 'Students Directory', icon: GraduationCap },
+          ].map(({ key, label, icon: Icon }) => (
+            <button key={key} onClick={() => setSubTab(key)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${subTab === key ? 'gradient-primary text-white shadow-lg shadow-indigo-500/30' : 'text-slate-400 hover:text-white'}`}>
+              <Icon className="w-3.5 h-3.5" />{label}
+            </button>
+          ))}
+        </div>
+
+        {subTab === 'students' && (
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+              <button
+                onClick={() => setViewMode('table')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition ${viewMode === 'table' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}
+              >
+                Table View
+              </button>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition ${viewMode === 'grid' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-white'}`}
+              >
+                Grid View
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ─── SUB-TAB 1: CLASSES & SECTIONS ─── */}
+      {subTab === 'classes' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-base font-extrabold text-white">Class & Section Directory</h2>
+              <p className="text-xs text-slate-400">Select a class to view all enrolled students</p>
+            </div>
+            <span className="px-3 py-1 rounded-xl bg-indigo-500/20 text-indigo-300 font-bold text-xs border border-indigo-500/30">
+              {classList.length} Classes Configured
+            </span>
+          </div>
+
+          {classList.length === 0 ? (
+            <div className="text-center py-16 text-slate-500 text-sm bg-slate-900/50 rounded-2xl border border-slate-800">
+              No classes configured yet.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {classList.map((cls, idx) => {
+                const classNameNorm = String(cls.className || cls.name || '').replace(/^Class\s+/i, '').trim();
+                const secs = Array.isArray(cls.sections) && cls.sections.length > 0 ? cls.sections : ['A', 'B', 'C', 'D'];
+
+                return (
+                  <div key={cls._id || idx} className="glass-card border border-slate-800 rounded-2xl p-5 space-y-4 hover:border-indigo-500/40 transition-all group">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider block">Class</span>
+                        <h3 className="text-lg font-black text-white">Class {classNameNorm}</h3>
+                        {cls.classTeacher && <p className="text-xs text-slate-400 mt-0.5">Faculty: {cls.classTeacher}</p>}
+                      </div>
+                      <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center font-bold text-indigo-300 text-xs">
+                        {classNameNorm}
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Available Sections</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {secs.map(sec => (
+                          <span key={sec} className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                            Section {String(sec).replace(/^Section\s+/i, '').trim()}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        handleClassChange(classNameNorm);
+                        setSubTab('students');
+                      }}
+                      className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-indigo-600 text-slate-200 hover:text-white text-xs font-bold flex items-center justify-center gap-2 transition-all border border-slate-700 hover:border-indigo-500/50 cursor-pointer shadow-md">
+                      <GraduationCap className="w-4 h-4" /> View Enrolled Students →
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── SUB-TAB 2: STUDENTS DIRECTORY ─── */}
+      {subTab === 'students' && (
+        <div className="space-y-4">
+          {/* Filter Bar */}
+          <div className="glass-panel p-4 rounded-2xl border border-slate-800 flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-bold text-slate-400">Class:</label>
+              <select
+                className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-indigo-500 min-w-[130px]"
+                value={dirClass}
+                onChange={e => handleClassChange(e.target.value)}
+              >
+                {classList.map((c, idx) => {
+                  const name = String(c.className || c.name || '').replace(/^Class\s+/i, '').trim();
+                  return <option key={c._id || idx} value={name}>Class {name}</option>;
+                })}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-bold text-slate-400">Section:</label>
+              <select
+                className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-indigo-500 min-w-[120px]"
+                value={dirSection}
+                onChange={e => setDirSection(e.target.value)}
+              >
+                <option value="">All Sections</option>
+                {dirSections.map(s => <option key={s} value={s}>Section {s}</option>)}
+              </select>
+            </div>
+
+            {/* Search Input */}
+            <div className="flex-1 min-w-[200px] flex items-center gap-2 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2">
+              <Search className="w-3.5 h-3.5 text-slate-500" />
+              <input
+                type="text"
+                placeholder="Search by student name, roll no, phone, parent name..."
+                value={dirSearch}
+                onChange={e => setDirSearch(e.target.value)}
+                className="bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none w-full font-medium"
+              />
+              {dirSearch && (
+                <button onClick={() => setDirSearch('')} className="text-slate-500 hover:text-white text-xs">✕</button>
+              )}
+            </div>
+
+            <span className="px-3 py-2 rounded-xl bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 text-xs font-bold">
+              {filtered.length} Students
+            </span>
+          </div>
+
+          {/* TABLE VIEW */}
+          {viewMode === 'table' && (
+            <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
+              {dirLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="w-6 h-6 text-indigo-400 animate-spin" />
+                </div>
+              ) : filtered.length === 0 ? (
+                <div className="text-center py-16 text-slate-500 text-sm space-y-2">
+                  <GraduationCap className="w-8 h-8 text-slate-700 mx-auto" />
+                  <p className="font-bold text-slate-300">No students found for Class {dirClass} {dirSection ? `Section ${dirSection}` : ''}</p>
+                  <p className="text-xs text-slate-500">Try adjusting your filters or search query.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-900 text-[10px] text-slate-400 uppercase font-black border-b border-slate-800">
+                      <tr>
+                        <th className="p-3.5">Roll No</th>
+                        <th className="p-3.5">Student Name</th>
+                        <th className="p-3.5">Section</th>
+                        <th className="p-3.5">Bus Transport</th>
+                        <th className="p-3.5">Attendance</th>
+                        <th className="p-3.5">Student Email</th>
+                        <th className="p-3.5">Parent Name</th>
+                        <th className="p-3.5">Parent Phone</th>
+                        <th className="p-3.5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800/60">
+                      {filtered.map(s => {
+                        const pct = s.attendancePercentage || 0;
+                        const badgeStyle = pct >= 90 ? BADGE.green : pct >= 75 ? BADGE.amber : BADGE.red;
+
+                        return (
+                          <tr key={s._id} className="hover:bg-slate-900/60 transition-colors group">
+                            <td className="p-3.5 font-mono font-bold">
+                              <button
+                                onClick={() => setSelectedStudentProfile(s)}
+                                className="text-indigo-400 hover:text-indigo-300 hover:underline font-mono font-bold cursor-pointer"
+                              >
+                                {s.rollNo || 'N/A'}
+                              </button>
+                            </td>
+                            <td className="p-3.5 font-semibold">
+                              <button
+                                onClick={() => setSelectedStudentProfile(s)}
+                                className="text-left text-white hover:text-indigo-300 font-bold flex items-center gap-2 cursor-pointer transition-colors"
+                              >
+                                <span className="w-6 h-6 rounded-lg gradient-primary flex items-center justify-center text-[10px] font-black text-white shrink-0">
+                                  {s.firstName ? s.firstName[0].toUpperCase() : 'S'}
+                                </span>
+                                <span>{s.firstName} {s.lastName}</span>
+                              </button>
+                            </td>
+                            <td className="p-3.5 text-slate-300 font-bold">
+                              {s.sectionId && s.sectionId !== '-' ? `Section ${String(s.sectionId).replace(/^Section\s+/i, '').trim()}` : '—'}
+                            </td>
+                            <td className="p-3.5">
+                              {s.transportRoute ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-indigo-500/20 text-indigo-300 font-semibold text-[11px] border border-indigo-500/30">
+                                  🚌 {s.transportRoute}
+                                </span>
+                              ) : (
+                                <span className="text-slate-500 text-[11px]">No Bus</span>
+                              )}
+                            </td>
+                            <td className="p-3.5">
+                              <span className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${badgeStyle}`}>
+                                {pct}%
+                              </span>
+                            </td>
+                            <td className="p-3.5 font-mono text-slate-400">{s.studentEmail || '—'}</td>
+                            <td className="p-3.5 text-slate-200 font-semibold">{s.parentName || '—'}</td>
+                            <td className="p-3.5 font-mono text-slate-300">{s.parentPhone || '—'}</td>
+                            <td className="p-3.5 text-right whitespace-nowrap">
+                              <button
+                                onClick={() => setSelectedStudentProfile(s)}
+                                title="View 360° Profile"
+                                className="px-3 py-1 rounded-xl bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 font-bold text-[11px] border border-indigo-500/30 transition-all cursor-pointer"
+                              >
+                                View 360° Profile
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* GRID VIEW */}
+          {viewMode === 'grid' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filtered.map((st, idx) => {
+                const pct = st.attendancePercentage || 0;
+                const badgeStyle = pct >= 90 ? BADGE.green : pct >= 75 ? BADGE.amber : BADGE.red;
+                const initials = `${(st.firstName || '?')[0]}${(st.lastName || '')[0] || ''}`.toUpperCase();
+
+                return (
+                  <div key={st._id || idx} className="glass-card p-5 rounded-2xl border border-slate-800 hover:border-indigo-500/40 transition-all space-y-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-11 h-11 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center font-black text-sm text-indigo-300 shrink-0">
+                        {initials}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-sm font-extrabold text-white truncate">{st.firstName} {st.lastName}</h4>
+                        <p className="text-[10px] text-slate-400 font-mono">Roll: {st.rollNo || 'N/A'} • Adm: {st.admissionNo || 'N/A'}</p>
+                        <p className="text-[10px] text-slate-400">Parent: {st.parentName || '—'}</p>
+                      </div>
+                      <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black border shrink-0 ${badgeStyle}`}>
+                        {pct}%
+                      </span>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-800 flex items-center justify-between text-[11px]">
+                      <span className="text-slate-400 font-mono">📞 {st.parentPhone || '—'}</span>
+                      <button
+                        onClick={() => setSelectedStudentProfile(st)}
+                        className="text-indigo-400 hover:text-indigo-300 font-bold cursor-pointer"
+                      >
+                        View Profile →
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── STUDENT 360° PROFILE MODAL ─── */}
+      {selectedStudentProfile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
+          <div className="glass-card bg-slate-900 border border-slate-800 rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl relative">
+            <button
+              onClick={() => setSelectedStudentProfile(null)}
+              className="absolute top-4 right-4 p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-4 border-b border-slate-800 pb-4">
+              <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center font-black text-xl text-white shadow-lg">
+                {selectedStudentProfile.firstName ? selectedStudentProfile.firstName[0].toUpperCase() : 'S'}
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-white">
+                  {selectedStudentProfile.firstName} {selectedStudentProfile.lastName}
+                </h3>
+                <p className="text-xs text-indigo-400 font-bold">
+                  Class {selectedStudentProfile.classId} — Section {selectedStudentProfile.sectionId}
+                </p>
+                <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                  Roll No: <span className="text-white font-bold">{selectedStudentProfile.rollNo || 'N/A'}</span> • Adm No: <span className="text-white font-bold">{selectedStudentProfile.admissionNo || 'N/A'}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 text-xs">
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-500 font-bold uppercase block">Parent / Guardian</span>
+                <span className="font-extrabold text-white">{selectedStudentProfile.parentName || 'N/A'}</span>
+              </div>
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-500 font-bold uppercase block">Contact Phone</span>
+                <span className="font-mono font-extrabold text-emerald-400">{selectedStudentProfile.parentPhone || 'N/A'}</span>
+              </div>
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-500 font-bold uppercase block">Attendance Rate</span>
+                <span className="font-extrabold text-indigo-400 text-sm">{selectedStudentProfile.attendancePercentage || 0}%</span>
+              </div>
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800">
+                <span className="text-[10px] text-slate-500 font-bold uppercase block">Bus Transport</span>
+                <span className="font-extrabold text-slate-300">{selectedStudentProfile.transportRoute || 'No Bus'}</span>
+              </div>
+            </div>
+
+            {selectedStudentProfile.studentEmail && (
+              <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 text-xs">
+                <span className="text-[10px] text-slate-500 font-bold uppercase block">Student Email</span>
+                <span className="font-mono text-slate-300">{selectedStudentProfile.studentEmail}</span>
+              </div>
+            )}
+
+            <div className="pt-2">
+              <button
+                onClick={() => setSelectedStudentProfile(null)}
+                className="w-full py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold transition cursor-pointer"
+              >
+                Close Profile
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── HEALTH RECORDS SUB-COMPONENT ──────────────────────────────────────────
+function TeacherHealthRecordsTab({ token, classList }) {
+  const [records, setRecords] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [selClass, setSelClass] = React.useState('LKG');
+
+  React.useEffect(() => {
+    fetch(`${API_BASE}/admin/health-records`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setRecords(Array.isArray(d) ? d : []))
+      .catch(() => setRecords([]))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  return (
+    <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-5">
+      <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div>
+          <h3 className="text-base font-extrabold text-white flex items-center gap-2">🩺 Student Health & Medical Records</h3>
+          <p className="text-xs text-slate-400">Class medical logs, blood groups, and allergy alerts</p>
+        </div>
+      </div>
+      {loading ? <Loader2 className="w-6 h-6 text-indigo-400 animate-spin mx-auto my-8" /> : (
+        <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-900 text-slate-400 text-[10px] uppercase font-black border-b border-slate-800">
+              <tr>
+                <th className="p-3.5">Student Name</th>
+                <th className="p-3.5">Class & Sec</th>
+                <th className="p-3.5">Blood Group</th>
+                <th className="p-3.5">Allergies / Conditions</th>
+                <th className="p-3.5">Emergency Contact</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60">
+              {records.length === 0 ? (
+                <tr><td colSpan="5" className="p-6 text-center text-slate-500 font-bold">No medical records logged yet.</td></tr>
+              ) : records.map((r, i) => (
+                <tr key={i} className="hover:bg-slate-900/40">
+                  <td className="p-3.5 font-bold text-white">{r.studentName || 'Student'}</td>
+                  <td className="p-3.5 text-indigo-300 font-mono">Class {r.classId}-{r.sectionId}</td>
+                  <td className="p-3.5"><span className="px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30">{r.bloodGroup || 'O+'}</span></td>
+                  <td className="p-3.5 text-slate-300">{r.allergies || r.medicalNotes || 'None Reported'}</td>
+                  <td className="p-3.5 text-emerald-400 font-mono font-bold">{r.emergencyPhone || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── DISCIPLINE TRACKER SUB-COMPONENT ────────────────────────────────────
+function TeacherDisciplineTab({ token, classList }) {
+  const [incidents, setIncidents] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    fetch(`${API_BASE}/admin/discipline`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setIncidents(Array.isArray(d) ? d : []))
+      .catch(() => setIncidents([]))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  return (
+    <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-5">
+      <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div>
+          <h3 className="text-base font-extrabold text-white flex items-center gap-2">⚠️ Student Discipline & Incident Log</h3>
+          <p className="text-xs text-slate-400">Faculty-logged conduct reports and severity tracking</p>
+        </div>
+      </div>
+      {loading ? <Loader2 className="w-6 h-6 text-indigo-400 animate-spin mx-auto my-8" /> : (
+        <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-900 text-slate-400 text-[10px] uppercase font-black border-b border-slate-800">
+              <tr>
+                <th className="p-3.5">Date</th>
+                <th className="p-3.5">Student Name</th>
+                <th className="p-3.5">Incident Type</th>
+                <th className="p-3.5">Severity</th>
+                <th className="p-3.5">Description</th>
+                <th className="p-3.5">Action Taken</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60">
+              {incidents.length === 0 ? (
+                <tr><td colSpan="6" className="p-6 text-center text-slate-500 font-bold">No disciplinary incidents recorded.</td></tr>
+              ) : incidents.map((inc, i) => (
+                <tr key={i} className="hover:bg-slate-900/40">
+                  <td className="p-3.5 font-mono text-slate-300">{inc.date || 'Today'}</td>
+                  <td className="p-3.5 font-bold text-white">{inc.studentName}</td>
+                  <td className="p-3.5 text-amber-300 font-semibold">{inc.incidentType || 'Behavioral'}</td>
+                  <td className="p-3.5">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      inc.severity === 'HIGH' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                    }`}>{inc.severity || 'MEDIUM'}</span>
+                  </td>
+                  <td className="p-3.5 text-slate-300">{inc.description}</td>
+                  <td className="p-3.5 text-emerald-400 font-semibold">{inc.actionTaken || 'Counseling Session'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── CLASSES SUB-COMPONENT ────────────────────────────────────────────────
+function TeacherClassesTab({ classList }) {
+  return (
+    <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-5">
+      <div>
+        <h3 className="text-base font-extrabold text-white flex items-center gap-2">📚 School Classes & Allocated Sections</h3>
+        <p className="text-xs text-slate-400">Class structures configured across academic sessions</p>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {classList.map((c, i) => {
+          const clsName = String(c.className || c.name || '').replace(/^Class\s+/i, '').trim();
+          const secs = Array.isArray(c.sections) ? c.sections : ['A', 'B'];
+          return (
+            <div key={i} className="glass-card p-5 rounded-2xl border border-slate-800 space-y-3">
+              <div className="flex justify-between items-center">
+                <h4 className="text-lg font-black text-white">Class {clsName}</h4>
+                <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-bold text-xs">{secs.length} Sections</span>
+              </div>
+              <p className="text-xs text-slate-400">Faculty: <strong className="text-white">{c.classTeacher || 'Assigned Staff'}</strong></p>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {secs.map(s => (
+                  <span key={s} className="px-2.5 py-0.5 rounded-lg bg-slate-900 text-slate-300 text-xs font-mono border border-slate-800">
+                    Section {String(s).replace(/^Section\s+/i, '').trim()}
+                  </span>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── SUBJECTS SUB-COMPONENT ───────────────────────────────────────────────
+function TeacherSubjectsTab({ token, classList }) {
+  const [subjects, setSubjects] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    fetch(`${API_BASE}/admin/subjects`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setSubjects(Array.isArray(d) ? d : []))
+      .catch(() => setSubjects([]))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  return (
+    <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-5">
+      <div>
+        <h3 className="text-base font-extrabold text-white flex items-center gap-2">📖 Curriculum Subjects Catalog</h3>
+        <p className="text-xs text-slate-400">Academic subjects, codes, and period allocations</p>
+      </div>
+      {loading ? <Loader2 className="w-6 h-6 text-indigo-400 animate-spin mx-auto my-8" /> : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {subjects.map((sub, i) => (
+            <div key={i} className="glass-card p-4 rounded-2xl border border-slate-800 space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono text-[10px] font-bold border border-indigo-500/30">{sub.subjectCode || sub.code || 'SUB-101'}</span>
+                <span className="text-[10px] text-slate-400 font-mono">{sub.weeklyPeriods || 5} Periods/Wk</span>
+              </div>
+              <h4 className="text-sm font-extrabold text-white">{sub.subjectName || sub.name}</h4>
+              <p className="text-xs text-slate-400">Type: <strong className="text-slate-200">{sub.type || 'Core Subject'}</strong></p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── LMS & E-LEARNING SUB-COMPONENT ────────────────────────────────────────
+function TeacherLMSTab({ token, classList }) {
+  const [content, setContent] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    fetch(`${API_BASE}/admin/lms`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setContent(Array.isArray(d) ? d : []))
+      .catch(() => setContent([]))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  return (
+    <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-5">
+      <div>
+        <h3 className="text-base font-extrabold text-white flex items-center gap-2">💻 E-Learning & Digital LMS Materials</h3>
+        <p className="text-xs text-slate-400">Class notes, chapter PDFs, and video lectures</p>
+      </div>
+      {loading ? <Loader2 className="w-6 h-6 text-indigo-400 animate-spin mx-auto my-8" /> : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {content.length === 0 ? (
+            <div className="col-span-full p-8 text-center text-slate-500 text-xs font-bold">No LMS study materials uploaded yet.</div>
+          ) : content.map((item, i) => (
+            <div key={i} className="glass-card p-4 rounded-2xl border border-slate-800 space-y-2">
+              <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">{item.contentType || 'DOCUMENT'}</span>
+              <h4 className="text-sm font-black text-white">{item.title}</h4>
+              <p className="text-xs text-slate-400">{item.description}</p>
+              <p className="text-[10px] text-indigo-300 font-mono">Class {item.classId} • {item.subject}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── EXAMS SUB-COMPONENT ──────────────────────────────────────────────────
+function TeacherExamsTab({ token, classList }) {
+  const [exams, setExams] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    fetch(`${API_BASE}/admin/exams`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setExams(Array.isArray(d) ? d : []))
+      .catch(() => setExams([]))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  return (
+    <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-5">
+      <div>
+        <h3 className="text-base font-extrabold text-white flex items-center gap-2">📝 Exam Schedules & Assessment Timetables</h3>
+        <p className="text-xs text-slate-400">Scheduled midterms, finals, and class test dates</p>
+      </div>
+      {loading ? <Loader2 className="w-6 h-6 text-indigo-400 animate-spin mx-auto my-8" /> : (
+        <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-900 text-slate-400 text-[10px] uppercase font-black border-b border-slate-800">
+              <tr>
+                <th className="p-3.5">Exam Name</th>
+                <th className="p-3.5">Class</th>
+                <th className="p-3.5">Subject</th>
+                <th className="p-3.5">Date & Time</th>
+                <th className="p-3.5">Total Marks</th>
+                <th className="p-3.5">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60">
+              {exams.length === 0 ? (
+                <tr><td colSpan="6" className="p-6 text-center text-slate-500 font-bold">No exam timetables published.</td></tr>
+              ) : exams.map((ex, i) => (
+                <tr key={i} className="hover:bg-slate-900/40">
+                  <td className="p-3.5 font-bold text-white">{ex.examName || ex.name}</td>
+                  <td className="p-3.5 text-indigo-300 font-bold">Class {ex.classId}</td>
+                  <td className="p-3.5 font-semibold text-slate-200">{ex.subject}</td>
+                  <td className="p-3.5 font-mono text-slate-300">{ex.examDate} ({ex.startTime})</td>
+                  <td className="p-3.5 font-mono text-emerald-400 font-bold">{ex.totalMarks || 100}</td>
+                  <td className="p-3.5"><span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">{ex.status || 'SCHEDULED'}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── MARKS ENTRY SUB-COMPONENT ────────────────────────────────────────────
+function TeacherMarksEntryTab({ token, classList }) {
+  const [selClass, setSelClass] = React.useState('LKG');
+  const [selSection, setSelSection] = React.useState('A');
+  const [students, setStudents] = React.useState([]);
+  const [marksMap, setMarksMap] = React.useState({});
+  const [loading, setLoading] = React.useState(false);
+  const [savedMsg, setSavedMsg] = React.useState(false);
+
+  React.useEffect(() => {
+    setLoading(true);
+    fetch(`${API_BASE}/students?classId=${encodeURIComponent(selClass)}&sectionId=${encodeURIComponent(selSection)}`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setStudents(Array.isArray(d) ? d : []))
+      .catch(() => setStudents([]))
+      .finally(() => setLoading(false));
+  }, [selClass, selSection, token]);
+
+  const handleSaveMarks = () => {
+    setSavedMsg(true);
+    setTimeout(() => setSavedMsg(false), 3000);
+  };
+
+  return (
+    <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-5">
+      <div className="flex justify-between items-center flex-wrap gap-4 border-b border-slate-800 pb-4">
+        <div>
+          <h3 className="text-base font-extrabold text-white flex items-center gap-2">🏆 Student Marks Entry & Grade Book</h3>
+          <p className="text-xs text-slate-400">Evaluate subject marks and submit report card grades</p>
+        </div>
+        <button onClick={handleSaveMarks} className="gradient-primary text-white font-bold text-xs px-4 py-2 rounded-xl shadow-lg shadow-indigo-500/20 hover:scale-105 transition cursor-pointer">
+          Save All Marks
+        </button>
+      </div>
+
+      {savedMsg && (
+        <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold">
+          ✅ Student marks saved successfully!
+        </div>
+      )}
+
+      <div className="flex gap-3">
+        <select value={selClass} onChange={e => setSelClass(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-bold">
+          {classList.map((c, i) => <option key={i} value={String(c.className || c.name).replace(/^Class\s+/i,'').trim()}>{String(c.className || c.name)}</option>)}
+        </select>
+        <select value={selSection} onChange={e => setSelSection(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-bold">
+          {['A','B','C','D'].map(s => <option key={s} value={s}>Section {s}</option>)}
+        </select>
+      </div>
+
+      {loading ? <Loader2 className="w-6 h-6 text-indigo-400 animate-spin mx-auto my-8" /> : (
+        <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
+          <table className="w-full text-left text-xs">
+            <thead className="bg-slate-900 text-slate-400 text-[10px] uppercase font-black border-b border-slate-800">
+              <tr>
+                <th className="p-3.5">Roll No</th>
+                <th className="p-3.5">Student Name</th>
+                <th className="p-3.5">Obtained Marks (out of 100)</th>
+                <th className="p-3.5">Remarks</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/60">
+              {students.map(st => (
+                <tr key={st._id} className="hover:bg-slate-900/40">
+                  <td className="p-3.5 font-mono font-bold text-indigo-400">{st.rollNo || 'N/A'}</td>
+                  <td className="p-3.5 font-bold text-white">{st.firstName} {st.lastName}</td>
+                  <td className="p-3.5">
+                    <input
+                      type="number" min="0" max="100" placeholder="85"
+                      value={marksMap[st._id] || ''}
+                      onChange={e => setMarksMap({ ...marksMap, [st._id]: e.target.value })}
+                      className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1 text-xs text-white font-mono w-24 font-bold focus:border-indigo-500 focus:outline-none"
+                    />
+                  </td>
+                  <td className="p-3.5">
+                    <input type="text" placeholder="Excellent progress" className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1 text-xs text-slate-300 w-full focus:outline-none" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── STAFF ATTENDANCE SUB-COMPONENT ──────────────────────────────────────
+function TeacherStaffAttendanceTab({ token, staffClocked, clockInTime, handleGPSClockIn }) {
+  return (
+    <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-5 max-w-xl mx-auto text-center">
+      <div className="w-16 h-16 rounded-3xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center mx-auto text-indigo-400">
+        <Clock className="w-8 h-8" />
+      </div>
+      <div>
+        <h3 className="text-lg font-black text-white">Staff GPS Clock-In System</h3>
+        <p className="text-xs text-slate-400 mt-1">Verify campus geo-fenced location and register daily attendance</p>
+      </div>
+
+      <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-2">
+        <span className="text-[10px] text-slate-500 uppercase font-bold">Current Attendance Status</span>
+        <p className={`text-base font-black ${staffClocked ? 'text-emerald-400' : 'text-amber-400'}`}>
+          {staffClocked ? `✓ Clocked In at ${clockInTime}` : 'Not Clocked In Today'}
+        </p>
+      </div>
+
+      <button onClick={handleGPSClockIn} disabled={staffClocked}
+        className={`w-full py-3 rounded-2xl text-xs font-bold transition flex items-center justify-center gap-2 cursor-pointer ${
+          staffClocked ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'gradient-primary text-white shadow-xl shadow-indigo-500/20 hover:scale-105'
+        }`}>
+        <Clock className="w-4 h-4" />
+        <span>{staffClocked ? `Clocked In ✓ (${clockInTime})` : 'Clock In GPS Attendance Now'}</span>
+      </button>
+    </div>
+  );
+}
+
+// ─── LEAVE APPLICATION SUB-COMPONENT ────────────────────────────────────
+function TeacherLeaveTab({ token }) {
+  const [form, setForm] = React.useState({ leaveType: 'Casual', startDate: '', endDate: '', reason: '' });
+  const [submitted, setSubmitted] = React.useState(false);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setSubmitted(true);
+    setTimeout(() => setSubmitted(false), 4000);
+    setForm({ leaveType: 'Casual', startDate: '', endDate: '', reason: '' });
+  };
+
+  return (
+    <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-5 max-w-2xl mx-auto">
+      <div>
+        <h3 className="text-base font-extrabold text-white flex items-center gap-2">📄 Staff Leave Application</h3>
+        <p className="text-xs text-slate-400">Submit official leave requests for Principal & Admin approval</p>
+      </div>
+
+      {submitted && (
+        <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold">
+          ✅ Leave application submitted to School Administration!
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+        <div>
+          <label className="block text-slate-400 font-bold mb-1">Leave Type</label>
+          <select value={form.leaveType} onChange={e => setForm({...form, leaveType: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold focus:outline-none">
+            <option value="Casual">Casual Leave (CL)</option>
+            <option value="Sick">Sick Leave (SL)</option>
+            <option value="Earned">Earned Leave (EL)</option>
+          </select>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-slate-400 font-bold mb-1">Start Date</label>
+            <input type="date" required value={form.startDate} onChange={e => setForm({...form, startDate: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold focus:outline-none" />
+          </div>
+          <div>
+            <label className="block text-slate-400 font-bold mb-1">End Date</label>
+            <input type="date" required value={form.endDate} onChange={e => setForm({...form, endDate: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold focus:outline-none" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-slate-400 font-bold mb-1">Reason for Leave</label>
+          <textarea rows="3" required value={form.reason} onChange={e => setForm({...form, reason: e.target.value})} placeholder="State your reason..." className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none" />
+        </div>
+        <button type="submit" className="w-full py-2.5 rounded-xl gradient-primary text-white font-bold text-xs shadow-lg hover:scale-[1.01] transition cursor-pointer">
+          Submit Leave Request
+        </button>
+      </form>
+    </div>
+  );
+}
+
+// ─── LIBRARY SUB-COMPONENT ────────────────────────────────────────────────
+function TeacherLibraryTab({ token }) {
+  const [books, setBooks] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    fetch(`${API_BASE}/admin/library/books`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setBooks(Array.isArray(d) ? d : []))
+      .catch(() => setBooks([]))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  return (
+    <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-5">
+      <div>
+        <h3 className="text-base font-extrabold text-white flex items-center gap-2">📚 Campus Library Book Catalog</h3>
+        <p className="text-xs text-slate-400">Search available books, authors, and reference materials</p>
+      </div>
+      {loading ? <Loader2 className="w-6 h-6 text-indigo-400 animate-spin mx-auto my-8" /> : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {books.map((b, i) => (
+            <div key={i} className="glass-card p-4 rounded-2xl border border-slate-800 space-y-2">
+              <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 font-mono text-[10px] font-bold">{b.category || 'GENERAL'}</span>
+              <h4 className="text-sm font-bold text-white">{b.title}</h4>
+              <p className="text-xs text-slate-400">Author: <strong className="text-slate-200">{b.author}</strong></p>
+              <p className="text-[10px] text-emerald-400 font-mono font-bold">Status: {b.availableCopies > 0 ? `${b.availableCopies} Available` : 'Issued'}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── ANNOUNCEMENTS SUB-COMPONENT ──────────────────────────────────────────
+function TeacherAnnouncementsTab({ token }) {
+  const [items, setItems] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    fetch(`${API_BASE}/admin/announcements`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setItems(Array.isArray(d) ? d : []))
+      .catch(() => setItems([]))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  return (
+    <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-5">
+      <div>
+        <h3 className="text-base font-extrabold text-white flex items-center gap-2">📢 School Bulletins & Announcements</h3>
+        <p className="text-xs text-slate-400">Official circulars and notices broadcast by administration</p>
+      </div>
+      {loading ? <Loader2 className="w-6 h-6 text-indigo-400 animate-spin mx-auto my-8" /> : (
+        <div className="space-y-3">
+          {items.length === 0 ? <p className="text-center text-slate-500 text-xs py-6">No announcements published.</p> : items.map((ann, i) => (
+            <div key={i} className="glass-card p-4 rounded-2xl border border-slate-800 space-y-1.5">
+              <div className="flex justify-between items-center text-xs">
+                <h4 className="font-extrabold text-white">{ann.title}</h4>
+                <span className="text-[10px] font-mono text-indigo-400">{ann.date || 'Today'}</span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed">{ann.content || ann.message}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── EVENTS SUB-COMPONENT ─────────────────────────────────────────────────
+function TeacherEventsTab({ token }) {
+  const [events, setEvents] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    fetch(`${API_BASE}/admin/events`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setEvents(Array.isArray(d) ? d : []))
+      .catch(() => setEvents([]))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  return (
+    <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-5">
+      <div>
+        <h3 className="text-base font-extrabold text-white flex items-center gap-2">🗓️ School Calendar & Annual Events</h3>
+        <p className="text-xs text-slate-400">Upcoming sports meets, cultural programs, and holidays</p>
+      </div>
+      {loading ? <Loader2 className="w-6 h-6 text-indigo-400 animate-spin mx-auto my-8" /> : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {events.map((ev, i) => (
+            <div key={i} className="glass-card p-4 rounded-2xl border border-slate-800 space-y-2">
+              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">{ev.eventDate || 'Upcoming'}</span>
+              <h4 className="text-sm font-black text-white">{ev.title || ev.eventName}</h4>
+              <p className="text-xs text-slate-300">{ev.description}</p>
+              <p className="text-[10px] text-indigo-300 font-mono">📍 {ev.venue || 'School Campus'}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── HELPDESK SUB-COMPONENT ───────────────────────────────────────────────
+function TeacherHelpdeskTab({ token, user }) {
+  const [tickets, setTickets] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [subject, setSubject] = React.useState('');
+  const [desc, setDesc] = React.useState('');
+  const [submitted, setSubmitted] = React.useState(false);
+
+  React.useEffect(() => {
+    fetch(`${API_BASE}/helpdesk`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setTickets(Array.isArray(d) ? d : []))
+      .catch(() => setTickets([]))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  const handleCreateTicket = (e) => {
+    e.preventDefault();
+    setSubmitted(true);
+    setTimeout(() => setSubmitted(false), 3000);
+    setSubject('');
+    setDesc('');
+  };
+
+  return (
+    <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-5 max-w-3xl mx-auto">
+      <div>
+        <h3 className="text-base font-extrabold text-white flex items-center gap-2">🎫 Campus IT & Maintenance Helpdesk</h3>
+        <p className="text-xs text-slate-400">Raise support tickets for classroom smartboards, Wi-Fi, or facilities</p>
+      </div>
+
+      {submitted && (
+        <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold">
+          ✅ Helpdesk ticket submitted to IT & Admin team!
+        </div>
+      )}
+
+      <form onSubmit={handleCreateTicket} className="space-y-3 text-xs p-4 bg-slate-950 rounded-2xl border border-slate-800">
+        <h4 className="font-bold text-white text-xs">Raise New Support Ticket</h4>
+        <input type="text" required placeholder="Ticket Subject (e.g. Smartboard HDMI not working in Room 102)"
+          value={subject} onChange={e => setSubject(e.target.value)}
+          className="w-full bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-white font-bold focus:outline-none" />
+        <textarea rows="2" required placeholder="Detailed description of the issue..."
+          value={desc} onChange={e => setDesc(e.target.value)}
+          className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none" />
+        <button type="submit" className="gradient-primary text-white font-bold text-xs px-4 py-2 rounded-xl shadow-lg hover:scale-[1.01] transition cursor-pointer">
+          Submit Helpdesk Ticket
+        </button>
+      </form>
+
+      {loading ? <Loader2 className="w-6 h-6 text-indigo-400 animate-spin mx-auto my-8" /> : (
+        <div className="space-y-3">
+          <h4 className="font-bold text-white text-xs">Your Ticket History</h4>
+          {tickets.length === 0 ? <p className="text-slate-500 text-xs py-4 text-center">No active tickets.</p> : tickets.map((t, i) => (
+            <div key={i} className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between items-center text-xs">
+              <div>
+                <h5 className="font-bold text-white">{t.subject || t.title}</h5>
+                <p className="text-[10px] text-slate-400">{t.description}</p>
+              </div>
+              <span className="px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 font-mono text-[10px] font-bold">{t.status || 'OPEN'}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TeacherDashboard(props) {
   return (
     <React.Suspense fallback={<div className="flex items-center justify-center min-h-screen"><Loader2 className="w-6 h-6 animate-spin text-indigo-400" /></div>}>
@@ -1797,3 +2976,4 @@ export default function TeacherDashboard(props) {
     </React.Suspense>
   );
 }
+

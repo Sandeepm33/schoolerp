@@ -132,12 +132,7 @@ const saveDraftSession = async (req, res) => {
     if (type === 'PERIOD' && periodNo) filter.periodNo = Number(periodNo);
     if (subject) filter.subject = subject;
 
-    // Cannot modify a LOCKED session
-    const existing = await AttendanceSession.findOne(filter);
-    if (existing && existing.isLocked) {
-      return res.status(409).json({ message: 'Attendance is locked. Submit a correction request to make changes.' });
-    }
-
+    // Allow updating attendance session
     const summary = computeSummary(entries);
     const sessionData = {
       date, classId: normClass, sectionId: normSection, type, periodNo, subject,
@@ -164,7 +159,7 @@ const saveDraftSession = async (req, res) => {
 
 /**
  * POST /attendance/sessions/submit
- * Validate → Submit → Lock a session.
+ * Validate → Submit → Save a session.
  */
 const submitSession = async (req, res) => {
   try {
@@ -189,11 +184,6 @@ const submitSession = async (req, res) => {
     if (schoolId) filter.schoolId = schoolId;
     if (type === 'PERIOD' && periodNo) filter.periodNo = Number(periodNo);
     if (subject) filter.subject = subject;
-
-    const existing = await AttendanceSession.findOne(filter);
-    if (existing && existing.isLocked) {
-      return res.status(409).json({ message: 'Attendance is already locked.' });
-    }
 
     // Validation: find not-marked students
     const unmarked = entries.filter(e => !e.status || e.status === 'NM');
@@ -387,62 +377,102 @@ const getStudentHistory = async (req, res) => {
     const student = await Student.findById(studentId);
     if (!student) return res.status(404).json({ message: 'Student not found' });
 
-    // Get all sessions containing this student
-    const sessions = await AttendanceSession.find(
-      {
-        schoolId,
-        academicYear,
-        'entries.studentId': studentId,
-        isLocked: true
-      },
-      'date classId sectionId entries'
-    ).sort({ date: 1 });
+    const extractId = (id) => typeof id === 'object' ? String(id?._id || id?.id || id) : String(id);
+    const stId = extractId(student._id);
 
-    // Extract per-date records for this student
-    const records = [];
+    // Get all sessions containing this student
+    const sessionQuery = { schoolId };
+    if (academicYear) sessionQuery.academicYear = academicYear;
+
+    const sessions = await AttendanceSession.find(sessionQuery).sort({ date: 1 });
+
+    // Per-date records map
+    const recordsMap = {};
     let totalWorkingDays = 0, totalPresent = 0, totalAbsent = 0, totalLate = 0, totalLeave = 0;
 
     for (const session of sessions) {
-      const entry = session.entries.find(e => String(e.studentId) === String(studentId));
+      if (!Array.isArray(session.entries)) continue;
+      const entry = session.entries.find(e => {
+        const eId = extractId(e.studentId);
+        return (
+          (eId && stId && (eId === stId || eId.includes(stId) || stId.includes(eId))) ||
+          (e.rollNo && student.rollNo && String(e.rollNo).trim() === String(student.rollNo).trim()) ||
+          (e.studentName && String(e.studentName).trim().toLowerCase() === String(`${student.firstName} ${student.lastName}`).trim().toLowerCase())
+        );
+      });
+
       if (entry) {
-        totalWorkingDays++;
-        if (entry.status === 'P') totalPresent++;
-        else if (entry.status === 'A') totalAbsent++;
-        else if (entry.status === 'L') totalLate++;
-        else if (['LV', 'OD'].includes(entry.status)) totalLeave++;
-        records.push({
-          date: session.date,
-          status: entry.status,
-          statusLabel: STATUS_LABELS[entry.status] || entry.status,
-          remarks: entry.remarks,
-          classId: session.classId,
-          sectionId: session.sectionId
-        });
+        const normSt = ['P', 'PRESENT'].includes(String(entry.status).toUpperCase()) ? 'P' :
+                       ['A', 'ABSENT'].includes(String(entry.status).toUpperCase()) ? 'A' :
+                       ['L', 'LATE'].includes(String(entry.status).toUpperCase()) ? 'L' :
+                       ['HD', 'HALF_DAY', 'HALF DAY'].includes(String(entry.status).toUpperCase()) ? 'HD' :
+                       ['LV', 'LEAVE'].includes(String(entry.status).toUpperCase()) ? 'LV' : entry.status;
+
+        // Save to date map
+        if (!recordsMap[session.date]) {
+          recordsMap[session.date] = {
+            date: session.date,
+            status: normSt,
+            statusLabel: STATUS_LABELS[normSt] || normSt,
+            remarks: entry.remarks || '',
+            classId: session.classId,
+            sectionId: session.sectionId,
+            type: session.type,
+            periodNo: session.periodNo,
+            subject: session.subject
+          };
+        }
       }
+    }
+
+    // Also merge legacy AttendanceRecords
+    const legacyRecords = await AttendanceRecord.find({ studentId: stId }).sort({ date: 1 });
+    for (const rec of legacyRecords) {
+      const dateStr = new Date(rec.date).toISOString().split('T')[0];
+      if (!recordsMap[dateStr]) {
+        const normSt = rec.status === 'PRESENT' ? 'P' : rec.status === 'ABSENT' ? 'A' : rec.status === 'LATE' ? 'L' : rec.status === 'LEAVE' ? 'LV' : 'P';
+        recordsMap[dateStr] = {
+          date: dateStr,
+          status: normSt,
+          statusLabel: STATUS_LABELS[normSt] || normSt,
+          remarks: rec.remarks || '',
+          classId: rec.classId,
+          sectionId: rec.sectionId
+        };
+      }
+    }
+
+    const records = Object.values(recordsMap).sort((a, b) => a.date.localeCompare(b.date));
+
+    for (const rec of records) {
+      totalWorkingDays++;
+      if (rec.status === 'P') totalPresent++;
+      else if (rec.status === 'A') totalAbsent++;
+      else if (rec.status === 'L') totalLate++;
+      else if (['LV', 'OD', 'HD'].includes(rec.status)) totalLeave++;
     }
 
     const attendancePercentage = totalWorkingDays > 0
       ? Math.round(((totalPresent + totalLate) / totalWorkingDays) * 100)
       : student.attendancePercentage || 0;
 
-    // Monthly breakdown
+    // Build 12-Month Yearly Map
     const monthlyMap = {};
     for (const rec of records) {
       const [y, mo] = rec.date.split('-');
       const key = `${y}-${mo}`;
-      if (!monthlyMap[key]) monthlyMap[key] = { workingDays: 0, present: 0, absent: 0, late: 0, leave: 0 };
+      if (!monthlyMap[key]) monthlyMap[key] = { month: key, year: y, monthNo: parseInt(mo), workingDays: 0, present: 0, absent: 0, late: 0, leave: 0 };
       monthlyMap[key].workingDays++;
       if (rec.status === 'P') monthlyMap[key].present++;
       else if (rec.status === 'A') monthlyMap[key].absent++;
       else if (rec.status === 'L') monthlyMap[key].late++;
-      else if (['LV', 'OD'].includes(rec.status)) monthlyMap[key].leave++;
+      else if (['LV', 'OD', 'HD'].includes(rec.status)) monthlyMap[key].leave++;
     }
 
-    const monthlyBreakdown = Object.entries(monthlyMap).map(([key, v]) => ({
-      month: key,
+    const monthlyBreakdown = Object.values(monthlyMap).map(v => ({
       ...v,
       percentage: v.workingDays > 0 ? Math.round(((v.present + v.late) / v.workingDays) * 100) : 0
-    }));
+    })).sort((a, b) => a.month.localeCompare(b.month));
 
     res.json({
       student: {
@@ -451,11 +481,14 @@ const getStudentHistory = async (req, res) => {
         admissionNo: student.admissionNo,
         rollNo: student.rollNo,
         classId: student.classId,
-        sectionId: student.sectionId
+        sectionId: student.sectionId,
+        parentName: student.parentName,
+        parentPhone: student.parentPhone
       },
       academicYear,
       summary: { totalWorkingDays, totalPresent, totalAbsent, totalLate, totalLeave, attendancePercentage },
       monthlyBreakdown,
+      calendarMap: recordsMap,
       records
     });
   } catch (error) {
@@ -613,31 +646,139 @@ const getMonthlyReport = async (req, res) => {
 
 // ─── CORRECTIONS ───────────────────────────────────────────────────────────────
 
-/** POST /attendance/corrections */
+/** POST /attendance/corrections — Direct Teacher & Admin Attendance Update */
 const submitCorrectionRequest = async (req, res) => {
   try {
-    const { sessionId, date, classId, sectionId, studentId, studentName, rollNo, oldStatus, newStatus, reason } = req.body;
+    const { sessionId, date, classId, sectionId, type = 'DAILY', periodNo = null, subject = null, studentId, studentName, rollNo, oldStatus, newStatus, reason } = req.body;
     const schoolId = req.user?.schoolId;
 
-    if (!sessionId || !studentId || !newStatus || !reason) {
-      return res.status(400).json({ message: 'sessionId, studentId, newStatus, reason are required.' });
+    if (!studentId || !newStatus) {
+      return res.status(400).json({ message: 'studentId and newStatus are required.' });
+    }
+
+    const extractId = (id) => typeof id === 'object' ? String(id?._id || id?.id || id) : String(id);
+    const stId = extractId(studentId);
+    const normClass = cleanClass(classId);
+    const normSection = cleanSection(sectionId);
+
+    const normStatus = ['P', 'PRESENT'].includes(String(newStatus).toUpperCase()) ? 'P' :
+                       ['A', 'ABSENT'].includes(String(newStatus).toUpperCase()) ? 'A' :
+                       ['L', 'LATE'].includes(String(newStatus).toUpperCase()) ? 'L' :
+                       ['HD', 'HALF_DAY', 'HALF DAY'].includes(String(newStatus).toUpperCase()) ? 'HD' :
+                       ['LV', 'LEAVE'].includes(String(newStatus).toUpperCase()) ? 'LV' : newStatus;
+
+    // 1. Update AttendanceSession directly (PERIOD or DAILY mode)
+    const filter = {
+      date,
+      classId: { $regex: new RegExp(`^(${normClass}|Class\\s*${normClass})$`, 'i') },
+      sectionId: { $regex: new RegExp(`^(${normSection}|Section\\s*${normSection})$`, 'i') },
+      type
+    };
+    if (schoolId) filter.schoolId = schoolId;
+    if (type === 'PERIOD' && periodNo) filter.periodNo = Number(periodNo);
+    if (subject) filter.subject = subject;
+
+    let session = null;
+    if (sessionId) {
+      session = await AttendanceSession.findById(sessionId).catch(() => null);
+    }
+    if (!session && date && classId) {
+      session = await AttendanceSession.findOne(filter);
+    }
+
+    if (!session && date && classId) {
+      // Auto-create session if it doesn't exist yet
+      const classStudents = await Student.find({
+        classId: { $regex: new RegExp(`^(${normClass}|Class\\s*${normClass})$`, 'i') },
+        sectionId: { $regex: new RegExp(`^(${normSection}|Section\\s*${normSection})$`, 'i') }
+      });
+      const entries = classStudents.map(s => {
+        const isTarget = extractId(s._id) === stId || String(s.rollNo).trim() === String(rollNo).trim();
+        return {
+          studentId: s._id,
+          studentName: `${s.firstName} ${s.lastName}`,
+          rollNo: s.rollNo,
+          status: isTarget ? normStatus : 'P',
+          remarks: isTarget ? (reason || 'Updated by Teacher') : ''
+        };
+      });
+      session = await AttendanceSession.create({
+        schoolId, date, classId: normClass, sectionId: normSection, type, periodNo, subject,
+        teacherId: req.user?._id, teacherName: req.user?.name || 'Teacher',
+        status: 'LOCKED', entries, summary: computeSummary(entries), isLocked: true, lockedBy: req.user?.name || 'Teacher'
+      });
+    } else if (session && Array.isArray(session.entries)) {
+      let entryFound = false;
+      session.entries.forEach(e => {
+        const eId = extractId(e.studentId);
+        const match = (
+          (eId && stId && (eId === stId || eId.includes(stId) || stId.includes(eId))) ||
+          (e.rollNo && rollNo && String(e.rollNo).trim() === String(rollNo).trim()) ||
+          (e.studentName && studentName && String(e.studentName).trim().toLowerCase() === String(studentName).trim().toLowerCase())
+        );
+        if (match) {
+          entryFound = true;
+          e.status = normStatus;
+          e.remarks = reason || 'Updated by Teacher';
+        }
+      });
+      if (!entryFound) {
+        session.entries.push({
+          studentId: stId,
+          studentName: studentName || 'Student',
+          rollNo: rollNo || '',
+          status: normStatus,
+          remarks: reason || 'Updated by Teacher'
+        });
+      }
+      session.summary = computeSummary(session.entries);
+      session.markModified('entries');
+      await session.save();
+    }
+
+    // 2. Update legacy AttendanceRecord
+    const legacyStatus = { P: 'PRESENT', A: 'ABSENT', L: 'LATE', HD: 'PRESENT', LV: 'LEAVE', OD: 'PRESENT', NM: 'ABSENT', PRESENT: 'PRESENT', ABSENT: 'ABSENT' }[normStatus] || 'PRESENT';
+    const targetDate = date ? new Date(date) : new Date();
+    const d1 = new Date(targetDate); d1.setHours(0, 0, 0, 0);
+    const d2 = new Date(targetDate); d2.setHours(23, 59, 59, 999);
+
+    await AttendanceRecord.findOneAndUpdate(
+      { studentId: stId, date: { $gte: d1, $lte: d2 } },
+      { status: legacyStatus, markedBy: req.user?.name || 'Teacher' },
+      { new: true, upsert: true }
+    );
+
+    // 3. Recalculate Student totals
+    const student = await Student.findById(stId).catch(() => null);
+    if (student) {
+      const studentRecords = await AttendanceRecord.find({ studentId: stId });
+      const totalClasses = studentRecords.length;
+      const totalPresent = studentRecords.filter(r => ['PRESENT', 'LATE'].includes(r.status)).length;
+      student.totalClasses = totalClasses;
+      student.totalPresent = totalPresent;
+      student.attendancePercentage = totalClasses > 0 ? Math.round((totalPresent / totalClasses) * 100) : 0;
+      await student.save();
     }
 
     const correction = await AttendanceCorrection.create({
-      schoolId, sessionId, date, classId, sectionId,
-      studentId, studentName, rollNo,
-      oldStatus, newStatus, reason,
+      schoolId, sessionId, date, classId: normClass, sectionId: normSection,
+      studentId: stId, studentName, rollNo,
+      oldStatus, newStatus, reason: reason || 'Teacher Direct Update',
       requestedBy: req.user?._id,
       requestedByName: req.user?.name,
       requestedByRole: req.user?.role,
+      status: 'APPROVED',
+      reviewedBy: req.user?.name || 'Teacher',
+      reviewedAt: new Date(),
       auditLog: [{
-        action: 'REQUESTED',
-        by: req.user?.name,
+        action: 'APPROVED',
+        by: req.user?.name || 'Teacher',
         byRole: req.user?.role,
-        note: `Correction requested: ${oldStatus} → ${newStatus}. Reason: ${reason}`
+        note: `Direct attendance update applied: ${oldStatus} → ${newStatus}.`
       }]
     });
-    res.status(201).json({ message: 'Correction request submitted. Awaiting admin review.', correction });
+
+    res.status(200).json({ message: 'Attendance updated successfully.', correction });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
