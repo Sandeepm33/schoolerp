@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { DollarSign, CreditCard, Receipt, PlusCircle, CheckCircle, Search, AlertCircle, FileSpreadsheet, LayoutDashboard } from 'lucide-react';
 import { useAuth, API_BASE } from '../context/AuthContext';
+import { useDataSync, notifyGlobalDataChange } from '../context/DataSyncContext';
 import AllServicesPanel from './AllServicesPanel';
 
 export default function AccountantDashboard() {
@@ -24,6 +25,10 @@ export default function AccountantDashboard() {
   useEffect(() => {
     fetchFees();
   }, []);
+
+  useDataSync(useCallback(() => {
+    fetchFees();
+  }, []));
 
   const fetchFees = async () => {
     setLoading(true);
@@ -69,6 +74,7 @@ export default function AccountantDashboard() {
       if (res.ok) {
         const data = await res.json();
         setReceiptResult(data);
+        notifyGlobalDataChange('FEE', 'PAYMENT', data);
         fetchFees();
       }
     } catch (e) {

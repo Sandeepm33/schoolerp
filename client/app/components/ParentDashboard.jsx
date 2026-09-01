@@ -6,11 +6,14 @@ import {
   Home, User, Calendar, BookOpen, Clock, Award, 
   Truck, Bell, CheckCircle, FileText, ChevronRight, ShieldAlert,
   Send, MapPin, Check, Sparkles, AlertCircle, LogOut, Menu, X,
-  GraduationCap, Search, ShieldCheck, UserCheck, Phone, Mail, Building
+  GraduationCap, Search, ShieldCheck, UserCheck, Phone, Mail, Building,
+  BarChart3, ChevronLeft
 } from 'lucide-react';
 import { useAuth, API_BASE } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useDataSync } from '../context/DataSyncContext';
 import AllServicesPanel from './AllServicesPanel';
+import StudentAttendanceReport from './StudentAttendanceReport';
 
 const getLocalDateStr = (d = new Date()) => {
   const dt = new Date(d);
@@ -135,6 +138,10 @@ function ParentDashboardContent() {
   useEffect(() => {
     fetchStudentData();
   }, [activeTab, mapped?.classId, mapped?.sectionId, user?._id, profileData]);
+
+  useDataSync(React.useCallback(() => {
+    fetchStudentData();
+  }, [activeTab, mapped?.classId, mapped?.sectionId, user?._id, profileData]));
 
   const fetchStudentData = async () => {
     try {
@@ -339,6 +346,7 @@ function ParentDashboardContent() {
             { id: 'results', label: 'Results', icon: Award },
             { id: 'timetable', label: 'Timetable', icon: Clock },
             { id: 'attendance', label: 'Attendance', icon: Calendar },
+            { id: 'analytics', label: 'Analytics & Reports', icon: BarChart3 },
             { id: 'transport', label: 'Transport', icon: Truck },
             { id: 'leave', label: 'Apply Leave', icon: FileText },
             { id: 'services', label: 'All Services', icon: Bell },
@@ -1034,7 +1042,7 @@ function ParentDashboardContent() {
                     : 'text-slate-400 hover:text-white'
                 }`}
               >
-                <Clock className="w-3.5 h-3.5" /> Period-Wise Log ({periodAttendanceLogs.length})
+                <Clock className="w-3.5 h-3.5" /> Period-Wise ({periodAttendanceLogs.length})
               </button>
               <button
                 onClick={() => setAttTabMode('daily')}
@@ -1253,6 +1261,29 @@ function ParentDashboardContent() {
             </div>
           )}
 
+        </div>
+      )}
+
+      {/* ANALYTICS & REPORTS TAB - Monthly Calendar + 12-Month Yearly View */}
+      {activeTab === 'analytics' && (
+        <div className="space-y-6">
+          <div className="glass-panel p-5 rounded-3xl border border-slate-800">
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
+                <BarChart3 className="w-5 h-5 text-indigo-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-extrabold text-white">Attendance Analytics & Reports</h3>
+                <p className="text-xs text-slate-400">Monthly calendar view and 12-month yearly breakdown for {childName}</p>
+              </div>
+            </div>
+          </div>
+          <StudentAttendanceReport
+            defaultClass={clsStr}
+            defaultSection={secStr}
+            lockedStudentId={String(mapped?._id || user?._id || '')}
+            lockedStudentName={childName}
+          />
         </div>
       )}
 

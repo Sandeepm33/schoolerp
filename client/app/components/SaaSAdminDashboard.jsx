@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useAuth, API_BASE } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useDataSync, notifyGlobalDataChange } from '../context/DataSyncContext';
 
 function SaaSAdminContent(props) {
   const router = useRouter();
@@ -70,6 +71,10 @@ function SaaSAdminContent(props) {
   useEffect(() => {
     fetchSaaSData();
   }, [activeTab]);
+
+  useDataSync(React.useCallback(() => {
+    fetchSaaSData();
+  }, [activeTab]));
 
   const switchTab = (tabName) => {
     setActiveTab(tabName);

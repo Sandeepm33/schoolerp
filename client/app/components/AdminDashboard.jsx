@@ -15,9 +15,10 @@ import {
   Wallet, CalendarCheck, MessageSquare, UserCheck, UserPlus
 } from 'lucide-react';
 import AllServicesPanel from './AllServicesPanel';
+import StudentAttendanceReport from './StudentAttendanceReport';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
-
+import { useDataSync, notifyGlobalDataChange } from '../context/DataSyncContext';
 
 const API = 'http://127.0.0.1:5000/api';
 
@@ -41,6 +42,16 @@ async function apiFetch(path, options = {}) {
     throw new Error('Invalid JSON server response');
   }
   if (!res.ok) throw new Error(data.message || `API error (${res.status})`);
+
+  const method = (options.method || 'GET').toUpperCase();
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    try {
+      const parts = path.split('/').filter(Boolean);
+      const entity = (parts[1] || parts[0] || 'ALL').toUpperCase();
+      notifyGlobalDataChange(entity, method, data);
+    } catch (err) {}
+  }
+
   return data;
 }
 
@@ -3854,6 +3865,7 @@ function InnovativeStudentProfileModal({ student, isOpen, onClose, onEdit }) {
           <div className="flex items-center gap-2 pt-3 border-t flex-wrap relative z-10" style={{ borderColor: 'rgba(255,255,255,0.2)' }}>
             {[
               { id: 'overview', label: 'Overview 360°', icon: User },
+              { id: 'attendance', label: 'Monthly & Yearly Attendance', icon: Calendar },
               { id: 'transport', label: 'Bus Transport & Timings', icon: Bus },
               { id: 'parent', label: 'Parent & Guardian Details', icon: Phone },
               { id: 'idcard', label: 'Digital ID Card Badge', icon: FileBadge2 }
@@ -4138,6 +4150,10 @@ function InnovativeStudentProfileModal({ student, isOpen, onClose, onEdit }) {
             </div>
           )}
 
+          {/* TAB 5: MONTHLY & YEARLY ATTENDANCE */}
+          {activeTab === 'attendance' && (
+            <StudentAttendanceReport defaultClass={student.classId} defaultSection={student.sectionId || 'A'} />
+          )}
         </div>
 
         {/* FOOTER */}
@@ -7281,6 +7297,11 @@ function DashboardContent({ initialTab }) {
     }
   };
 
+  const [syncKey, setSyncKey] = useState(0);
+  useDataSync(useCallback(() => {
+    setSyncKey(k => k + 1);
+  }, []));
+
   return (
     <div className="flex-1 min-h-screen bg-[#f4f6f8] p-6 overflow-y-auto">
       {showBack && (
@@ -7317,7 +7338,7 @@ function DashboardContent({ initialTab }) {
           </div>
         </div>
       )}
-      <ActiveTab />
+      <ActiveTab key={syncKey} />
     </div>
   );
 }
