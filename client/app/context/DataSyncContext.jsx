@@ -6,8 +6,9 @@ const DataSyncContext = createContext();
 
 const CHANNEL_NAME = 'school_erp_realtime_sync';
 const CUSTOM_EVENT_NAME = 'school_erp_data_changed';
-const STREAM_URL = 'http://127.0.0.1:5000/api/sync/stream';
-const CHECK_URL = 'http://127.0.0.1:5000/api/sync/check';
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_EXPRESS_BACKEND_URL || 'http://127.0.0.1:5000/api';
+const STREAM_URL = `${BASE_URL}/sync/stream`;
+const CHECK_URL = `${BASE_URL}/sync/check`;
 
 // Helper to broadcast changes globally outside React component lifecycle if needed
 export const notifyGlobalDataChange = (entity = 'ALL', action = 'UPDATE', payload = {}) => {

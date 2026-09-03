@@ -4,6 +4,7 @@
   "description": "Complete AI-Powered Mobile-First School Operating System with MongoDB persistence",
   "main": "server/server.js",
   "scripts": {
+    "start": "node server/server.js",
     "dev": "npx concurrently \"node server/server.js\" \"npm run dev --prefix client\"",
     "server": "node server/server.js",
     "client": "npm run dev --prefix client",
