@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext();
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_EXPRESS_BACKEND_URL || 'http://127.0.0.1:5000/api';
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
 
 const DEMO_PRESETS = {
   'superadmin@saas.com': {

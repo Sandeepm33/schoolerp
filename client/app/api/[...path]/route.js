@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 
-const EXPRESS_BACKEND_URL = process.env.NEXT_PUBLIC_API_BASE || process.env.EXPRESS_BACKEND_URL || 'http://127.0.0.1:5000/api';
+const EXPRESS_BACKEND_URL = process.env.NEXT_PUBLIC_API_BASE;
 
 async function handleProxy(request, { params }) {
   const pathArr = (await params).path || [];

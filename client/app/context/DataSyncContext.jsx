@@ -6,7 +6,7 @@ const DataSyncContext = createContext();
 
 const CHANNEL_NAME = 'school_erp_realtime_sync';
 const CUSTOM_EVENT_NAME = 'school_erp_data_changed';
-const BASE_URL = process.env.NEXT_PUBLIC_API_BASE || process.env.NEXT_PUBLIC_EXPRESS_BACKEND_URL || 'http://127.0.0.1:5000/api';
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE;
 const STREAM_URL = `${BASE_URL}/sync/stream`;
 const CHECK_URL = `${BASE_URL}/sync/check`;
 
