@@ -34,10 +34,10 @@ async function handleProxy(request, { params }) {
       const json = JSON.parse(data);
       return NextResponse.json(json, { status: backendRes.status });
     } catch (e) {
-      return new NextResponse(data, { 
-        status: backendRes.status,
-        headers: { 'Content-Type': backendRes.headers.get('content-type') || 'text/html' }
-      });
+      return NextResponse.json({ 
+        message: backendRes.status === 404 ? `Endpoint /${targetPath} not found on backend server` : 'Non-JSON response from backend server',
+        status: backendRes.status
+      }, { status: backendRes.status });
     }
   } catch (err) {
     return NextResponse.json({ message: 'Proxy request error: ' + err.message }, { status: 502 });

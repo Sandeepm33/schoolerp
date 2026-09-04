@@ -116,23 +116,45 @@ const SupportTicketSchema = new mongoose.Schema({
 // 9. SALES CRM LEAD SCHEMA
 const SalesLeadSchema = new mongoose.Schema({
   schoolName: { type: String, required: true },
+  schoolStrength: { type: String, default: '' },
+  strengthOfSchools: { type: String, default: '' },
   contactPerson: { type: String, required: true },
-  email: { type: String, required: true },
+  email: { type: String },
   phone: { type: String },
+  role: { type: String, default: 'School Admin / Owner' },
+  city: { type: String },
+  description: { type: String, default: '' },
+  text: { type: String, default: '' },
   stage: { type: String, enum: ['LEAD', 'DEMO_SCHEDULED', 'TRIAL_ACTIVE', 'NEGOTIATION', 'SUBSCRIBED'], default: 'LEAD' },
   expectedARR: { type: Number, default: 2990 },
   salesOwner: { type: String, default: 'Super Admin' },
   createdAt: { type: Date, default: Date.now }
-});
+}, { strict: false });
+
+delete mongoose.models.SalesLead;
+delete mongoose.models.SupportTicket;
+delete mongoose.models.Notification;
+
+// 10. SYSTEM & USER NOTIFICATION SCHEMA
+const NotificationSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  message: { type: String, required: true },
+  type: { type: String, enum: ['INQUIRY', 'ADMISSION', 'FEE', 'ANNOUNCEMENT', 'SYSTEM'], default: 'SYSTEM' },
+  link: { type: String, default: '' },
+  read: { type: Boolean, default: false },
+  targetRole: { type: String, default: 'ALL' },
+  createdAt: { type: Date, default: Date.now }
+}, { strict: false });
 
 module.exports = {
-  SubscriptionPlan: mongoose.model('SubscriptionPlan', SubscriptionPlanSchema),
-  Branch: mongoose.model('Branch', BranchSchema),
-  SaaSInvoice: mongoose.model('SaaSInvoice', SaaSInvoiceSchema),
-  AuditLog: mongoose.model('AuditLog', AuditLogSchema),
-  SecurityEvent: mongoose.model('SecurityEvent', SecurityEventSchema),
-  GlobalAnnouncement: mongoose.model('GlobalAnnouncement', GlobalAnnouncementSchema),
-  FeatureFlag: mongoose.model('FeatureFlag', FeatureFlagSchema),
+  SubscriptionPlan: mongoose.models.SubscriptionPlan || mongoose.model('SubscriptionPlan', SubscriptionPlanSchema),
+  Branch: mongoose.models.Branch || mongoose.model('Branch', BranchSchema),
+  SaaSInvoice: mongoose.models.SaaSInvoice || mongoose.model('SaaSInvoice', SaaSInvoiceSchema),
+  AuditLog: mongoose.models.AuditLog || mongoose.model('AuditLog', AuditLogSchema),
+  SecurityEvent: mongoose.models.SecurityEvent || mongoose.model('SecurityEvent', SecurityEventSchema),
+  GlobalAnnouncement: mongoose.models.GlobalAnnouncement || mongoose.model('GlobalAnnouncement', GlobalAnnouncementSchema),
+  FeatureFlag: mongoose.models.FeatureFlag || mongoose.model('FeatureFlag', FeatureFlagSchema),
   SupportTicket: mongoose.model('SupportTicket', SupportTicketSchema),
-  SalesLead: mongoose.model('SalesLead', SalesLeadSchema)
+  SalesLead: mongoose.model('SalesLead', SalesLeadSchema),
+  Notification: mongoose.model('Notification', NotificationSchema)
 };

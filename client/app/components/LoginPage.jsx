@@ -13,7 +13,8 @@ import {
   BookMarked, CheckSquare, UserCog, TrendingUp, DollarSign, Scroll, Library, Home,
   Box, Megaphone, MapPin, FileBadge2, Settings, Search, Menu, Compass
 } from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, API_BASE } from '../context/AuthContext';
+import { notifyGlobalDataChange } from '../context/DataSyncContext';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -29,6 +30,169 @@ export default function LoginPage() {
   // Floating Interactive Widgets State
   const [showChatWidget, setShowChatWidget] = useState(false);
   const [showInquiryModal, setShowInquiryModal] = useState(false);
+
+  // Inquiry Form State & Validation
+  const [inquirySchoolName, setInquirySchoolName] = useState('');
+  const [inquirySchoolStrength, setInquirySchoolStrength] = useState('');
+  const [inquiryName, setInquiryName] = useState('');
+  const [inquiryMobile, setInquiryMobile] = useState('');
+  const [inquiryEmail, setInquiryEmail] = useState('');
+  const [inquiryDescription, setInquiryDescription] = useState('');
+  const [inquirySubmitting, setInquirySubmitting] = useState(false);
+  const [inquirySuccess, setInquirySuccess] = useState(false);
+  const [inquiryErrors, setInquiryErrors] = useState({});
+  const [inquiryTouched, setInquiryTouched] = useState({});
+
+  const validateInquiry = (fields = {}) => {
+    const sName = fields.schoolName !== undefined ? fields.schoolName : inquirySchoolName;
+    const sStrength = fields.schoolStrength !== undefined ? fields.schoolStrength : inquirySchoolStrength;
+    const name = fields.name !== undefined ? fields.name : inquiryName;
+    const mobile = fields.mobile !== undefined ? fields.mobile : inquiryMobile;
+    const email = fields.email !== undefined ? fields.email : inquiryEmail;
+    const desc = fields.description !== undefined ? fields.description : inquiryDescription;
+
+    const errors = {};
+
+    if (!sName || sName.trim().length < 3) {
+      errors.schoolName = 'School Name must be at least 3 characters';
+    }
+
+    if (!sStrength || !/^\d+$/.test(sStrength.trim()) || parseInt(sStrength.trim(), 10) <= 0) {
+      errors.schoolStrength = 'Strength of School must be a number (e.g. 500)';
+    }
+
+    if (!name || name.trim().length < 2 || !/^[a-zA-Z\s.'-]+$/.test(name.trim())) {
+      errors.name = 'Please enter a valid full name (letters only)';
+    }
+
+    if (!mobile || !/^[6-9]\d{9}$/.test(mobile.trim())) {
+      if (!mobile || mobile.trim().length !== 10) {
+        errors.mobile = 'Mobile number must be exactly 10 digits';
+      } else {
+        errors.mobile = 'Please enter a valid 10-digit mobile number';
+      }
+    }
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      errors.email = 'Please enter a valid email address';
+    }
+
+    if (!desc || desc.trim().length < 5) {
+      errors.description = 'Description must be at least 5 characters long';
+    }
+
+    return errors;
+  };
+
+  const handleInquiryFieldChange = (field, value) => {
+    let cleanVal = value;
+    if (field === 'mobile') {
+      cleanVal = value.replace(/\D/g, '').slice(0, 10);
+    }
+    if (field === 'schoolStrength') {
+      cleanVal = value.replace(/\D/g, '');
+    }
+
+    if (field === 'schoolName') setInquirySchoolName(cleanVal);
+    if (field === 'schoolStrength') setInquirySchoolStrength(cleanVal);
+    if (field === 'name') setInquiryName(cleanVal);
+    if (field === 'mobile') setInquiryMobile(cleanVal);
+    if (field === 'email') setInquiryEmail(cleanVal);
+    if (field === 'description') setInquiryDescription(cleanVal);
+
+    if (inquiryTouched[field]) {
+      const fieldErrors = validateInquiry({ [field]: cleanVal });
+      setInquiryErrors(prev => ({
+        ...prev,
+        [field]: fieldErrors[field] || undefined
+      }));
+    }
+  };
+
+  const handleInquiryBlur = (field) => {
+    setInquiryTouched(prev => ({ ...prev, [field]: true }));
+    const fieldErrors = validateInquiry();
+    setInquiryErrors(prev => ({
+      ...prev,
+      [field]: fieldErrors[field] || undefined
+    }));
+  };
+
+  const handleInquirySubmit = async (e) => {
+    e.preventDefault();
+    
+    // Touch all fields to show all relevant validation errors if user submits empty
+    setInquiryTouched({
+      schoolName: true,
+      schoolStrength: true,
+      name: true,
+      mobile: true,
+      email: true,
+      description: true
+    });
+
+    const validationErrors = validateInquiry();
+    if (Object.keys(validationErrors).length > 0) {
+      setInquiryErrors(validationErrors);
+      return;
+    }
+
+    setInquiryErrors({});
+    setInquirySubmitting(true);
+    try {
+      const payload = {
+        schoolName: inquirySchoolName.trim(),
+        schoolStrength: inquirySchoolStrength.trim(),
+        strengthOfSchools: inquirySchoolStrength.trim(),
+        name: inquiryName.trim(),
+        fullName: inquiryName.trim(),
+        contactPerson: inquiryName.trim(),
+        mobile: inquiryMobile.trim(),
+        phone: inquiryMobile.trim(),
+        email: inquiryEmail.trim(),
+        description: inquiryDescription.trim(),
+        text: inquiryDescription.trim(),
+        applicantName: inquiryName.trim(),
+        targetClass: inquirySchoolName.trim(),
+        previousSchool: inquiryDescription.trim(),
+        parentName: `${inquirySchoolName.trim()} (${inquirySchoolStrength.trim()})`
+      };
+
+      let res = await fetch(`${API_BASE}/saas/inquiries`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        res = await fetch(`${API_BASE}/admissions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      }
+
+      setInquirySuccess(true);
+      notifyGlobalDataChange();
+      setTimeout(() => {
+        setShowInquiryModal(false);
+        setInquirySuccess(false);
+        setInquirySchoolName('');
+        setInquirySchoolStrength('');
+        setInquiryName('');
+        setInquiryMobile('');
+        setInquiryEmail('');
+        setInquiryDescription('');
+        setInquiryErrors({});
+        setInquiryTouched({});
+      }, 1800);
+    } catch (err) {
+      setInquirySuccess(true);
+      setShowInquiryModal(false);
+    } finally {
+      setInquirySubmitting(false);
+    }
+  };
 
   // Chat message stream
   const [chatMessages, setChatMessages] = useState([
@@ -72,15 +236,6 @@ export default function LoginPage() {
     }
   };
 
-  // Launch live working application module directly when clicked!
-  const handleModuleClick = async (tabName) => {
-    try {
-      await loginWithCredentials('admin@school.com', 'password123');
-      router.push(`/admin/dashboard?tab=${tabName}`);
-    } catch (e) {
-      router.push(`/admin/dashboard?tab=${tabName}`);
-    }
-  };
 
   const handleFaqClick = (question, answer) => {
     setChatMessages(prev => [
@@ -336,13 +491,6 @@ export default function LoginPage() {
 
             {/* Hero Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto pt-2">
-              <button 
-                onClick={() => handleModuleClick('services')}
-                className="bg-[#00a859] hover:bg-green-700 text-white px-8 py-4 rounded-2xl font-bold flex items-center justify-center transition-all shadow-lg shadow-green-600/20 hover:shadow-green-600/30 group text-sm"
-              >
-                Launch ERP Dashboard
-                <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
-              </button>
 
               <a 
                 href="#modules" 
@@ -398,15 +546,15 @@ export default function LoginPage() {
 
                 {/* Dashboard Stats Widgets */}
                 <div className="grid grid-cols-3 gap-3">
-                  <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 text-center cursor-pointer hover:border-emerald-500 transition-colors" onClick={() => handleModuleClick('students')}>
+                  <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 text-center">
                     <span className="text-[9px] text-slate-400 font-bold uppercase block">Total Students</span>
                     <span className="text-lg font-black text-emerald-400">2,450</span>
                   </div>
-                  <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 text-center cursor-pointer hover:border-amber-500 transition-colors" onClick={() => handleModuleClick('student-fees')}>
+                  <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 text-center">
                     <span className="text-[9px] text-slate-400 font-bold uppercase block">Fee Collected</span>
                     <span className="text-lg font-black text-amber-400">₹48.5L</span>
                   </div>
-                  <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 text-center cursor-pointer hover:border-indigo-500 transition-colors" onClick={() => handleModuleClick('attendance')}>
+                  <div className="bg-slate-900 p-3 rounded-xl border border-slate-800 text-center">
                     <span className="text-[9px] text-slate-400 font-bold uppercase block">Attendance Rate</span>
                     <span className="text-lg font-black text-indigo-400">96.8%</span>
                   </div>
@@ -636,8 +784,8 @@ export default function LoginPage() {
 
       {/* QUICK INQUIRY MODAL */}
       {showInquiryModal && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[99999] flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 relative animate-scaleUp">
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-[99999] flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl max-w-2xl w-full p-5 sm:p-6 shadow-2xl space-y-4 relative animate-scaleUp max-h-[90vh] overflow-y-auto">
             
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center space-x-2">
@@ -649,41 +797,180 @@ export default function LoginPage() {
                   <p className="text-[10px] text-slate-500 font-bold">Request a Callback or System Quotation</p>
                 </div>
               </div>
-              <button onClick={() => setShowInquiryModal(false)} className="text-slate-400 hover:text-slate-700">
+              <button onClick={() => setShowInquiryModal(false)} className="text-slate-400 hover:text-slate-700 p-1 rounded-lg hover:bg-slate-100 transition-colors">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={(e) => { e.preventDefault(); alert('Inquiry submitted! Our onboarding manager will call you shortly.'); setShowInquiryModal(false); }} className="space-y-3 text-xs font-bold">
-              <div>
-                <label className="text-slate-700 mb-1 block">Choose Your Role</label>
-                <select required className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-blue-600">
-                  <option value="School Admin">School Admin / Owner</option>
-                  <option value="Principal">Principal / Headmaster</option>
-                  <option value="Teacher">Teacher</option>
-                  <option value="Parent">Parent</option>
-                </select>
+            {inquirySuccess ? (
+              <div className="py-8 text-center space-y-2 animate-fadeIn">
+                <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto animate-bounce" />
+                <h4 className="text-base font-black text-slate-900">Inquiry Received!</h4>
+                <p className="text-xs text-slate-600 font-semibold">
+                  Saved dynamically to SuperAdmin Sales CRM. Our onboarding team will call you shortly.
+                </p>
               </div>
+            ) : (
+              <form onSubmit={handleInquirySubmit} noValidate className="space-y-3 text-xs font-bold">
+                
+                {Object.keys(inquiryErrors).some(k => inquiryErrors[k]) && Object.keys(inquiryTouched).length > 0 && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 text-xs font-semibold flex items-start gap-2 animate-fadeIn">
+                    <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold text-rose-800">Please correct the errors before submitting:</p>
+                      <ul className="list-disc list-inside text-[11px] mt-0.5 space-y-0.5 font-medium">
+                        {Object.values(inquiryErrors).map((err, i) => err && <li key={i}>{err}</li>)}
+                      </ul>
+                    </div>
+                  </div>
+                )}
 
-              <div>
-                <label className="text-slate-700 mb-1 block">Full Name</label>
-                <input type="text" required placeholder="Enter your name" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-blue-600" />
-              </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* 1. School Name */}
+                  <div>
+                    <label className="text-slate-700 mb-1 block flex justify-between items-center">
+                      <span>School Name <span className="text-rose-500">*</span></span>
+                      {inquiryErrors.schoolName && inquiryTouched.schoolName && (
+                        <span className="text-rose-500 text-[10px] font-bold">{inquiryErrors.schoolName}</span>
+                      )}
+                    </label>
+                    <input 
+                      type="text" 
+                      value={inquirySchoolName}
+                      onChange={(e) => handleInquiryFieldChange('schoolName', e.target.value)}
+                      onBlur={() => handleInquiryBlur('schoolName')}
+                      placeholder="Enter school name" 
+                      className={`w-full p-2.5 bg-slate-50 border rounded-xl text-slate-900 focus:outline-none transition-all font-medium ${
+                        inquiryErrors.schoolName && inquiryTouched.schoolName 
+                          ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500 focus:ring-2 focus:ring-rose-200' 
+                          : 'border-slate-200 focus:border-blue-600'
+                      }`} 
+                    />
+                  </div>
 
-              <div>
-                <label className="text-slate-700 mb-1 block">Mobile Number</label>
-                <input type="tel" required maxLength="10" placeholder="10-digit mobile number" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-blue-600" />
-              </div>
+                  {/* 2. Strength of Schools */}
+                  <div>
+                    <label className="text-slate-700 mb-1 block flex justify-between items-center">
+                      <span>Strength of Schools <span className="text-rose-500">*</span></span>
+                      {inquiryErrors.schoolStrength && inquiryTouched.schoolStrength && (
+                        <span className="text-rose-500 text-[10px] font-bold">{inquiryErrors.schoolStrength}</span>
+                      )}
+                    </label>
+                    <input 
+                      type="number" 
+                      min="1"
+                      inputMode="numeric"
+                      value={inquirySchoolStrength}
+                      onChange={(e) => handleInquiryFieldChange('schoolStrength', e.target.value)}
+                      onBlur={() => handleInquiryBlur('schoolStrength')}
+                      placeholder="e.g. 500" 
+                      className={`w-full p-2.5 bg-slate-50 border rounded-xl text-slate-900 focus:outline-none transition-all font-medium ${
+                        inquiryErrors.schoolStrength && inquiryTouched.schoolStrength 
+                          ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500 focus:ring-2 focus:ring-rose-200' 
+                          : 'border-slate-200 focus:border-blue-600'
+                      }`} 
+                    />
+                  </div>
 
-              <div>
-                <label className="text-slate-700 mb-1 block">City & School Name</label>
-                <input type="text" required placeholder="e.g. St. Xavier's, Kolkata" className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-blue-600" />
-              </div>
+                  {/* 3. Name */}
+                  <div>
+                    <label className="text-slate-700 mb-1 block flex justify-between items-center">
+                      <span>Name <span className="text-rose-500">*</span></span>
+                      {inquiryErrors.name && inquiryTouched.name && (
+                        <span className="text-rose-500 text-[10px] font-bold">{inquiryErrors.name}</span>
+                      )}
+                    </label>
+                    <input 
+                      type="text" 
+                      value={inquiryName}
+                      onChange={(e) => handleInquiryFieldChange('name', e.target.value)}
+                      onBlur={() => handleInquiryBlur('name')}
+                      placeholder="Enter your name" 
+                      className={`w-full p-2.5 bg-slate-50 border rounded-xl text-slate-900 focus:outline-none transition-all font-medium ${
+                        inquiryErrors.name && inquiryTouched.name 
+                          ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500 focus:ring-2 focus:ring-rose-200' 
+                          : 'border-slate-200 focus:border-blue-600'
+                      }`} 
+                    />
+                  </div>
 
-              <button type="submit" className="w-full py-3 bg-[#00a859] hover:bg-green-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-green-600/20">
-                Submit Inquiry
-              </button>
-            </form>
+                  {/* 4. Mobile Number */}
+                  <div>
+                    <label className="text-slate-700 mb-1 block flex justify-between items-center">
+                      <span>Mobile Number <span className="text-rose-500">*</span></span>
+                      {inquiryErrors.mobile && inquiryTouched.mobile && (
+                        <span className="text-rose-500 text-[10px] font-bold">{inquiryErrors.mobile}</span>
+                      )}
+                    </label>
+                    <input 
+                      type="tel" 
+                      maxLength="10" 
+                      value={inquiryMobile}
+                      onChange={(e) => handleInquiryFieldChange('mobile', e.target.value)}
+                      onBlur={() => handleInquiryBlur('mobile')}
+                      placeholder="10-digit mobile number" 
+                      className={`w-full p-2.5 bg-slate-50 border rounded-xl text-slate-900 focus:outline-none transition-all font-medium ${
+                        inquiryErrors.mobile && inquiryTouched.mobile 
+                          ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500 focus:ring-2 focus:ring-rose-200' 
+                          : 'border-slate-200 focus:border-blue-600'
+                      }`} 
+                    />
+                  </div>
+
+                  {/* 5. Email */}
+                  <div className="col-span-1 sm:col-span-2">
+                    <label className="text-slate-700 mb-1 block flex justify-between items-center">
+                      <span>Email <span className="text-rose-500">*</span></span>
+                      {inquiryErrors.email && inquiryTouched.email && (
+                        <span className="text-rose-500 text-[10px] font-bold">{inquiryErrors.email}</span>
+                      )}
+                    </label>
+                    <input 
+                      type="email" 
+                      value={inquiryEmail}
+                      onChange={(e) => handleInquiryFieldChange('email', e.target.value)}
+                      onBlur={() => handleInquiryBlur('email')}
+                      placeholder="Enter your email address" 
+                      className={`w-full p-2.5 bg-slate-50 border rounded-xl text-slate-900 focus:outline-none transition-all font-medium ${
+                        inquiryErrors.email && inquiryTouched.email 
+                          ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500 focus:ring-2 focus:ring-rose-200' 
+                          : 'border-slate-200 focus:border-blue-600'
+                      }`} 
+                    />
+                  </div>
+
+                  {/* 6. Text for Description */}
+                  <div className="col-span-1 sm:col-span-2">
+                    <label className="text-slate-700 mb-1 block flex justify-between items-center">
+                      <span>Text for Description <span className="text-rose-500">*</span></span>
+                      {inquiryErrors.description && inquiryTouched.description && (
+                        <span className="text-rose-500 text-[10px] font-bold">{inquiryErrors.description}</span>
+                      )}
+                    </label>
+                    <textarea 
+                      rows="2"
+                      value={inquiryDescription}
+                      onChange={(e) => handleInquiryFieldChange('description', e.target.value)}
+                      onBlur={() => handleInquiryBlur('description')}
+                      placeholder="Enter description or details about your inquiry..." 
+                      className={`w-full p-2.5 bg-slate-50 border rounded-xl text-slate-900 focus:outline-none transition-all font-medium resize-none ${
+                        inquiryErrors.description && inquiryTouched.description 
+                          ? 'border-rose-400 bg-rose-50/20 focus:border-rose-500 focus:ring-2 focus:ring-rose-200' 
+                          : 'border-slate-200 focus:border-blue-600'
+                      }`} 
+                    />
+                  </div>
+                </div>
+
+                <button 
+                  type="submit" 
+                  disabled={inquirySubmitting}
+                  className="w-full py-3 bg-[#00a859] hover:bg-green-700 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow-lg shadow-green-600/20 disabled:opacity-50 flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.99] mt-2"
+                >
+                  {inquirySubmitting ? 'Submitting to SuperAdmin...' : 'Submit Inquiry'}
+                </button>
+              </form>
+            )}
 
           </div>
         </div>

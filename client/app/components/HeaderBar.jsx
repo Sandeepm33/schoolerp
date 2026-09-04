@@ -8,6 +8,7 @@ import { useTheme } from '../context/ThemeContext';
 import AIChatModal from './AIChatModal';
 import ThemeSelectorModal from './ThemeSelectorModal';
 import GlobalSearchModal from './GlobalSearchModal';
+import NotificationModal from './NotificationModal';
 
 export default function HeaderBar({ isSidebarCollapsed, onToggleSidebar }) {
   const pathname = usePathname();
@@ -17,6 +18,26 @@ export default function HeaderBar({ isSidebarCollapsed, onToggleSidebar }) {
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      try {
+        const res = await fetch('/api/notifications');
+        const contentType = res.headers.get('content-type') || '';
+        if (res.ok && contentType.includes('application/json')) {
+          const data = await res.json();
+          if (data.unreadCount !== undefined) {
+            setUnreadNotificationsCount(data.unreadCount);
+          }
+        }
+      } catch (e) {}
+    };
+    fetchUnreadCount();
+    const interval = setInterval(fetchUnreadCount, 15000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -178,14 +199,24 @@ export default function HeaderBar({ isSidebarCollapsed, onToggleSidebar }) {
 
         {/* Notifications */}
         <button 
+          onClick={() => setIsNotificationOpen(prev => !prev)}
           style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', borderColor: 'rgba(255, 255, 255, 0.25)', color: '#ffffff' }}
           className="relative p-1.5 sm:p-2 rounded-full border hover:bg-white/25 hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-xs text-white cursor-pointer"
+          title="Notifications"
         >
           <Bell style={{ color: '#ffffff' }} className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
-          <span className="absolute top-1 right-1 flex h-2 w-2 sm:h-2.5 sm:w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 sm:h-2.5 sm:w-2.5 bg-amber-400 border border-white"></span>
-          </span>
+          {unreadNotificationsCount > 0 ? (
+            <span className="absolute -top-1 -right-1 flex h-4 w-4 sm:h-4.5 sm:w-4.5 items-center justify-center">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+              <span className="relative inline-flex items-center justify-center rounded-full h-4 w-4 text-[9px] font-black bg-amber-400 text-slate-950 border border-slate-900 shadow-xs">
+                {unreadNotificationsCount > 9 ? '9+' : unreadNotificationsCount}
+              </span>
+            </span>
+          ) : (
+            <span className="absolute top-1 right-1 flex h-2 w-2">
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+            </span>
+          )}
         </button>
 
         {/* AI ASSISTANT BUTTON */}
@@ -219,6 +250,11 @@ export default function HeaderBar({ isSidebarCollapsed, onToggleSidebar }) {
       <GlobalSearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
       <AIChatModal isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
       <ThemeSelectorModal isOpen={isThemeModalOpen} onClose={() => setIsThemeModalOpen(false)} />
+      <NotificationModal 
+        isOpen={isNotificationOpen} 
+        onClose={() => setIsNotificationOpen(false)} 
+        onUnreadCountChange={setUnreadNotificationsCount} 
+      />
 
     </header>
   );

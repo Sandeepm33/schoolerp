@@ -5,6 +5,7 @@ const {
 } = require('../models/saasModels');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { createNotificationHelper } = require('./notificationController');
 
 // ==========================================
 // 1. SCHOOL MANAGEMENT 100% CRUD & DIRECTORY
@@ -456,16 +457,74 @@ const getSupportTickets = async (req, res) => {
 
 const getSalesLeads = async (req, res) => {
   try {
-    let leads = await SalesLead.find().sort({ createdAt: -1 });
-    if (leads.length === 0) {
-      leads = await SalesLead.create([
-        { schoolName: 'Heritage Public School', contactPerson: 'Dr. R. Sharma', email: 'principal@heritage.edu', phone: '+91 9876543210', stage: 'DEMO_SCHEDULED', expectedARR: 3500 },
-        { schoolName: 'Delhi International Campus', contactPerson: 'Mr. V. Kapoor', email: 'director@delhiintl.edu', phone: '+91 9811223344', stage: 'TRIAL_ACTIVE', expectedARR: 9990 }
-      ]);
-    }
+    const leads = await SalesLead.find().sort({ createdAt: -1 });
     res.json(leads);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+const createInquiryLead = async (req, res) => {
+  try {
+    const { schoolName, strengthOfSchools, schoolStrength, name, fullName, contactPerson, mobile, phone, email, description, text, role } = req.body;
+    
+    const cleanSchool = schoolName || req.body.cityAndSchool || req.body.city;
+    const rawStrength = schoolStrength || strengthOfSchools || req.body.strength_of_schools || req.body.strength || '';
+    const cleanStrength = String(rawStrength).replace(/\D/g, '') || String(rawStrength) || '';
+    const cleanName = name || fullName || contactPerson;
+    const cleanPhone = mobile || phone;
+    const cleanEmail = email || (cleanName ? `${cleanName.toLowerCase().replace(/\s+/g, '')}@inquiry.com` : '');
+    const cleanDescription = description || text || '';
+
+    if (!cleanSchool || !cleanName || !cleanPhone) {
+      return res.status(400).json({ message: 'School name, name, and mobile number are required.' });
+    }
+
+    const newLead = new SalesLead({
+      schoolName: cleanSchool,
+      schoolStrength: cleanStrength,
+      strengthOfSchools: cleanStrength,
+      contactPerson: cleanName,
+      phone: cleanPhone,
+      email: cleanEmail,
+      description: cleanDescription,
+      text: cleanDescription,
+      role: role || 'School Admin / Owner',
+      stage: 'LEAD',
+      expectedARR: 2990
+    });
+    await newLead.save();
+
+    await AuditLog.create({
+      performedByName: cleanName,
+      performedByRole: role || 'PUBLIC_INQUIRY',
+      action: 'PUBLIC_INQUIRY_SUBMITTED',
+      targetSchoolName: cleanSchool,
+      details: `New inquiry submitted by ${cleanName} - School: ${cleanSchool}, Strength: ${cleanStrength}, Mobile: ${cleanPhone}, Email: ${cleanEmail}, Desc: ${cleanDescription}`
+    }).catch(() => {});
+
+    await createNotificationHelper({
+      title: `🔔 New Inquiry Lead: ${cleanSchool}`,
+      message: `Inquiry submitted by ${cleanName} (${cleanPhone}) for strength of ${cleanStrength || 'N/A'} students.`,
+      type: 'INQUIRY',
+      link: '/saas-admin',
+      targetRole: 'SAAS_SUPER_ADMIN'
+    }).catch(() => {});
+
+    const leadPayload = {
+      ...newLead.toObject(),
+      schoolStrength: cleanStrength,
+      strengthOfSchools: cleanStrength,
+      description: cleanDescription,
+      text: cleanDescription
+    };
+
+    return res.status(201).json({
+      message: 'Inquiry submitted successfully! Dynamic lead created in MongoDB Atlas for SuperAdmin.',
+      lead: leadPayload
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || 'Failed to submit inquiry lead' });
   }
 };
 
@@ -545,7 +604,7 @@ module.exports = {
   getGlobalUsers, resetUserPassword,
   getPlans, createOrUpdatePlan, togglePlanFeature,
   getBranches, createBranch,
-  getSecurityEvents, getSaaSInvoices, getFeatureFlags, getSupportTickets, getSalesLeads,
+  getSecurityEvents, getSaaSInvoices, getFeatureFlags, getSupportTickets, getSalesLeads, createInquiryLead,
   getAnnouncements, createAnnouncement, deleteAnnouncement,
   getAuditLogs, getSaaSStats
 };

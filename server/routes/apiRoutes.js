@@ -9,6 +9,7 @@ const ai = require('../controllers/aiController');
 const saas = require('../controllers/saasController');
 const admin = require('../controllers/schoolAdminController');
 const attendance = require('../controllers/attendanceController');
+const notifications = require('../controllers/notificationController');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. AUTH & USER MANAGEMENT ROUTES
@@ -47,11 +48,29 @@ router.get('/saas/invoices', authMiddleware, saas.getSaaSInvoices);
 router.get('/saas/feature-flags', authMiddleware, saas.getFeatureFlags);
 router.get('/saas/tickets', authMiddleware, saas.getSupportTickets);
 router.get('/saas/leads', authMiddleware, saas.getSalesLeads);
+router.post('/saas/inquiries', saas.createInquiryLead);
+router.post('/saas/leads', saas.createInquiryLead);
 router.get('/saas/announcements', authMiddleware, saas.getAnnouncements);
 router.post('/saas/announcements', authMiddleware, saas.createAnnouncement);
 router.delete('/saas/announcements/:id', authMiddleware, saas.deleteAnnouncement);
 router.get('/saas/audit-logs', authMiddleware, saas.getAuditLogs);
 router.get('/saas/stats', authMiddleware, saas.getSaaSStats);
+
+// Dynamic Notifications Routes (Supports both /notifications and /saas/notifications)
+router.get('/notifications', notifications.getNotifications);
+router.get('/saas/notifications', notifications.getNotifications);
+
+router.put('/notifications/read-all', notifications.markAllAsRead);
+router.put('/saas/notifications/read-all', notifications.markAllAsRead);
+
+router.put('/notifications/:id/read', notifications.markAsRead);
+router.put('/saas/notifications/:id/read', notifications.markAsRead);
+
+router.delete('/notifications/clear', notifications.clearNotifications);
+router.delete('/saas/notifications/clear', notifications.clearNotifications);
+
+router.post('/notifications', notifications.createNotification);
+router.post('/saas/notifications', notifications.createNotification);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. ADMISSIONS

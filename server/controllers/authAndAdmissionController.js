@@ -1,6 +1,7 @@
 const { School, User, Student, Admission } = require('../models/coreModels');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { createNotificationHelper } = require('./notificationController');
 
 // ==========================================
 // 1. AUTHENTICATION & LOGIN (WITH TENANT STATUS CHECK)
@@ -362,7 +363,7 @@ const getAdmissions = async (req, res) => {
 
 const createAdmission = async (req, res) => {
   try {
-    const { applicantName, studentName, parentName, targetClass, phone, email, previousSchool, status } = req.body;
+    const { applicantName, studentName, parentName, targetClass, phone, email, previousSchool, schoolStrength, strengthOfSchools, description, text, status } = req.body;
     
     const count = await Admission.countDocuments().catch(() => 0);
     const appNo = `APP-2026-${1000 + count + 1}`;
@@ -376,11 +377,22 @@ const createAdmission = async (req, res) => {
       targetClass: targetClass || 'Class 10',
       phone: phone || '9999999999',
       email: (email || 'applicant@school.com').toLowerCase().trim(),
-      previousSchool: previousSchool || '',
+      previousSchool: previousSchool || description || text || '',
+      schoolStrength: schoolStrength || strengthOfSchools || '',
+      description: description || text || '',
       status: status || 'SUBMITTED'
     });
 
     await newAdmission.save();
+
+    await createNotificationHelper({
+      title: `📋 New Admission: ${cleanApplicantName}`,
+      message: `Direct admission application (${appNo}) submitted for ${targetClass || 'Class 10'}.`,
+      type: 'ADMISSION',
+      link: '/admin/admissions',
+      targetRole: 'ADMIN'
+    }).catch(() => {});
+
     res.status(201).json({ message: 'Application submitted successfully!', admission: newAdmission });
   } catch (error) {
     res.status(500).json({ message: error.message });

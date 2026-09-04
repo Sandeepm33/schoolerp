@@ -109,6 +109,10 @@ const AdmissionSchema = new mongoose.Schema({
   gender: { type: String },
   targetClass: { type: String, required: true },
   previousSchool: { type: String },
+  schoolStrength: { type: String, default: '' },
+  strengthOfSchools: { type: String, default: '' },
+  description: { type: String, default: '' },
+  text: { type: String, default: '' },
   status: {
     type: String,
     enum: ['DRAFT', 'SUBMITTED', 'PENDING', 'UNDER_VERIFICATION', 'DOCUMENTS_PENDING', 'SELECTED', 'ACCEPTED', 'APPROVED', 'REJECTED', 'CONFIRMED'],
@@ -116,7 +120,7 @@ const AdmissionSchema = new mongoose.Schema({
   },
   notes: { type: String },
   appliedAt: { type: Date, default: Date.now }
-});
+}, { strict: false });
 
 // 6. FEE SCHEMA (ADMIN / ACCOUNTANT ONLY)
 const FeeStructureSchema = new mongoose.Schema({
@@ -214,9 +218,10 @@ const CertificateSchema = new mongoose.Schema({
   issuedBy: { type: String, required: true }
 });
 
-// Force fresh model recompilation for User & Student schema additions
+// Force fresh model recompilation for User, Student & Admission schema additions
 delete mongoose.models.User;
 delete mongoose.models.Student;
+delete mongoose.models.Admission;
 
 module.exports = {
   School: mongoose.models.School || mongoose.model('School', SchoolSchema),
@@ -224,7 +229,7 @@ module.exports = {
 
   Student: mongoose.model('Student', StudentSchema),
   AttendanceRecord: mongoose.models.AttendanceRecord || mongoose.model('AttendanceRecord', AttendanceRecordSchema),
-  Admission: mongoose.models.Admission || mongoose.model('Admission', AdmissionSchema),
+  Admission: mongoose.model('Admission', AdmissionSchema),
   FeeStructure: mongoose.models.FeeStructure || mongoose.model('FeeStructure', FeeStructureSchema),
   StudentFee: mongoose.models.StudentFee || mongoose.model('StudentFee', StudentFeeSchema),
   Timetable: mongoose.models.Timetable || mongoose.model('Timetable', TimetableSchema),

@@ -120,8 +120,51 @@ function SaaSAdminContent(props) {
         const ticketRes = await fetch(`${API_BASE}/saas/tickets`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
         if (ticketRes.ok) setTickets(await ticketRes.json().catch(() => []));
 
+        let combinedLeads = [];
         const leadRes = await fetch(`${API_BASE}/saas/leads`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
-        if (leadRes.ok) setLeads(await leadRes.json().catch(() => []));
+        if (leadRes.ok) {
+          const lData = await leadRes.json().catch(() => []);
+          combinedLeads = [...combinedLeads, ...lData];
+        }
+
+        const admRes = await fetch(`${API_BASE}/admissions`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
+        if (admRes.ok) {
+          const admData = await admRes.json().catch(() => []);
+          const mappedAdm = admData.map(a => ({
+            _id: a._id,
+            schoolName: a.schoolName || a.targetClass || 'Inquiry Campus',
+            schoolStrength: a.schoolStrength || (a.parentName && a.parentName.includes('(') ? a.parentName.split('(')[1].replace(')', '').trim() : ''),
+            contactPerson: a.applicantName || a.name || a.contactPerson,
+            phone: a.phone || a.mobile,
+            email: a.email,
+            description: a.description || a.previousSchool || '',
+            role: a.parentName && a.parentName.includes('-') ? a.parentName.split('-')[0].trim() : 'School Admin / Owner',
+            stage: 'LEAD',
+            createdAt: a.createdAt || a.appliedAt
+          }));
+          combinedLeads = [...combinedLeads, ...mappedAdm];
+        }
+
+        // Merge and deduplicate leads by phone/email/contactPerson, prioritizing leads with valid schoolStrength
+        const leadMap = new Map();
+        combinedLeads.forEach(item => {
+          const dedupeKey = (item.phone || item.mobile || item.email || item.contactPerson || item._id || '').trim();
+          if (!dedupeKey) return;
+
+          if (!leadMap.has(dedupeKey)) {
+            leadMap.set(dedupeKey, item);
+          } else {
+            const existing = leadMap.get(dedupeKey);
+            const hasStrength = item.schoolStrength && item.schoolStrength !== 'N/A' && item.schoolStrength.trim() !== '';
+            const existingHasStrength = existing.schoolStrength && existing.schoolStrength !== 'N/A' && existing.schoolStrength.trim() !== '';
+
+            if (hasStrength || (!existingHasStrength && item.createdAt > existing.createdAt)) {
+              leadMap.set(dedupeKey, { ...existing, ...item, schoolStrength: item.schoolStrength || existing.schoolStrength });
+            }
+          }
+        });
+
+        setLeads(Array.from(leadMap.values()));
       }
 
       if (activeTab === 'audit' || activeTab === 'communication') {
@@ -825,28 +868,131 @@ function SaaSAdminContent(props) {
 
       {/* VIEW 11: SUPPORT & CRM */}
       {activeTab === 'support' && (
-        <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-4">
-          <h3 className="text-lg font-extrabold text-white flex items-center gap-2">
-            <HelpCircle className="w-5 h-5 text-amber-400" /> Support Tickets & Sales CRM Pipeline
-          </h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="p-4 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-2">
-              <h4 className="font-bold text-white text-xs">Helpdesk Tickets</h4>
-              {tickets.map((t, idx) => (
-                <div key={idx} className="p-2.5 bg-slate-900 rounded-xl border border-slate-800 text-xs">
-                  <strong className="text-white">{t.subject}</strong>
-                  <p className="text-[10px] text-slate-400">{t.schoolName} ({t.status})</p>
-                </div>
-              ))}
+        <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-extrabold text-white flex items-center gap-2">
+                <HelpCircle className="w-5 h-5 text-amber-400" /> Dynamic Sales CRM & Website Inquiry Leads
+              </h3>
+              <p className="text-xs text-slate-400">Live inquiries submitted from the website form dynamically appear here for SuperAdmin action</p>
             </div>
-            <div className="p-4 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-2">
-              <h4 className="font-bold text-white text-xs">Sales CRM Leads Pipeline</h4>
-              {leads.map((l, idx) => (
-                <div key={idx} className="p-2.5 bg-slate-900 rounded-xl border border-slate-800 text-xs">
-                  <strong className="text-white">{l.schoolName}</strong>
-                  <p className="text-[10px] text-emerald-400">ARR: ${l.expectedARR} • Stage: {l.stage}</p>
-                </div>
-              ))}
+            <span className="px-3 py-1 rounded-xl text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 font-mono">
+              {leads.length} Total Leads Recorded
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+            {/* Left Column: Helpdesk Tickets */}
+            <div className="lg:col-span-5 p-4 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-3">
+              <h4 className="font-extrabold text-white text-xs flex items-center justify-between border-b border-slate-800 pb-2">
+                <span>Support & Helpdesk Tickets</span>
+                <span className="text-[10px] text-slate-400 font-mono">{tickets.length} Active</span>
+              </h4>
+              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                {tickets.map((t, idx) => (
+                  <div key={idx} className="p-3 bg-slate-900 rounded-xl border border-slate-800 text-xs space-y-1">
+                    <div className="flex items-center justify-between">
+                      <strong className="text-white font-bold">{t.subject}</strong>
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold ${t.status === 'OPEN' ? 'bg-rose-500/20 text-rose-300' : 'bg-emerald-500/20 text-emerald-300'}`}>
+                        {t.status}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400">{t.schoolName} • {t.userEmail}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Right Column: Dynamic Sales CRM Inquiry Leads */}
+            <div className="lg:col-span-7 p-4 bg-slate-900/60 rounded-2xl border border-slate-800 space-y-3">
+              <h4 className="font-extrabold text-white text-xs flex items-center justify-between border-b border-slate-800 pb-2">
+                <span>Website Inquiry Leads (Dynamic Sales Pipeline)</span>
+                <span className="text-[10px] text-emerald-400 font-mono">Synced from Atlas</span>
+              </h4>
+
+              <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+                {leads.map((l, idx) => {
+                  let rawStr = l.schoolStrength || l.strengthOfSchools || l.strength || l.school_strength;
+                  if ((!rawStr || rawStr === 'N/A' || String(rawStr).trim() === '') && l.parentName && l.parentName.includes('(')) {
+                    const m = l.parentName.match(/\(([^)]+)\)/);
+                    if (m && m[1]) rawStr = m[1].trim();
+                  }
+
+                  const strClean = rawStr && rawStr !== 'N/A' ? String(rawStr).trim() : '';
+                  const formattedStrength = strClean
+                    ? (/^\d+$/.test(strClean) ? `${strClean} Students` : strClean)
+                    : 'N/A';
+
+                  return (
+                    <div key={l._id || idx} className="p-3.5 bg-slate-900 rounded-xl border border-slate-800 text-xs space-y-2 hover:border-amber-500/40 transition-colors">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <div>
+                          <span className="text-[10px] font-black uppercase text-amber-400 tracking-wider block">
+                            Strength: {formattedStrength}
+                          </span>
+                          <h5 className="text-sm font-black text-white">{l.schoolName || l.city || 'Inquiry School'}</h5>
+                        </div>
+                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black ${
+                          l.stage === 'LEAD' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        }`}>
+                          ● {l.stage || 'LEAD'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 text-[11px] text-slate-300 pt-1 border-t border-slate-800/60">
+                        <div>
+                          <span className="text-slate-500 font-semibold block text-[10px]">Name:</span>
+                          <strong className="text-white">{l.contactPerson || l.name || l.fullName || 'N/A'}</strong>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 font-semibold block text-[10px]">Mobile:</span>
+                          <a href={`tel:${l.phone || l.mobile}`} className="text-emerald-400 font-mono font-bold hover:underline">{l.phone || l.mobile || 'N/A'}</a>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 font-semibold block text-[10px]">Email:</span>
+                          <span className="text-slate-300 font-mono font-bold">{l.email || 'N/A'}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 font-semibold block text-[10px]">Strength of School:</span>
+                          <span className="text-indigo-300 font-bold">{formattedStrength}</span>
+                        </div>
+                      </div>
+
+                    {l.description && (
+                      <div className="pt-1 text-[11px] text-slate-400 border-t border-slate-800/60">
+                        <span className="text-slate-500 font-semibold block text-[10px]">Description:</span>
+                        <p className="text-slate-300 font-medium italic mt-0.5 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80 leading-relaxed">{l.description}</p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between pt-2 border-t border-slate-800/60 text-[10px]">
+                      <span className="text-slate-500 font-mono">
+                        Received: {l.createdAt ? new Date(l.createdAt).toLocaleString() : 'Just now'}
+                      </span>
+                      <button 
+                        onClick={() => {
+                          setForm({
+                            name: l.schoolName || '',
+                            code: (l.schoolName || 'SCH').substring(0, 4).toUpperCase().replace(/[^A-Z]/g, ''),
+                            email: l.email || '',
+                            phone: l.phone || l.mobile || '',
+                            address: '',
+                            subscriptionPlan: 'ENTERPRISE',
+                            adminName: l.contactPerson || l.name || '',
+                            adminEmail: l.email || `${(l.contactPerson || 'admin').toLowerCase().replace(/\s+/g, '')}@school.com`,
+                            adminPassword: 'password123'
+                          });
+                          setIsModalOpen(true);
+                        }}
+                        className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/40 rounded-lg font-extrabold border border-emerald-500/30 flex items-center gap-1 transition-all"
+                      >
+                        <Plus className="w-3 h-3" /> Onboard as School Tenant
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+              </div>
             </div>
           </div>
         </div>
