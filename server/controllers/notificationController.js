@@ -3,7 +3,26 @@ const { Notification } = require('../models/saasModels');
 // GET ALL NOTIFICATIONS
 const getNotifications = async (req, res) => {
   try {
-    const notifications = await Notification.find().sort({ createdAt: -1 }).limit(50);
+    const rawNotifications = await Notification.find().sort({ createdAt: -1 }).limit(50);
+    const notifications = rawNotifications.map(n => {
+      const doc = n.toObject ? n.toObject() : n;
+      let link = doc.link || '';
+      const title = (doc.title || '').toLowerCase();
+      const msg = (doc.message || '').toLowerCase();
+
+      if (!link || link === '#') {
+        if (title.includes('testimonial') || msg.includes('testimonial') || msg.includes('pending approval')) {
+          link = '/saas-admin?tab=testimonials';
+        } else if (title.includes('lead') || title.includes('inquiry') || title.includes('demo') || doc.type === 'INQUIRY') {
+          link = '/saas-admin?tab=support';
+        } else if (title.includes('admission') || doc.type === 'ADMISSION') {
+          link = '/admin/admissions';
+        } else {
+          link = '/saas-admin?tab=overview';
+        }
+      }
+      return { ...doc, link };
+    });
     const unreadCount = notifications.filter(n => !n.read).length;
     res.json({ notifications, unreadCount });
   } catch (error) {

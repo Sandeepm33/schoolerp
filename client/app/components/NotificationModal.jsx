@@ -42,22 +42,50 @@ export default function NotificationModal({ isOpen, onClose, onUnreadCountChange
 
   if (!isOpen) return null;
 
-  const handleMarkAsRead = async (id, link, e) => {
+  const resolveNotificationLink = (item) => {
+    if (item?.link && item.link.trim() && item.link !== '#') {
+      return item.link.trim();
+    }
+    const title = (item?.title || '').toLowerCase();
+    const msg = (item?.message || '').toLowerCase();
+    const type = (item?.type || '').toUpperCase();
+
+    if (title.includes('testimonial') || msg.includes('testimonial') || msg.includes('pending approval')) {
+      return '/saas-admin?tab=testimonials';
+    }
+    if (title.includes('lead') || title.includes('inquiry') || title.includes('demo') || type === 'INQUIRY') {
+      return '/saas-admin?tab=support';
+    }
+    if (title.includes('admission') || type === 'ADMISSION') {
+      return '/admin/admissions';
+    }
+    if (title.includes('school') || title.includes('tenant')) {
+      return '/saas-admin?tab=schools';
+    }
+    return '/saas-admin?tab=overview';
+  };
+
+  const handleMarkAsRead = async (id, rawLink, e, item) => {
     if (e) e.stopPropagation();
+    const targetLink = rawLink || resolveNotificationLink(item);
+
     try {
       // Optimistic update
       setNotifications(prev => prev.map(n => n._id === id ? { ...n, read: true } : n));
       const res = await fetch(`/api/notifications/${id}/read`, { method: 'PUT' });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (onUnreadCountChange && data.unreadCount !== undefined) {
         onUnreadCountChange(data.unreadCount);
       }
-      if (link) {
-        onClose();
-        router.push(link);
-      }
     } catch (err) {
       console.error('Error marking read:', err);
+    } finally {
+      if (targetLink) {
+        onClose();
+        if (typeof window !== 'undefined') {
+          window.location.href = targetLink;
+        }
+      }
     }
   };
 
@@ -223,11 +251,12 @@ export default function NotificationModal({ isOpen, onClose, onUnreadCountChange
             filteredNotifications.map((item) => {
               const badge = getTypeBadge(item.type);
               const BadgeIcon = badge.icon;
+              const targetLink = resolveNotificationLink(item);
 
               return (
                 <div
                   key={item._id}
-                  onClick={(e) => handleMarkAsRead(item._id, item.link, e)}
+                  onClick={(e) => handleMarkAsRead(item._id, targetLink, e, item)}
                   style={{
                     backgroundColor: !item.read ? '#f0fdf4' : '#ffffff',
                     borderColor: !item.read ? '#bbf7d0' : '#f1f5f9'
@@ -264,11 +293,13 @@ export default function NotificationModal({ isOpen, onClose, onUnreadCountChange
                         {item.message}
                       </p>
 
-                      {item.link && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-700 mt-1.5 group-hover:underline">
-                          View details <ExternalLink className="w-2.5 h-2.5" />
-                        </span>
-                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => handleMarkAsRead(item._id, targetLink, e, item)}
+                        className="inline-flex items-center gap-1 text-[10px] font-extrabold text-emerald-700 mt-1.5 hover:underline cursor-pointer focus:outline-none"
+                      >
+                        View details <ExternalLink className="w-2.5 h-2.5 text-emerald-700" />
+                      </button>
                     </div>
 
                     {/* UNREAD GLOWING DOT & MARK READ */}

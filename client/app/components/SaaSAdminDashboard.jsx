@@ -2,22 +2,24 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { 
-  Building2, Plus, Users, ShieldCheck, DollarSign, 
+import {
+  Building2, Plus, Users, ShieldCheck, DollarSign,
   Search, CheckCircle, AlertCircle, Sparkles, X, Key, Globe, Eye,
   Sliders, Shield, Cpu, HardDrive, Bell, UserCheck, Lock, Activity, RefreshCw, FileText, Zap, ArrowUpRight,
-  Trash2, Edit3, Send, Hash, Mail, Phone, HelpCircle, Layers, PieChart, Server, Check, Flame, Box
+  Trash2, Edit3, Send, Hash, Mail, Phone, HelpCircle, Layers, PieChart, Server, Check, Flame, Box,
+  MessageSquare, Star
 } from 'lucide-react';
 import { useAuth, API_BASE } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { useDataSync, notifyGlobalDataChange } from '../context/DataSyncContext';
+import AllServicesPanel from './AllServicesPanel';
 
 function SaaSAdminContent(props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const initialTab = searchParams.get('tab') || 'overview';
   const [activeTab, setActiveTab] = useState(initialTab);
-  
+
   const { token } = useAuth();
   const { currentTheme } = useTheme();
   const brandColor = currentTheme?.accentPrimary || '#02563d';
@@ -35,7 +37,12 @@ function SaaSAdminContent(props) {
   const [leads, setLeads] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
-  
+  const [testimonials, setTestimonials] = useState([]);
+  const [isTestimonialModalOpen, setIsTestimonialModalOpen] = useState(false);
+  const [testimonialForm, setTestimonialForm] = useState({
+    name: '', role: '', schoolName: '', text: '', rating: 5, avatar: '', color: '#059669'
+  });
+
   const [stats, setStats] = useState({
     totalSchools: 0, activeSchools: 0, trialSchools: 0, suspendedSchools: 0,
     totalStudents: 0, totalUsers: 0, totalAdmissions: 0,
@@ -81,54 +88,62 @@ function SaaSAdminContent(props) {
     router.push(`/saas-admin?tab=${tabName}`);
   };
 
+  const safeFetch = async (url, options) => {
+    try {
+      return await fetch(url, options);
+    } catch (e) {
+      return null;
+    }
+  };
+
   const fetchSaaSData = async () => {
     setLoading(true);
     let activeToken = token || localStorage.getItem('erp_token') || `demo_token_saas_super_admin`;
 
     try {
       if (activeTab === 'overview' || activeTab === 'schools') {
-        const schoolRes = await fetch(`${API_BASE}/saas/schools`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
-        if (schoolRes.ok) setSchools(await schoolRes.json().catch(() => []));
+        const schoolRes = await safeFetch(`${API_BASE}/saas/schools`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
+        if (schoolRes && schoolRes.ok) setSchools(await schoolRes.json().catch(() => []));
       }
 
       if (activeTab === 'plans') {
-        const planRes = await fetch(`${API_BASE}/saas/plans`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
-        if (planRes.ok) setPlans(await planRes.json().catch(() => []));
+        const planRes = await safeFetch(`${API_BASE}/saas/plans`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
+        if (planRes && planRes.ok) setPlans(await planRes.json().catch(() => []));
       }
 
       if (activeTab === 'users') {
-        const userRes = await fetch(`${API_BASE}/saas/global-users`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
-        if (userRes.ok) setGlobalUsers(await userRes.json().catch(() => []));
+        const userRes = await safeFetch(`${API_BASE}/saas/global-users`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
+        if (userRes && userRes.ok) setGlobalUsers(await userRes.json().catch(() => []));
       }
 
       if (activeTab === 'security') {
-        const secRes = await fetch(`${API_BASE}/saas/security-events`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
-        if (secRes.ok) setSecurityEvents(await secRes.json().catch(() => []));
+        const secRes = await safeFetch(`${API_BASE}/saas/security-events`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
+        if (secRes && secRes.ok) setSecurityEvents(await secRes.json().catch(() => []));
       }
 
       if (activeTab === 'modules') {
-        const flagRes = await fetch(`${API_BASE}/saas/feature-flags`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
-        if (flagRes.ok) setFeatureFlags(await flagRes.json().catch(() => []));
+        const flagRes = await safeFetch(`${API_BASE}/saas/feature-flags`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
+        if (flagRes && flagRes.ok) setFeatureFlags(await flagRes.json().catch(() => []));
       }
 
       if (activeTab === 'analytics' || activeTab === 'usage') {
-        const invRes = await fetch(`${API_BASE}/saas/invoices`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
-        if (invRes.ok) setInvoices(await invRes.json().catch(() => []));
+        const invRes = await safeFetch(`${API_BASE}/saas/invoices`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
+        if (invRes && invRes.ok) setInvoices(await invRes.json().catch(() => []));
       }
 
       if (activeTab === 'support') {
-        const ticketRes = await fetch(`${API_BASE}/saas/tickets`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
-        if (ticketRes.ok) setTickets(await ticketRes.json().catch(() => []));
+        const ticketRes = await safeFetch(`${API_BASE}/saas/tickets`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
+        if (ticketRes && ticketRes.ok) setTickets(await ticketRes.json().catch(() => []));
 
         let combinedLeads = [];
-        const leadRes = await fetch(`${API_BASE}/saas/leads`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
-        if (leadRes.ok) {
+        const leadRes = await safeFetch(`${API_BASE}/saas/leads`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
+        if (leadRes && leadRes.ok) {
           const lData = await leadRes.json().catch(() => []);
           combinedLeads = [...combinedLeads, ...lData];
         }
 
-        const admRes = await fetch(`${API_BASE}/admissions`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
-        if (admRes.ok) {
+        const admRes = await safeFetch(`${API_BASE}/admissions`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
+        if (admRes && admRes.ok) {
           const admData = await admRes.json().catch(() => []);
           const mappedAdm = admData.map(a => ({
             _id: a._id,
@@ -168,15 +183,20 @@ function SaaSAdminContent(props) {
       }
 
       if (activeTab === 'audit' || activeTab === 'communication') {
-        const auditRes = await fetch(`${API_BASE}/saas/audit-logs`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
-        if (auditRes.ok) setAuditLogs(await auditRes.json().catch(() => []));
+        const auditRes = await safeFetch(`${API_BASE}/saas/audit-logs`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
+        if (auditRes && auditRes.ok) setAuditLogs(await auditRes.json().catch(() => []));
 
-        const announceRes = await fetch(`${API_BASE}/saas/announcements`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
-        if (announceRes.ok) setAnnouncements(await announceRes.json().catch(() => []));
+        const announceRes = await safeFetch(`${API_BASE}/saas/announcements`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
+        if (announceRes && announceRes.ok) setAnnouncements(await announceRes.json().catch(() => []));
       }
 
-      const statRes = await fetch(`${API_BASE}/saas/stats`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
-      if (statRes.ok) {
+      if (activeTab === 'testimonials') {
+        const testRes = await safeFetch(`${API_BASE}/saas/testimonials`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
+        if (testRes && testRes.ok) setTestimonials(await testRes.json().catch(() => []));
+      }
+
+      const statRes = await safeFetch(`${API_BASE}/saas/stats`, { headers: { 'Authorization': `Bearer ${activeToken}` } });
+      if (statRes && statRes.ok) {
         const statData = await statRes.json().catch(() => null);
         if (statData) setStats(statData);
       }
@@ -266,7 +286,7 @@ function SaaSAdminContent(props) {
         body: JSON.stringify({ status })
       });
       if (res.ok) fetchSaaSData();
-    } catch (e) {}
+    } catch (e) { }
   };
 
   const handleImpersonate = async (schoolId) => {
@@ -343,13 +363,68 @@ function SaaSAdminContent(props) {
     }
   };
 
-  const filteredSchools = schools.filter(s => 
-    s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+  const handleUpdateTestimonialStatus = async (id, status) => {
+    let activeToken = token || localStorage.getItem('erp_token') || `demo_token_saas_super_admin`;
+    try {
+      const res = await fetch(`${API_BASE}/saas/testimonials/${id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${activeToken}` },
+        body: JSON.stringify({ status })
+      });
+      if (res.ok) fetchSaaSData();
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  const handleDeleteTestimonial = async (id) => {
+    if (!confirm('Are you sure you want to delete this testimonial?')) return;
+    let activeToken = token || localStorage.getItem('erp_token') || `demo_token_saas_super_admin`;
+    try {
+      const res = await fetch(`${API_BASE}/saas/testimonials/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${activeToken}` }
+      });
+      if (res.ok) fetchSaaSData();
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  const handleCreateTestimonial = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    let activeToken = token || localStorage.getItem('erp_token') || `demo_token_saas_super_admin`;
+    try {
+      const res = await fetch(`${API_BASE}/testimonials`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${activeToken}` },
+        body: JSON.stringify(testimonialForm)
+      });
+      if (res.ok) {
+        alert('✅ Testimonial published to Landing Page slider!');
+        setIsTestimonialModalOpen(false);
+        setTestimonialForm({ name: '', role: '', schoolName: '', text: '', rating: 5, avatar: '', color: '#059669' });
+        fetchSaaSData();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.message || 'Failed to publish testimonial');
+      }
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredSchools = schools.filter(s =>
+    s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     s.code.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const tabsList = [
     { key: 'overview', label: 'Overview', icon: Activity },
+    { key: 'services', label: 'All Services (36+)', icon: Box },
     { key: 'schools', label: 'Schools & Branches', icon: Building2 },
     { key: 'plans', label: 'Plans & Features Matrix', icon: Sliders },
     { key: 'users', label: 'Global Users & RBAC', icon: Users },
@@ -360,23 +435,24 @@ function SaaSAdminContent(props) {
     { key: 'communication', label: 'Broadcasts', icon: Bell },
     { key: 'usage', label: 'Storage Quotas', icon: HardDrive },
     { key: 'support', label: 'Support & CRM', icon: HelpCircle },
+    { key: 'testimonials', label: 'Landing Testimonials', icon: MessageSquare },
     { key: 'audit', label: 'Audit Logs', icon: FileText }
   ];
 
   return (
     <div className="space-y-6">
-      
+
       {/* HEADER BANNER (DYNAMIC DEEP EMERALD BRAND THEME - MATCHES ALL PORTALS) */}
-      <div 
+      <div
         className="p-6 sm:p-8 rounded-3xl relative overflow-hidden space-y-4 shadow-2xl border"
-        style={{ 
+        style={{
           background: `linear-gradient(135deg, ${brandSecondary} 0%, ${brandColor} 100%)`,
           borderColor: 'rgba(255,255,255,0.2)',
           color: '#ffffff'
         }}
       >
         <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -z-10 pointer-events-none" />
-        
+
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center space-x-2 flex-wrap gap-y-1">
@@ -384,7 +460,7 @@ function SaaSAdminContent(props) {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
               </span>
-              <span 
+              <span
                 className="px-3 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest border backdrop-blur-md"
                 style={{ backgroundColor: 'rgba(255,255,255,0.2)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.3)' }}
               >
@@ -394,6 +470,7 @@ function SaaSAdminContent(props) {
 
             <h2 className="text-2xl font-black text-white tracking-tight flex items-center gap-2 mt-1">
               {activeTab === 'overview' && '🏠 Platform Health & SaaS Dashboard'}
+              {activeTab === 'services' && '🧩 All Application Services & System Modules'}
               {activeTab === 'schools' && '🏫 Multi-Tenant School Directory & Impersonation'}
               {activeTab === 'plans' && '💳 Subscription Plans & Feature Matrix Engine'}
               {activeTab === 'users' && '👥 Global Multi-Tenant User Management'}
@@ -404,6 +481,7 @@ function SaaSAdminContent(props) {
               {activeTab === 'communication' && '💬 Global Broadcast Communication System'}
               {activeTab === 'usage' && '🗄️ Storage & Media Quota Management'}
               {activeTab === 'support' && '🎧 Helpdesk Tickets & Sales CRM Pipeline'}
+              {activeTab === 'testimonials' && '💬 Public Testimonials & Landing Page Approvals'}
               {activeTab === 'audit' && '📋 System Audit Logs & Health Monitor'}
             </h2>
             <p className="text-xs font-semibold" style={{ color: '#f1f5f9' }}>
@@ -411,7 +489,7 @@ function SaaSAdminContent(props) {
             </p>
           </div>
 
-          <button 
+          <button
             onClick={() => { setIsModalOpen(true); setMessage(null); }}
             className="px-5 py-3 rounded-2xl bg-white text-slate-900 text-xs font-black shadow-xl flex items-center gap-2 hover:scale-105 transition-all duration-300 active:scale-95 cursor-pointer border border-white"
             style={{ color: brandColor }}
@@ -431,13 +509,12 @@ function SaaSAdminContent(props) {
                 key={t.key}
                 type="button"
                 onClick={() => switchTab(t.key)}
-                style={isSel 
-                  ? { backgroundColor: '#ffffff', color: brandColor, borderColor: '#ffffff' } 
+                style={isSel
+                  ? { backgroundColor: '#ffffff', color: brandColor, borderColor: '#ffffff' }
                   : { backgroundColor: 'rgba(0,0,0,0.3)', color: '#ffffff', borderColor: 'rgba(255,255,255,0.2)' }
                 }
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer border ${
-                  isSel ? 'shadow-lg shadow-black/40 font-black' : 'hover:bg-black/40'
-                }`}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold shrink-0 flex items-center gap-1.5 transition-all cursor-pointer border ${isSel ? 'shadow-lg shadow-black/40 font-black' : 'hover:bg-black/40'
+                  }`}
               >
                 <Icon className="w-3.5 h-3.5" style={{ color: isSel ? brandColor : '#ffffff' }} />
                 <span style={{ color: isSel ? brandColor : '#ffffff' }}>{t.label}</span>
@@ -446,6 +523,13 @@ function SaaSAdminContent(props) {
           })}
         </div>
       </div>
+
+      {/* VIEW 0: ALL SERVICES (36+ MODULES) */}
+      {activeTab === 'services' && (
+        <div className="glass-panel p-6 rounded-3xl border border-slate-800">
+          <AllServicesPanel role="SAAS_SUPER_ADMIN" />
+        </div>
+      )}
 
       {/* VIEW 1: OVERVIEW */}
       {activeTab === 'overview' && (
@@ -525,7 +609,7 @@ function SaaSAdminContent(props) {
             </div>
             <div className="relative w-64">
               <Search className="w-4 h-4 text-slate-500 absolute left-3 top-3" />
-              <input 
+              <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -562,9 +646,8 @@ function SaaSAdminContent(props) {
                       </span>
                     </td>
                     <td className="p-3.5">
-                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold ${
-                        school.status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                      }`}>
+                      <span className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold ${school.status === 'ACTIVE' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                        }`}>
                         {school.status}
                       </span>
                     </td>
@@ -638,9 +721,8 @@ function SaaSAdminContent(props) {
                         <td key={feat} className="p-3.5">
                           <button
                             onClick={() => handleTogglePlanFeature(p.code, feat, enabled)}
-                            className={`px-3 py-1 rounded-xl text-[10px] font-bold border transition ${
-                              enabled ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-slate-900 text-slate-500 border-slate-800'
-                            }`}
+                            className={`px-3 py-1 rounded-xl text-[10px] font-bold border transition ${enabled ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/40' : 'bg-slate-900 text-slate-500 border-slate-800'
+                              }`}
                           >
                             {enabled ? '✅ ENABLED' : '❌ OFF'}
                           </button>
@@ -825,15 +907,15 @@ function SaaSAdminContent(props) {
           </h3>
           <form onSubmit={handleCreateAnnouncement} className="space-y-3 text-xs">
             <div className="grid grid-cols-2 gap-3">
-              <input 
-                type="text" 
-                value={announcementForm.title} 
+              <input
+                type="text"
+                value={announcementForm.title}
                 onChange={(e) => setAnnouncementForm({ ...announcementForm, title: e.target.value })}
                 placeholder="Announcement Title"
                 required
                 className="bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white"
               />
-              <select 
+              <select
                 value={announcementForm.targetAudience}
                 onChange={(e) => setAnnouncementForm({ ...announcementForm, targetAudience: e.target.value })}
                 className="bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white"
@@ -842,7 +924,7 @@ function SaaSAdminContent(props) {
                 <option value="SCHOOL_ADMINS">School Admins Only</option>
               </select>
             </div>
-            <textarea 
+            <textarea
               value={announcementForm.message}
               onChange={(e) => setAnnouncementForm({ ...announcementForm, message: e.target.value })}
               placeholder="Broadcast message..."
@@ -932,9 +1014,8 @@ function SaaSAdminContent(props) {
                           </span>
                           <h5 className="text-sm font-black text-white">{l.schoolName || l.city || 'Inquiry School'}</h5>
                         </div>
-                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black ${
-                          l.stage === 'LEAD' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                        }`}>
+                        <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black ${l.stage === 'LEAD' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          }`}>
                           ● {l.stage || 'LEAD'}
                         </span>
                       </div>
@@ -958,40 +1039,40 @@ function SaaSAdminContent(props) {
                         </div>
                       </div>
 
-                    {l.description && (
-                      <div className="pt-1 text-[11px] text-slate-400 border-t border-slate-800/60">
-                        <span className="text-slate-500 font-semibold block text-[10px]">Description:</span>
-                        <p className="text-slate-300 font-medium italic mt-0.5 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80 leading-relaxed">{l.description}</p>
-                      </div>
-                    )}
+                      {l.description && (
+                        <div className="pt-1 text-[11px] text-slate-400 border-t border-slate-800/60">
+                          <span className="text-slate-500 font-semibold block text-[10px]">Description:</span>
+                          <p className="text-slate-300 font-medium italic mt-0.5 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80 leading-relaxed">{l.description}</p>
+                        </div>
+                      )}
 
-                    <div className="flex items-center justify-between pt-2 border-t border-slate-800/60 text-[10px]">
-                      <span className="text-slate-500 font-mono">
-                        Received: {l.createdAt ? new Date(l.createdAt).toLocaleString() : 'Just now'}
-                      </span>
-                      <button 
-                        onClick={() => {
-                          setForm({
-                            name: l.schoolName || '',
-                            code: (l.schoolName || 'SCH').substring(0, 4).toUpperCase().replace(/[^A-Z]/g, ''),
-                            email: l.email || '',
-                            phone: l.phone || l.mobile || '',
-                            address: '',
-                            subscriptionPlan: 'ENTERPRISE',
-                            adminName: l.contactPerson || l.name || '',
-                            adminEmail: l.email || `${(l.contactPerson || 'admin').toLowerCase().replace(/\s+/g, '')}@school.com`,
-                            adminPassword: 'password123'
-                          });
-                          setIsModalOpen(true);
-                        }}
-                        className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/40 rounded-lg font-extrabold border border-emerald-500/30 flex items-center gap-1 transition-all"
-                      >
-                        <Plus className="w-3 h-3" /> Onboard as School Tenant
-                      </button>
+                      <div className="flex items-center justify-between pt-2 border-t border-slate-800/60 text-[10px]">
+                        <span className="text-slate-500 font-mono">
+                          Received: {l.createdAt ? new Date(l.createdAt).toLocaleString() : 'Just now'}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setForm({
+                              name: l.schoolName || '',
+                              code: (l.schoolName || 'SCH').substring(0, 4).toUpperCase().replace(/[^A-Z]/g, ''),
+                              email: l.email || '',
+                              phone: l.phone || l.mobile || '',
+                              address: '',
+                              subscriptionPlan: 'ENTERPRISE',
+                              adminName: l.contactPerson || l.name || '',
+                              adminEmail: l.email || `${(l.contactPerson || 'admin').toLowerCase().replace(/\s+/g, '')}@school.com`,
+                              adminPassword: 'password123'
+                            });
+                            setIsModalOpen(true);
+                          }}
+                          className="px-2.5 py-1 bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/40 rounded-lg font-extrabold border border-emerald-500/30 flex items-center gap-1 transition-all"
+                        >
+                          <Plus className="w-3 h-3" /> Onboard as School Tenant
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -1025,6 +1106,251 @@ function SaaSAdminContent(props) {
                 ))}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* VIEW 13: LANDING PAGE TESTIMONIALS APPROVAL WORKFLOW */}
+      {activeTab === 'testimonials' && (
+        <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-extrabold text-white flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-emerald-400" /> Landing Page Testimonials Approval & Moderation
+              </h3>
+              <p className="text-xs text-slate-400">
+                School admins submit reviews for approval. SuperAdmin can approve, reject, delete, or create direct testimonials for the landing page slider.
+              </p>
+            </div>
+            <button
+              onClick={() => setIsTestimonialModalOpen(true)}
+              style={{ color: '#ffffff', backgroundColor: '#059669' }}
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl flex items-center gap-2 shadow-lg transition cursor-pointer"
+            >
+              <Plus className="w-4 h-4" style={{ color: '#ffffff' }} />
+              <span style={{ color: '#ffffff' }}>Add Direct Testimonial</span>
+            </button>
+          </div>
+
+          {/* Stats Bar */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-300 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] uppercase tracking-wider font-extrabold block">Pending Review</span>
+                <span className="text-2xl font-black">{testimonials.filter(t => t.status === 'PENDING').length}</span>
+              </div>
+              <MessageSquare className="w-8 h-8 opacity-40" />
+            </div>
+            <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] uppercase tracking-wider font-extrabold block">Approved & Published</span>
+                <span className="text-2xl font-black">{testimonials.filter(t => t.status === 'APPROVED').length}</span>
+              </div>
+              <CheckCircle className="w-8 h-8 opacity-40" />
+            </div>
+            <div className="p-4 rounded-2xl bg-slate-800/60 border border-slate-700 text-slate-300 flex items-center justify-between">
+              <div>
+                <span className="text-[10px] uppercase tracking-wider font-extrabold block">Total Testimonials</span>
+                <span className="text-2xl font-black">{testimonials.length}</span>
+              </div>
+              <Star className="w-8 h-8 opacity-40" />
+            </div>
+          </div>
+
+          {/* Testimonial List */}
+          <div className="space-y-3">
+            {testimonials.map((t) => (
+              <div
+                key={t._id}
+                className={`p-4 rounded-2xl border transition-all space-y-3 ${t.status === 'PENDING'
+                    ? 'bg-amber-950/20 border-amber-500/40 shadow-lg shadow-amber-950/20'
+                    : t.status === 'APPROVED'
+                      ? 'bg-slate-900/80 border-slate-800 hover:border-emerald-500/30'
+                      : 'bg-rose-950/20 border-rose-500/30'
+                  }`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center space-x-3">
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-white text-sm shadow-md"
+                      style={{ backgroundColor: t.color || '#2563eb' }}
+                    >
+                      {t.avatar || (t.name ? t.name.substring(0, 2).toUpperCase() : 'TS')}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-extrabold text-white text-sm">{t.name}</h4>
+                        <span className="text-[10px] text-slate-400">({t.role || 'School Admin'})</span>
+                      </div>
+                      <p className="text-xs text-emerald-400 font-semibold">{t.schoolName || 'School'}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    {/* Star Rating */}
+                    <div className="flex text-amber-400">
+                      {[...Array(t.rating || 5)].map((_, i) => (
+                        <Star key={i} className="w-3.5 h-3.5 fill-current" />
+                      ))}
+                    </div>
+
+                    {/* Status Badge */}
+                    <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase border ${t.status === 'APPROVED'
+                        ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                        : t.status === 'PENDING'
+                          ? 'bg-amber-500/20 text-amber-300 border-amber-500/30 animate-pulse'
+                          : 'bg-rose-500/20 text-rose-300 border-rose-500/30'
+                      }`}>
+                      ● {t.status}
+                    </span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-300 italic bg-slate-950/40 p-3 rounded-xl border border-slate-800/80 leading-relaxed">
+                  "{t.text}"
+                </p>
+
+                <div className="flex flex-wrap items-center justify-between pt-2 border-t border-slate-800/80 text-[10px]">
+                  <span className="text-slate-500 font-mono">
+                    Submitted: {t.createdAt ? new Date(t.createdAt).toLocaleDateString() : 'Recently'}
+                  </span>
+
+                  <div className="flex items-center gap-2">
+                    {t.status !== 'APPROVED' && (
+                      <button
+                        onClick={() => handleUpdateTestimonialStatus(t._id, 'APPROVED')}
+                        style={{ color: '#ffffff', backgroundColor: '#059669' }}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg font-bold flex items-center gap-1 transition"
+                      >
+                        <Check className="w-3.5 h-3.5" style={{ color: '#ffffff' }} />
+                        <span style={{ color: '#ffffff' }}>Approve & Publish</span>
+                      </button>
+                    )}
+                    {t.status !== 'REJECTED' && (
+                      <button
+                        onClick={() => handleUpdateTestimonialStatus(t._id, 'REJECTED')}
+                        className="px-3 py-1.5 bg-amber-600/30 hover:bg-amber-600/50 text-amber-300 rounded-lg font-bold border border-amber-500/30 flex items-center gap-1 transition"
+                      >
+                        <X className="w-3.5 h-3.5" /> Reject
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDeleteTestimonial(t._id)}
+                      className="px-2.5 py-1.5 bg-rose-500/20 hover:bg-rose-500/40 text-rose-300 rounded-lg font-bold border border-rose-500/30 flex items-center gap-1 transition"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {testimonials.length === 0 && (
+              <div className="text-center py-12 text-slate-500 text-xs">
+                No testimonials found. Click "Add Direct Testimonial" to create one.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* CREATE DIRECT TESTIMONIAL MODAL */}
+      {isTestimonialModalOpen && (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-6 space-y-4 shadow-2xl text-slate-900">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-emerald-600" /> Create Direct Testimonial
+              </h3>
+              <button onClick={() => setIsTestimonialModalOpen(false)} className="p-1.5 rounded-xl bg-slate-100 text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateTestimonial} className="space-y-3.5 text-xs">
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Author Name *</label>
+                <input
+                  type="text"
+                  value={testimonialForm.name}
+                  onChange={(e) => setTestimonialForm({ ...testimonialForm, name: e.target.value })}
+                  placeholder="e.g. Dr. Ramesh Gupta"
+                  required
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium outline-none focus:border-emerald-500 focus:bg-white transition-all"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Role / Designation</label>
+                  <input
+                    type="text"
+                    value={testimonialForm.role}
+                    onChange={(e) => setTestimonialForm({ ...testimonialForm, role: e.target.value })}
+                    placeholder="e.g. Principal / Director"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium outline-none focus:border-emerald-500 focus:bg-white transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">School / Institution</label>
+                  <input
+                    type="text"
+                    value={testimonialForm.schoolName}
+                    onChange={(e) => setTestimonialForm({ ...testimonialForm, schoolName: e.target.value })}
+                    placeholder="e.g. Oxford High School"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium outline-none focus:border-emerald-500 focus:bg-white transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-slate-700 font-bold block mb-1">Testimonial Quote *</label>
+                <textarea
+                  value={testimonialForm.text}
+                  onChange={(e) => setTestimonialForm({ ...testimonialForm, text: e.target.value })}
+                  placeholder="Write the school review or feedback here..."
+                  required
+                  rows={4}
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-medium outline-none focus:border-emerald-500 focus:bg-white transition-all resize-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Rating (1 to 5 Stars)</label>
+                  <select
+                    value={testimonialForm.rating}
+                    onChange={(e) => setTestimonialForm({ ...testimonialForm, rating: Number(e.target.value) })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold outline-none focus:border-emerald-500 focus:bg-white transition-all"
+                  >
+                    <option value={5}>5 Stars ⭐⭐⭐⭐⭐</option>
+                    <option value={4}>4 Stars ⭐⭐⭐⭐</option>
+                    <option value={3}>3 Stars ⭐⭐⭐</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Badge Theme Color</label>
+                  <select
+                    value={testimonialForm.color}
+                    onChange={(e) => setTestimonialForm({ ...testimonialForm, color: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold outline-none focus:border-emerald-500 focus:bg-white transition-all"
+                  >
+                    <option value="#059669">Emerald Green</option>
+                    <option value="#2563eb">Royal Blue</option>
+                    <option value="#9333ea">Purple</option>
+                    <option value="#d97706">Amber Gold</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-3 flex items-center justify-end space-x-3 border-t border-slate-100">
+                <button type="button" onClick={() => setIsTestimonialModalOpen(false)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all">
+                  Cancel
+                </button>
+                <button type="submit" disabled={loading} style={{ color: '#ffffff', backgroundColor: '#059669' }} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl shadow-lg transition-all">
+                  <span style={{ color: '#ffffff' }}>{loading ? 'Publishing...' : 'Publish to Landing Page'}</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

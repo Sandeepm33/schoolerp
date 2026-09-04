@@ -30,9 +30,9 @@ export default function AppLayoutWrapper({ children }) {
     });
   };
 
-  const isLoginPage = pathname === '/login' || (!user && pathname === '/');
+  const isShellFree = pathname === '/login' || pathname === '/landing' || (!user && pathname === '/');
 
-  if (isLoginPage) {
+  if (isShellFree) {
     return (
       <div className="min-h-screen bg-[#f4f6f8] text-slate-900 transition-colors">
         {children}

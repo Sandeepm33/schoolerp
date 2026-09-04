@@ -2,13 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { usePathname } from 'next/navigation';
-import { Sparkles, ShieldCheck, Search, Bell, Command, Palette, PanelLeftClose, PanelLeftOpen, Menu, Zap } from 'lucide-react';
+import { Sparkles, ShieldCheck, Search, Bell, Command, Palette, PanelLeftClose, PanelLeftOpen, Menu, Zap, MessageSquare } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import AIChatModal from './AIChatModal';
 import ThemeSelectorModal from './ThemeSelectorModal';
 import GlobalSearchModal from './GlobalSearchModal';
 import NotificationModal from './NotificationModal';
+import SubmitTestimonialModal from './SubmitTestimonialModal';
 
 export default function HeaderBar({ isSidebarCollapsed, onToggleSidebar }) {
   const pathname = usePathname();
@@ -19,6 +20,7 @@ export default function HeaderBar({ isSidebarCollapsed, onToggleSidebar }) {
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
+  const [isTestimonialOpen, setIsTestimonialOpen] = useState(false);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
 
   useEffect(() => {
@@ -187,6 +189,17 @@ export default function HeaderBar({ isSidebarCollapsed, onToggleSidebar }) {
           </span>
         )}
 
+        {/* Submit Testimonial / Review Button */}
+        <button
+          onClick={() => setIsTestimonialOpen(true)}
+          style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', borderColor: 'rgba(255, 255, 255, 0.25)', color: '#ffffff' }}
+          className="p-1.5 sm:px-2.5 sm:py-1 rounded-full border hover:bg-white/25 active:scale-95 transition-all flex items-center gap-1.5 shadow-xs text-white cursor-pointer"
+          title="Submit School Review for Landing Page"
+        >
+          <MessageSquare style={{ color: '#6ee7b7' }} className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-300" />
+          <span style={{ color: '#ffffff' }} className="hidden xl:inline text-[11px] font-bold text-white">Give Feedback</span>
+        </button>
+
         {/* Dynamic Theme Customizer Button */}
         <button
           onClick={() => setIsThemeModalOpen(true)}
@@ -250,6 +263,7 @@ export default function HeaderBar({ isSidebarCollapsed, onToggleSidebar }) {
       <GlobalSearchModal isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
       <AIChatModal isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
       <ThemeSelectorModal isOpen={isThemeModalOpen} onClose={() => setIsThemeModalOpen(false)} />
+      <SubmitTestimonialModal isOpen={isTestimonialOpen} onClose={() => setIsTestimonialOpen(false)} />
       <NotificationModal 
         isOpen={isNotificationOpen} 
         onClose={() => setIsNotificationOpen(false)} 

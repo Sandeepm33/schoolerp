@@ -1,7 +1,7 @@
 const { School, User, Student, Admission } = require('../models/coreModels');
 const { 
   SubscriptionPlan, Branch, SaaSInvoice, AuditLog, 
-  SecurityEvent, GlobalAnnouncement, FeatureFlag, SupportTicket, SalesLead 
+  SecurityEvent, GlobalAnnouncement, FeatureFlag, SupportTicket, SalesLead, Testimonial 
 } = require('../models/saasModels');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -507,7 +507,7 @@ const createInquiryLead = async (req, res) => {
       title: `🔔 New Inquiry Lead: ${cleanSchool}`,
       message: `Inquiry submitted by ${cleanName} (${cleanPhone}) for strength of ${cleanStrength || 'N/A'} students.`,
       type: 'INQUIRY',
-      link: '/saas-admin',
+      link: '/saas-admin?tab=support',
       targetRole: 'SAAS_SUPER_ADMIN'
     }).catch(() => {});
 
@@ -599,6 +599,141 @@ const getSaaSStats = async (req, res) => {
   }
 };
 
+// ==========================================
+// 9. TESTIMONIALS & APPROVAL WORKFLOW
+// ==========================================
+
+const getPublicTestimonials = async (req, res) => {
+  try {
+    let testimonials = await Testimonial.find({ status: 'APPROVED' }).sort({ createdAt: -1 });
+    if (testimonials.length === 0) {
+      testimonials = await Testimonial.create([
+        {
+          name: 'Dr. Priya Sharma',
+          role: 'Principal',
+          schoolName: 'Delhi Public School',
+          text: 'Moving our entire institution to Track 360 was the best decision we made. Online fee collection reached 95% in the very first month, and parents love the live bus tracking feature!',
+          rating: 5,
+          avatar: 'PS',
+          color: '#2563eb',
+          status: 'APPROVED',
+          submittedByRole: 'SCHOOL_ADMIN'
+        },
+        {
+          name: 'Mr. Rajesh Kumar',
+          role: 'Administrator',
+          schoolName: 'Greenwood Academy',
+          text: 'The report card generator module saved our teachers hundreds of hours during term exams. What used to take days is now generated in bulk PDF within minutes.',
+          rating: 5,
+          avatar: 'RK',
+          color: '#059669',
+          status: 'APPROVED',
+          submittedByRole: 'SCHOOL_ADMIN'
+        },
+        {
+          name: 'Mrs. Anitha Reddy',
+          role: 'Director',
+          schoolName: 'Sunrise Group of Schools',
+          text: 'We managed 3 branches with 3 different software earlier. Now everything is consolidated into one dashboard with role permissions and zero server overhead.',
+          rating: 5,
+          avatar: 'AR',
+          color: '#9333ea',
+          status: 'APPROVED',
+          submittedByRole: 'SCHOOL_ADMIN'
+        }
+      ]);
+    }
+    res.json(testimonials);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const getAdminTestimonials = async (req, res) => {
+  try {
+    const testimonials = await Testimonial.find().sort({ createdAt: -1 });
+    res.json(testimonials);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const submitTestimonial = async (req, res) => {
+  try {
+    const { name, role, schoolName, text, rating, avatar, color } = req.body;
+    if (!name || !text) {
+      return res.status(400).json({ message: 'Name and testimonial text are required.' });
+    }
+
+    const isSuperAdmin = req.user?.role === 'SAAS_SUPER_ADMIN';
+    const status = isSuperAdmin ? 'APPROVED' : 'PENDING';
+
+    const newTestimonial = new Testimonial({
+      name,
+      role: role || 'School Admin',
+      schoolName: schoolName || '',
+      text,
+      rating: rating || 5,
+      avatar: avatar || (name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()) || 'TS',
+      color: color || '#2563eb',
+      status,
+      submittedByRole: req.user?.role || 'SCHOOL_ADMIN'
+    });
+
+    await newTestimonial.save();
+
+    await createNotificationHelper({
+      title: `💬 New Testimonial Submitted`,
+      message: `Testimonial from ${name} (${schoolName || 'School'}) is pending approval for landing page.`,
+      type: 'SYSTEM',
+      link: '/saas-admin?tab=testimonials',
+      targetRole: 'SAAS_SUPER_ADMIN'
+    }).catch(() => {});
+
+    res.status(201).json({
+      message: isSuperAdmin 
+        ? 'Testimonial created and published to landing page!' 
+        : 'Testimonial submitted successfully! It will be displayed on the landing page once approved by SuperAdmin.',
+      testimonial: newTestimonial
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const updateTestimonialStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    const testimonial = await Testimonial.findById(id);
+    if (!testimonial) return res.status(404).json({ message: 'Testimonial not found' });
+
+    testimonial.status = status;
+    await testimonial.save();
+
+    await AuditLog.create({
+      performedByName: req.user?.name || 'SaaS Super Admin',
+      action: 'UPDATE_TESTIMONIAL_STATUS',
+      targetSchoolName: testimonial.schoolName || 'Landing Page',
+      details: `Changed testimonial status to ${status} for ${testimonial.name}`
+    }).catch(() => {});
+
+    res.json({ message: `Testimonial status updated to ${status}`, testimonial });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const deleteTestimonial = async (req, res) => {
+  try {
+    await Testimonial.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Testimonial deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   getSchools, createSchool, updateSchool, updateSchoolStatus, deleteSchool, impersonateSchoolAdmin,
   getGlobalUsers, resetUserPassword,
@@ -606,5 +741,6 @@ module.exports = {
   getBranches, createBranch,
   getSecurityEvents, getSaaSInvoices, getFeatureFlags, getSupportTickets, getSalesLeads, createInquiryLead,
   getAnnouncements, createAnnouncement, deleteAnnouncement,
-  getAuditLogs, getSaaSStats
+  getAuditLogs, getSaaSStats,
+  getPublicTestimonials, getAdminTestimonials, submitTestimonial, updateTestimonialStatus, deleteTestimonial
 };

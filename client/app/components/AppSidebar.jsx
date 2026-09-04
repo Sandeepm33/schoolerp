@@ -61,23 +61,9 @@ function SidebarContent({ isCollapsed, onToggle }) {
     switch (activeRole) {
       case 'SAAS_SUPER_ADMIN':
         return [
-          { label: 'Platform & Tenancy', items: [
+          { label: '👑 SAAS MASTER CONTROL', items: [
             { label: 'Platform Overview', shortLabel: 'Overview', href: '/saas-admin?tab=overview', tab: 'overview', icon: Activity },
-            { label: 'School Directory', shortLabel: 'Schools', href: '/saas-admin?tab=schools', tab: 'schools', icon: Building2 },
-            { label: 'Plans & Features Matrix', shortLabel: 'Plans', href: '/saas-admin?tab=plans', tab: 'plans', icon: Sliders },
-            { label: 'Global Users & RBAC', shortLabel: 'Users', href: '/saas-admin?tab=users', tab: 'users', icon: Users },
-          ]},
-          { label: 'Security & Limits', items: [
-            { label: 'Security & IP Controls', shortLabel: 'Security', href: '/saas-admin?tab=security', tab: 'security', icon: Shield },
-            { label: 'Storage & Document Quotas', shortLabel: 'Storage', href: '/saas-admin?tab=usage', tab: 'usage', icon: HardDrive },
-            { label: 'Feature Flags Engine', shortLabel: 'Modules', href: '/saas-admin?tab=modules', tab: 'modules', icon: Box },
-            { label: 'AI Token Quotas & Costs', shortLabel: 'AI Tokens', href: '/saas-admin?tab=ai', tab: 'ai', icon: Cpu },
-          ]},
-          { label: 'Business & Support', items: [
-            { label: 'SaaS Business Analytics', shortLabel: 'Analytics', href: '/saas-admin?tab=analytics', tab: 'analytics', icon: DollarSign },
-            { label: 'Broadcast Communication', shortLabel: 'Broadcast', href: '/saas-admin?tab=communication', tab: 'communication', icon: Bell },
-            { label: 'Support Tickets & Sales CRM', shortLabel: 'Support', href: '/saas-admin?tab=support', tab: 'support', icon: HelpCircle },
-            { label: 'System Health & Audit Logs', shortLabel: 'Audit', href: '/saas-admin?tab=audit', tab: 'audit', icon: FileText },
+            { label: 'All Services', shortLabel: 'Services', href: '/saas-admin?tab=services', tab: 'services', icon: Box },
           ]}
         ];
 

@@ -56,6 +56,13 @@ router.delete('/saas/announcements/:id', authMiddleware, saas.deleteAnnouncement
 router.get('/saas/audit-logs', authMiddleware, saas.getAuditLogs);
 router.get('/saas/stats', authMiddleware, saas.getSaaSStats);
 
+// Dynamic Landing Page Testimonials & Approval Workflow Routes
+router.get('/testimonials', saas.getPublicTestimonials);
+router.post('/testimonials', saas.submitTestimonial);
+router.get('/saas/testimonials', authMiddleware, saas.getAdminTestimonials);
+router.put('/saas/testimonials/:id/status', authMiddleware, saas.updateTestimonialStatus);
+router.delete('/saas/testimonials/:id', authMiddleware, saas.deleteTestimonial);
+
 // Dynamic Notifications Routes (Supports both /notifications and /saas/notifications)
 router.get('/notifications', notifications.getNotifications);
 router.get('/saas/notifications', notifications.getNotifications);

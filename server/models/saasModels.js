@@ -146,6 +146,20 @@ const NotificationSchema = new mongoose.Schema({
   createdAt: { type: Date, default: Date.now }
 }, { strict: false });
 
+// 11. TESTIMONIAL SCHEMA (DYNAMIC LANDING PAGE REVIEWS & APPROVAL WORKFLOW)
+const TestimonialSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  role: { type: String, required: true },
+  schoolName: { type: String, default: '' },
+  text: { type: String, required: true },
+  rating: { type: Number, default: 5 },
+  avatar: { type: String, default: 'PS' },
+  color: { type: String, default: '#2563eb' },
+  status: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'], default: 'PENDING' },
+  submittedByRole: { type: String, default: 'SCHOOL_ADMIN' },
+  createdAt: { type: Date, default: Date.now }
+});
+
 module.exports = {
   SubscriptionPlan: mongoose.models.SubscriptionPlan || mongoose.model('SubscriptionPlan', SubscriptionPlanSchema),
   Branch: mongoose.models.Branch || mongoose.model('Branch', BranchSchema),
@@ -156,5 +170,6 @@ module.exports = {
   FeatureFlag: mongoose.models.FeatureFlag || mongoose.model('FeatureFlag', FeatureFlagSchema),
   SupportTicket: mongoose.model('SupportTicket', SupportTicketSchema),
   SalesLead: mongoose.model('SalesLead', SalesLeadSchema),
-  Notification: mongoose.model('Notification', NotificationSchema)
+  Notification: mongoose.model('Notification', NotificationSchema),
+  Testimonial: mongoose.models.Testimonial || mongoose.model('Testimonial', TestimonialSchema)
 };
