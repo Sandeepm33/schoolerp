@@ -14,6 +14,61 @@ import { useTheme } from '../context/ThemeContext';
 import { useDataSync, notifyGlobalDataChange } from '../context/DataSyncContext';
 import AllServicesPanel from './AllServicesPanel';
 
+const ALL_GRANULAR_MODULES = [
+  { key: 'admissions', label: 'Admissions & Forms', category: 'Students & Admissions' },
+  { key: 'enquiry', label: 'Enquiry & Leads CRM', category: 'Students & Admissions' },
+  { key: 'students', label: 'Student Directory', category: 'Students & Admissions' },
+  { key: 'parents', label: 'Parent Directory', category: 'Students & Admissions' },
+  { key: 'health', label: 'Health Records', category: 'Students & Admissions' },
+  { key: 'discipline', label: 'Discipline Tracker', category: 'Students & Admissions' },
+  { key: 'ai-risk', label: 'AI Risk Detector', category: 'Students & Admissions' },
+
+  { key: 'academic-years', label: 'Academic Sessions', category: 'Academics & Exams' },
+  { key: 'classes', label: 'Classes & Sections', category: 'Academics & Exams' },
+  { key: 'subjects', label: 'Subjects Catalog', category: 'Academics & Exams' },
+  { key: 'timetable', label: 'Timetable Builder', category: 'Academics & Exams' },
+  { key: 'homework', label: 'Homework Manager', category: 'Academics & Exams' },
+  { key: 'lms', label: 'LMS & E-Learning', category: 'Academics & Exams' },
+  { key: 'exams', label: 'Exams & Schedules', category: 'Academics & Exams' },
+  { key: 'marks', label: 'Report Cards & Marks', category: 'Academics & Exams' },
+
+  { key: 'attendance', label: 'Student Attendance', category: 'Attendance & HRMS' },
+  { key: 'staff-attendance', label: 'Staff GPS Clock In', category: 'Attendance & HRMS' },
+  { key: 'employees', label: 'Employee HRMS', category: 'Attendance & HRMS' },
+  { key: 'departments', label: 'Department Setup', category: 'Attendance & HRMS' },
+  { key: 'leave', label: 'Staff Leave Approval', category: 'Attendance & HRMS' },
+  { key: 'payroll', label: 'Payroll & Salary', category: 'Attendance & HRMS' },
+
+  { key: 'fee-categories', label: 'Fee Heads & Setup', category: 'Finance & Fees' },
+  { key: 'fee-structures', label: 'Fee Structures', category: 'Finance & Fees' },
+  { key: 'student-fees', label: 'Student Fee Payments', category: 'Finance & Fees' },
+
+  { key: 'library', label: 'Library System', category: 'Campus & Facilities' },
+  { key: 'transport', label: 'Transport & GPS Fleet', category: 'Campus & Facilities' },
+  { key: 'hostel', label: 'Hostels & Rooms', category: 'Campus & Facilities' },
+  { key: 'inventory', label: 'Asset Inventory', category: 'Campus & Facilities' },
+
+  { key: 'announcements', label: 'Announcements & Alerts', category: 'Communication & Admin' },
+  { key: 'events', label: 'School Calendar', category: 'Communication & Admin' },
+  { key: 'visitors', label: 'Visitor Gate Passes', category: 'Communication & Admin' },
+  { key: 'certificates', label: 'Certificates & TC', category: 'Communication & Admin' },
+  { key: 'helpdesk', label: 'Campus Helpdesk', category: 'Communication & Admin' },
+  { key: 'audit-logs', label: 'Audit Logs & Security', category: 'Communication & Admin' },
+  { key: 'reports', label: 'Reports & Analytics', category: 'Communication & Admin' },
+  { key: 'settings', label: 'School Settings', category: 'Communication & Admin' },
+
+  { key: 'ai', label: 'AI Token Engine', category: 'Advanced Platform Flags' },
+  { key: 'api', label: 'API & Webhooks', category: 'Advanced Platform Flags' },
+  { key: 'multiBranch', label: 'Multi-Branch Engine', category: 'Advanced Platform Flags' },
+  { key: 'whiteLabel', label: 'White Label Custom Domain', category: 'Advanced Platform Flags' }
+];
+
+const getModuleLabel = (key) => {
+  const found = ALL_GRANULAR_MODULES.find(m => m.key === key);
+  if (found) return found.label;
+  return key.charAt(0).toUpperCase() + key.slice(1).replace(/([A-Z])/g, ' $1').replace(/-/g, ' ');
+};
+
 function SaaSAdminContent(props) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -57,6 +112,23 @@ function SaaSAdminContent(props) {
     totalStudents: 0, totalUsers: 0, totalAdmissions: 0,
     estimatedARR: 0, estimatedMRR: 0, storageUsedGb: 0, aiRequestsUsed: 0,
     systemHealth: '100% EXCELLENT'
+  });
+
+  // Dynamic Plan CRUD & Custom Feature States
+  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+  const [isAddFeatureModalOpen, setIsAddFeatureModalOpen] = useState(false);
+  const [customFeatureName, setCustomFeatureName] = useState('');
+  const [planForm, setPlanForm] = useState({
+    _id: '',
+    name: '',
+    code: '',
+    priceMonthly: 99,
+    priceAnnual: 990,
+    studentLimit: 500,
+    teacherLimit: 50,
+    storageLimitGb: 20,
+    aiTokenLimit: 10000,
+    features: ALL_GRANULAR_MODULES.reduce((acc, m) => ({ ...acc, [m.key]: true }), {})
   });
 
   const [loading, setLoading] = useState(false);
@@ -336,6 +408,78 @@ function SaaSAdminContent(props) {
     }
   };
 
+  const handleSavePlan = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    let activeToken = token || localStorage.getItem('erp_token') || `demo_token_saas_super_admin`;
+    try {
+      const res = await fetch(`${API_BASE}/saas/plans`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${activeToken}` },
+        body: JSON.stringify(planForm)
+      });
+      if (res.ok) {
+        alert(`✅ Subscription Plan '${planForm.name}' saved to MongoDB Atlas!`);
+        setIsPlanModalOpen(false);
+        fetchSaaSData();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.message || 'Failed to save subscription plan');
+      }
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeletePlan = async (planId, planName) => {
+    if (!confirm(`⚠️ ARE YOU SURE? Delete subscription plan '${planName}' from MongoDB Atlas?`)) return;
+    let activeToken = token || localStorage.getItem('erp_token') || `demo_token_saas_super_admin`;
+    try {
+      const res = await fetch(`${API_BASE}/saas/plans/${planId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${activeToken}` }
+      });
+      if (res.ok) {
+        alert(`🗑️ Subscription plan '${planName}' deleted`);
+        fetchSaaSData();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.message || 'Failed to delete plan');
+      }
+    } catch (e) {
+      alert(e.message);
+    }
+  };
+
+  const handleAddCustomFeatureColumn = async (e) => {
+    e.preventDefault();
+    if (!customFeatureName.trim()) return;
+    setLoading(true);
+    let activeToken = token || localStorage.getItem('erp_token') || `demo_token_saas_super_admin`;
+    try {
+      const res = await fetch(`${API_BASE}/saas/plans/add-feature-key`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${activeToken}` },
+        body: JSON.stringify({ featureKey: customFeatureName.trim(), defaultValue: false })
+      });
+      if (res.ok) {
+        alert(`✨ Added dynamic feature key '${customFeatureName}' to matrix across all plans!`);
+        setIsAddFeatureModalOpen(false);
+        setCustomFeatureName('');
+        fetchSaaSData();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert(data.message || 'Failed to add feature key');
+      }
+    } catch (e) {
+      alert(e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleResetPassword = async (userId, userEmail) => {
     const newPass = prompt(`Enter new password for ${userEmail}:`, 'password123');
     if (!newPass) return;
@@ -451,6 +595,34 @@ function SaaSAdminContent(props) {
     { key: 'testimonials', label: 'Landing Testimonials', icon: MessageSquare },
     { key: 'audit', label: 'Audit Logs', icon: FileText }
   ];
+
+  const { user } = useAuth();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
+  const isSuperAdminUser = user?.role === 'SAAS_SUPER_ADMIN' || user?.isSuperAdmin;
+
+  if (mounted && user && !isSuperAdminUser && !user.isImpersonated) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-center text-white">
+        <div className="max-w-md bg-slate-900 border border-slate-800 p-8 rounded-3xl space-y-4 shadow-2xl">
+          <div className="w-16 h-16 rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center mx-auto">
+            <Shield className="w-8 h-8 text-rose-400" />
+          </div>
+          <h2 className="text-xl font-black text-white">Access Restricted</h2>
+          <p className="text-xs text-slate-400 leading-relaxed font-medium">
+            The SaaS Master Control Panel is reserved for <strong>SaaS Super Administrators</strong>. School Admins cannot modify global subscription plans or tenant feature limits.
+          </p>
+          <button
+            onClick={() => router.push('/admin/dashboard')}
+            className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-bold text-xs shadow-lg transition cursor-pointer"
+          >
+            Return to School Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -908,138 +1080,276 @@ function SaaSAdminContent(props) {
       )}
 
       {/* VIEW 3: DYNAMIC PLANS & FEATURE MATRIX */}
-      {activeTab === 'plans' && (
-        <div style={{ backgroundColor: '#ffffff', color: '#0f172a' }} className="p-6 rounded-3xl border border-slate-200 shadow-xl space-y-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div>
-              <h3 style={{ color: '#0f172a' }} className="text-xl font-black">Dynamic Plan Feature Control Matrix</h3>
-              <p style={{ color: '#475569' }} className="text-xs font-semibold">Toggle features ON/OFF per plan live in MongoDB Atlas without deploying code</p>
-            </div>
+      {activeTab === 'plans' && (() => {
+        const allFeatureKeys = Array.from(
+          new Set([
+            ...ALL_GRANULAR_MODULES.map(m => m.key),
+            ...plans.flatMap(p => p.features ? Object.keys(p.features) : [])
+          ])
+        );
 
-            <div style={{ backgroundColor: '#f1f5f9', borderColor: '#cbd5e1' }} className="flex items-center p-1 rounded-2xl border shadow-xs">
-              <button
-                type="button"
-                onClick={() => setPlanViewMode('list')}
-                style={planViewMode === 'list'
-                  ? { backgroundColor: brandColor, color: '#ffffff' }
-                  : { backgroundColor: 'transparent', color: '#64748b' }
-                }
-                className="px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition cursor-pointer border-none"
-              >
-                <List className="w-3.5 h-3.5" />
-                <span>List View</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setPlanViewMode('grid')}
-                style={planViewMode === 'grid'
-                  ? { backgroundColor: brandColor, color: '#ffffff' }
-                  : { backgroundColor: 'transparent', color: '#64748b' }
-                }
-                className="px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition cursor-pointer border-none"
-              >
-                <LayoutGrid className="w-3.5 h-3.5" />
-                <span>Grid View</span>
-              </button>
-            </div>
-          </div>
+        return (
+          <div style={{ backgroundColor: '#ffffff', color: '#0f172a' }} className="p-6 rounded-3xl border border-slate-200 shadow-xl space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h3 style={{ color: '#0f172a' }} className="text-xl font-black">Dynamic Plan Feature Control Matrix</h3>
+                <p style={{ color: '#475569' }} className="text-xs font-semibold">Create plans, edit limits & pricing, add dynamic feature columns, and toggle features live in Atlas</p>
+              </div>
 
-          {planViewMode === 'grid' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
-              {plans.map(p => (
-                <div
-                  key={p.code}
-                  style={{
-                    backgroundColor: '#ffffff',
-                    borderColor: '#cbd5e1',
-                    boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04)'
+              <div className="flex items-center gap-3 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPlanForm({
+                      _id: '',
+                      name: '',
+                      code: '',
+                      priceMonthly: 199,
+                      priceAnnual: 1990,
+                      studentLimit: 1000,
+                      teacherLimit: 100,
+                      storageLimitGb: 50,
+                      aiTokenLimit: 25000,
+                      features: ALL_GRANULAR_MODULES.reduce((acc, m) => ({ ...acc, [m.key]: false }), {})
+                    });
+                    setIsPlanModalOpen(true);
                   }}
-                  className="p-5 rounded-3xl border-2 space-y-4 flex flex-col justify-between"
+                  style={{ color: '#ffffff', backgroundColor: brandColor }}
+                  className="px-4 py-2.5 rounded-2xl text-xs font-black flex items-center gap-1.5 shadow-md hover:opacity-90 transition cursor-pointer border-none"
                 >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-                      <div>
-                        <h4 style={{ color: '#0f172a' }} className="font-black text-base leading-tight">{p.name}</h4>
-                        <span style={{ color: brandColor }} className="text-xs font-mono font-bold">({p.code})</span>
+                  <Plus className="w-4 h-4 text-white" />
+                  <span style={{ color: '#ffffff' }}>Create New Plan</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsAddFeatureModalOpen(true)}
+                  style={{ backgroundColor: '#fef3c7', color: '#b45309', borderColor: '#fcd34d' }}
+                  className="px-4 py-2.5 rounded-2xl text-xs font-black border flex items-center gap-1.5 hover:bg-amber-200 transition cursor-pointer shadow-xs"
+                >
+                  <Sliders className="w-4 h-4" style={{ color: '#b45309' }} />
+                  <span>+ Add Dynamic Feature Column</span>
+                </button>
+
+                <div style={{ backgroundColor: '#f1f5f9', borderColor: '#cbd5e1' }} className="flex items-center p-1 rounded-2xl border shadow-xs">
+                  <button
+                    type="button"
+                    onClick={() => setPlanViewMode('list')}
+                    style={planViewMode === 'list'
+                      ? { backgroundColor: brandColor, color: '#ffffff' }
+                      : { backgroundColor: 'transparent', color: '#64748b' }
+                    }
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition cursor-pointer border-none"
+                  >
+                    <List className="w-3.5 h-3.5" />
+                    <span>List View</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPlanViewMode('grid')}
+                    style={planViewMode === 'grid'
+                      ? { backgroundColor: brandColor, color: '#ffffff' }
+                      : { backgroundColor: 'transparent', color: '#64748b' }
+                    }
+                    className="px-3.5 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 transition cursor-pointer border-none"
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span>Grid View</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {planViewMode === 'grid' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2">
+                {plans.map(p => (
+                  <div
+                    key={p.code || p._id}
+                    style={{
+                      backgroundColor: '#ffffff',
+                      borderColor: '#cbd5e1',
+                      boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04)'
+                    }}
+                    className="p-5 rounded-3xl border-2 space-y-4 flex flex-col justify-between hover:border-emerald-500 transition-all"
+                  >
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+                        <div>
+                          <h4 style={{ color: '#0f172a' }} className="font-black text-base leading-tight">{p.name}</h4>
+                          <span style={{ color: brandColor }} className="text-xs font-mono font-bold">({p.code})</span>
+                        </div>
+                        <span style={{ backgroundColor: '#d1fae5', color: brandColor, borderColor: '#6ee7b7' }} className="px-3 py-1 rounded-full text-xs font-black border">
+                          ${p.priceMonthly}/mo
+                        </span>
                       </div>
-                      <span style={{ backgroundColor: '#d1fae5', color: brandColor, borderColor: '#6ee7b7' }} className="px-3 py-1 rounded-full text-xs font-black border">
-                        ${p.priceMonthly}/mo
-                      </span>
+
+                      <div style={{ backgroundColor: '#f8fafc', borderColor: '#e2e8f0' }} className="p-3 rounded-2xl border space-y-1 text-xs">
+                        <div className="flex justify-between">
+                          <span style={{ color: '#64748b' }} className="font-bold">Student Limit:</span>
+                          <span style={{ color: '#0f172a' }} className="font-black">{p.studentLimit || 500}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span style={{ color: '#64748b' }} className="font-bold">Storage Limit:</span>
+                          <span style={{ color: '#0f172a' }} className="font-black">{p.storageLimitGb || 10} GB</span>
+                        </div>
+                      </div>
+
+                      <div style={{ backgroundColor: '#f8fafc', borderColor: '#e2e8f0' }} className="p-3.5 rounded-2xl border space-y-2 max-h-[300px] overflow-y-auto">
+                        <div className="text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1">Module Feature Access:</div>
+                        {allFeatureKeys.map(feat => {
+                          const enabled = p.features && p.features[feat];
+                          return (
+                            <div key={feat} className="flex items-center justify-between text-xs py-1 border-b border-slate-100 last:border-0">
+                              <span style={{ color: '#475569' }} className="font-bold">{getModuleLabel(feat)}:</span>
+                              <button
+                                type="button"
+                                onClick={() => handleTogglePlanFeature(p.code, feat, enabled)}
+                                style={enabled
+                                  ? { backgroundColor: '#d1fae5', color: brandColor, borderColor: '#6ee7b7' }
+                                  : { backgroundColor: '#f1f5f9', color: '#64748b', borderColor: '#cbd5e1' }
+                                }
+                                className="px-3 py-1 rounded-xl text-[10px] font-black border transition cursor-pointer"
+                              >
+                                {enabled ? '✅ ENABLED' : '❌ OFF'}
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
 
-                    <div style={{ backgroundColor: '#f8fafc', borderColor: '#e2e8f0' }} className="p-3.5 rounded-2xl border space-y-2">
-                      <div className="text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1">Module Access:</div>
-                      {['admissions', 'exams', 'payroll', 'transport', 'ai', 'api', 'multiBranch'].map(feat => {
-                        const enabled = p.features && p.features[feat];
-                        return (
-                          <div key={feat} className="flex items-center justify-between text-xs py-1 border-b border-slate-100 last:border-0">
-                            <span style={{ color: '#475569' }} className="font-bold capitalize">{feat}:</span>
-                            <button
-                              type="button"
-                              onClick={() => handleTogglePlanFeature(p.code, feat, enabled)}
-                              style={enabled
-                                ? { backgroundColor: '#d1fae5', color: brandColor, borderColor: '#6ee7b7' }
-                                : { backgroundColor: '#f1f5f9', color: '#64748b', borderColor: '#cbd5e1' }
-                              }
-                              className="px-3 py-1 rounded-xl text-[10px] font-black border transition cursor-pointer"
-                            >
-                              {enabled ? '✅ ENABLED' : '❌ OFF'}
-                            </button>
-                          </div>
-                        );
-                      })}
+                    <div className="pt-3 border-t border-slate-200 flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPlanForm({
+                            _id: p._id || '',
+                            name: p.name || '',
+                            code: p.code || '',
+                            priceMonthly: p.priceMonthly || 0,
+                            priceAnnual: p.priceAnnual || 0,
+                            studentLimit: p.studentLimit || 500,
+                            teacherLimit: p.teacherLimit || 50,
+                            storageLimitGb: p.storageLimitGb || 10,
+                            aiTokenLimit: p.aiTokenLimit || 10000,
+                            features: ALL_GRANULAR_MODULES.reduce((acc, m) => ({
+                              ...acc,
+                              [m.key]: (p.features && p.features[m.key] !== undefined) ? Boolean(p.features[m.key]) : false
+                            }), { ...(p.features || {}) })
+                          });
+                          setIsPlanModalOpen(true);
+                        }}
+                        style={{ backgroundColor: '#e0e7ff', color: brandColor, borderColor: '#c7d2fe' }}
+                        className="flex-1 py-2 rounded-xl text-xs font-black border flex items-center justify-center gap-1 cursor-pointer transition shadow-xs hover:bg-indigo-100"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" style={{ color: brandColor }} />
+                        <span>Edit Plan</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePlan(p._id || p.code, p.name)}
+                        style={{ backgroundColor: '#ffe4e6', color: '#e11d48', borderColor: '#fca5a5' }}
+                        className="p-2 rounded-xl border text-xs font-black flex items-center justify-center cursor-pointer transition shadow-xs hover:bg-rose-200"
+                        title="Delete Plan"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" style={{ color: '#e11d48' }} />
+                      </button>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-xs">
-              <table className="w-full text-left text-xs">
-                <thead style={{ backgroundColor: '#f8fafc', color: '#475569', borderColor: '#e2e8f0' }} className="uppercase font-black border-b">
-                  <tr>
-                    <th className="p-4">Plan Name</th>
-                    <th className="p-4">Price</th>
-                    <th className="p-4">Admissions</th>
-                    <th className="p-4">Exams</th>
-                    <th className="p-4">HRMS/Payroll</th>
-                    <th className="p-4">Transport</th>
-                    <th className="p-4">AI Engine</th>
-                    <th className="p-4">API Access</th>
-                    <th className="p-4">Multi-Branch</th>
-                  </tr>
-                </thead>
-                <tbody style={{ backgroundColor: '#ffffff', color: '#0f172a' }} className="divide-y divide-slate-200 font-semibold">
-                  {plans.map(p => (
-                    <tr key={p.code} className="hover:bg-slate-50 transition">
-                      <td className="p-4 font-black text-sm" style={{ color: '#0f172a' }}>{p.name} <span className="font-mono text-indigo-600">({p.code})</span></td>
-                      <td className="p-4 font-black text-xs" style={{ color: brandColor }}>${p.priceMonthly}/mo</td>
-                      {['admissions', 'exams', 'payroll', 'transport', 'ai', 'api', 'multiBranch'].map(feat => {
-                        const enabled = p.features && p.features[feat];
-                        return (
-                          <td key={feat} className="p-4">
+                ))}
+              </div>
+            ) : (
+              <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-xs">
+                <table className="w-full text-left text-xs">
+                  <thead style={{ backgroundColor: '#f8fafc', color: '#475569', borderColor: '#e2e8f0' }} className="uppercase font-black border-b">
+                    <tr>
+                      <th className="p-4">Plan Name</th>
+                      <th className="p-4">Monthly Price</th>
+                      <th className="p-4">Student Limit</th>
+                      <th className="p-4">Storage GB</th>
+                      {allFeatureKeys.map(feat => (
+                        <th key={feat} className="p-4 whitespace-nowrap text-xs">{getModuleLabel(feat)}</th>
+                      ))}
+                      <th className="p-4">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody style={{ backgroundColor: '#ffffff', color: '#0f172a' }} className="divide-y divide-slate-200 font-semibold">
+                    {plans.map(p => (
+                      <tr key={p.code || p._id} className="hover:bg-slate-50 transition">
+                        <td className="p-4 font-black text-sm" style={{ color: '#0f172a' }}>
+                          {p.name} <span className="font-mono text-indigo-600">({p.code})</span>
+                        </td>
+                        <td className="p-4 font-black text-xs" style={{ color: brandColor }}>${p.priceMonthly}/mo</td>
+                        <td className="p-4 font-black text-xs" style={{ color: '#334155' }}>{p.studentLimit || 500}</td>
+                        <td className="p-4 font-black text-xs" style={{ color: '#334155' }}>{p.storageLimitGb || 10} GB</td>
+                        {allFeatureKeys.map(feat => {
+                          const enabled = p.features && p.features[feat];
+                          return (
+                            <td key={feat} className="p-4">
+                              <button
+                                type="button"
+                                onClick={() => handleTogglePlanFeature(p.code, feat, enabled)}
+                                style={enabled
+                                  ? { backgroundColor: '#d1fae5', color: brandColor, borderColor: '#6ee7b7' }
+                                  : { backgroundColor: '#f1f5f9', color: '#64748b', borderColor: '#cbd5e1' }
+                                }
+                                className="px-3 py-1 rounded-xl text-[10px] font-black border transition cursor-pointer"
+                              >
+                                {enabled ? '✅ ENABLED' : '❌ OFF'}
+                              </button>
+                            </td>
+                          );
+                        })}
+                        <td className="p-4">
+                          <div className="flex items-center gap-2">
                             <button
                               type="button"
-                              onClick={() => handleTogglePlanFeature(p.code, feat, enabled)}
-                              style={enabled
-                                ? { backgroundColor: '#d1fae5', color: brandColor, borderColor: '#6ee7b7' }
-                                : { backgroundColor: '#f1f5f9', color: '#64748b', borderColor: '#cbd5e1' }
-                              }
-                              className="px-3 py-1 rounded-xl text-[10px] font-black border transition cursor-pointer"
+                              onClick={() => {
+                                setPlanForm({
+                                  _id: p._id || '',
+                                  name: p.name || '',
+                                  code: p.code || '',
+                                  priceMonthly: p.priceMonthly || 0,
+                                  priceAnnual: p.priceAnnual || 0,
+                                  studentLimit: p.studentLimit || 500,
+                                  teacherLimit: p.teacherLimit || 50,
+                                  storageLimitGb: p.storageLimitGb || 10,
+                                  aiTokenLimit: p.aiTokenLimit || 10000,
+                                  features: ALL_GRANULAR_MODULES.reduce((acc, m) => ({
+                                    ...acc,
+                                    [m.key]: (p.features && p.features[m.key] !== undefined) ? Boolean(p.features[m.key]) : false
+                                  }), { ...(p.features || {}) })
+                                });
+                                setIsPlanModalOpen(true);
+                              }}
+                              style={{ backgroundColor: '#e0e7ff', color: brandColor, borderColor: '#c7d2fe' }}
+                              className="px-3 py-1.5 rounded-xl text-xs font-black border flex items-center gap-1 cursor-pointer transition shadow-xs hover:bg-indigo-100"
                             >
-                              {enabled ? '✅ ENABLED' : '❌ OFF'}
+                              <Edit3 className="w-3.5 h-3.5" style={{ color: brandColor }} />
+                              <span>Edit</span>
                             </button>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePlan(p._id || p.code, p.name)}
+                              style={{ backgroundColor: '#ffe4e6', color: '#e11d48', borderColor: '#fca5a5' }}
+                              className="p-1.5 rounded-xl border text-xs font-black cursor-pointer transition shadow-xs hover:bg-rose-200"
+                              title="Delete Plan"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" style={{ color: '#e11d48' }} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* VIEW 4: GLOBAL USER RBAC */}
       {activeTab === 'users' && (
@@ -2555,11 +2865,14 @@ function SaaSAdminContent(props) {
       {/* EDIT SCHOOL MODAL */}
       {editingSchool && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="w-full max-w-lg bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl text-slate-900">
+          <div className="w-full max-w-xl bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl text-slate-900 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                <Edit3 className="w-5 h-5 text-emerald-600" /> Edit School in MongoDB Atlas
-              </h3>
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                  <Edit3 className="w-5 h-5 text-emerald-600" /> Edit Tenant School Details in Atlas
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">Update school tenant profile, subscription plan, status, and contact details</p>
+              </div>
               <button 
                 onClick={() => setEditingSchool(null)} 
                 className="p-2 rounded-full bg-slate-100 text-slate-400 hover:text-slate-900 hover:bg-slate-200 transition-colors"
@@ -2568,16 +2881,101 @@ function SaaSAdminContent(props) {
               </button>
             </div>
             <form onSubmit={handleSaveEditSchool} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1.5">School Full Name *</label>
+                  <input 
+                    type="text" 
+                    value={editingSchool.name || ''} 
+                    onChange={(e) => setEditingSchool({ ...editingSchool, name: e.target.value })} 
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-900 font-bold focus:border-emerald-500 focus:bg-white outline-none transition-all" 
+                    required 
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1.5">School Code (Unique ID) *</label>
+                  <input 
+                    type="text" 
+                    value={editingSchool.code || ''} 
+                    onChange={(e) => setEditingSchool({ ...editingSchool, code: e.target.value.toUpperCase() })} 
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-900 uppercase font-mono font-bold focus:border-emerald-500 focus:bg-white outline-none transition-all" 
+                    required 
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1.5">School Email Address *</label>
+                  <input 
+                    type="email" 
+                    value={editingSchool.email || ''} 
+                    onChange={(e) => setEditingSchool({ ...editingSchool, email: e.target.value })} 
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-900 font-medium focus:border-emerald-500 focus:bg-white outline-none transition-all" 
+                    required 
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1.5">Contact Phone Number</label>
+                  <input 
+                    type="text" 
+                    value={editingSchool.phone || ''} 
+                    onChange={(e) => setEditingSchool({ ...editingSchool, phone: e.target.value })} 
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-900 font-medium focus:border-emerald-500 focus:bg-white outline-none transition-all" 
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1.5">Assigned Subscription Plan *</label>
+                  <select 
+                    value={editingSchool.subscriptionPlan || 'ENTERPRISE'} 
+                    onChange={(e) => setEditingSchool({ ...editingSchool, subscriptionPlan: e.target.value })} 
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-900 font-bold focus:border-emerald-500 focus:bg-white outline-none transition-all cursor-pointer"
+                    required
+                  >
+                    {plans.length > 0 ? (
+                      plans.map(p => (
+                        <option key={p.code || p._id} value={p.code}>
+                          {p.name} ({p.code})
+                        </option>
+                      ))
+                    ) : (
+                      <>
+                        <option value="BASIC">Basic Pro (BASIC)</option>
+                        <option value="PRO">Standard Pro (PRO)</option>
+                        <option value="ENTERPRISE">Ultra Enterprise (ENTERPRISE)</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1.5">School Account Status *</label>
+                  <select 
+                    value={editingSchool.status || 'ACTIVE'} 
+                    onChange={(e) => setEditingSchool({ ...editingSchool, status: e.target.value })} 
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-900 font-bold focus:border-emerald-500 focus:bg-white outline-none transition-all cursor-pointer"
+                    required
+                  >
+                    <option value="ACTIVE">ACTIVE (Full Access)</option>
+                    <option value="SUSPENDED">SUSPENDED (Access Blocked)</option>
+                  </select>
+                </div>
+              </div>
+
               <div>
-                <label className="text-slate-700 font-bold block mb-1.5">School Full Name</label>
-                <input 
-                  type="text" 
-                  value={editingSchool.name} 
-                  onChange={(e) => setEditingSchool({ ...editingSchool, name: e.target.value })} 
-                  className="w-full bg-white border border-slate-300 rounded-xl p-3 text-slate-900 font-medium focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all" 
-                  required 
+                <label className="text-slate-700 font-bold block mb-1.5">Campus Physical Address</label>
+                <textarea 
+                  value={editingSchool.address || ''} 
+                  onChange={(e) => setEditingSchool({ ...editingSchool, address: e.target.value })} 
+                  rows={2}
+                  placeholder="Street, City, State, ZIP..."
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-900 font-medium focus:border-emerald-500 focus:bg-white outline-none transition-all" 
                 />
               </div>
+
               <div className="pt-3 flex items-center justify-end space-x-3 border-t border-slate-100">
                 <button 
                   type="button" 
@@ -2588,10 +2986,232 @@ function SaaSAdminContent(props) {
                 </button>
                 <button 
                   type="submit" 
-                  style={{ color: '#ffffff', backgroundColor: '#059669' }}
-                  className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold rounded-xl shadow-md transition-all cursor-pointer"
+                  style={{ color: '#ffffff', backgroundColor: brandColor }}
+                  className="px-6 py-2.5 text-white font-extrabold rounded-xl shadow-md transition-all cursor-pointer border-none"
                 >
-                  <span style={{ color: '#ffffff' }}>Update Atlas</span>
+                  <span style={{ color: '#ffffff' }}>Update Atlas Tenant</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE / EDIT SUBSCRIPTION PLAN MODAL */}
+      {isPlanModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="w-full max-w-2xl bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl max-h-[90vh] overflow-y-auto text-slate-900">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div>
+                <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
+                  <Sliders className="w-5 h-5 text-emerald-600" /> {planForm.code ? 'Edit Subscription Plan' : 'Create New Subscription Plan'}
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">Define plan pricing, tenant limits, and module permissions live in MongoDB Atlas</p>
+              </div>
+              <button 
+                onClick={() => setIsPlanModalOpen(false)} 
+                className="p-2 rounded-full bg-slate-100 text-slate-400 hover:text-slate-900 hover:bg-slate-200 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePlan} className="space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1.5">Plan Name *</label>
+                  <input 
+                    type="text" 
+                    value={planForm.name} 
+                    onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })} 
+                    placeholder="e.g. Ultra Enterprise" 
+                    required 
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-900 font-medium focus:border-emerald-500 focus:bg-white outline-none transition-all" 
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1.5">Plan Code (Unique ID) *</label>
+                  <input 
+                    type="text" 
+                    value={planForm.code} 
+                    onChange={(e) => setPlanForm({ ...planForm, code: e.target.value.toUpperCase() })} 
+                    placeholder="e.g. ULTRA_ENT" 
+                    required 
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-900 uppercase font-mono font-bold focus:border-emerald-500 focus:bg-white outline-none transition-all" 
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1.5">Price Monthly ($)</label>
+                  <input 
+                    type="number" 
+                    value={planForm.priceMonthly} 
+                    onChange={(e) => setPlanForm({ ...planForm, priceMonthly: Number(e.target.value) })} 
+                    required 
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-900 font-bold focus:border-emerald-500 focus:bg-white outline-none transition-all" 
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1.5">Price Annual ($)</label>
+                  <input 
+                    type="number" 
+                    value={planForm.priceAnnual} 
+                    onChange={(e) => setPlanForm({ ...planForm, priceAnnual: Number(e.target.value) })} 
+                    required 
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-900 font-bold focus:border-emerald-500 focus:bg-white outline-none transition-all" 
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Max Students</label>
+                  <input 
+                    type="number" 
+                    value={planForm.studentLimit} 
+                    onChange={(e) => setPlanForm({ ...planForm, studentLimit: Number(e.target.value) })} 
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold outline-none" 
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Max Teachers</label>
+                  <input 
+                    type="number" 
+                    value={planForm.teacherLimit} 
+                    onChange={(e) => setPlanForm({ ...planForm, teacherLimit: Number(e.target.value) })} 
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold outline-none" 
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">Storage (GB)</label>
+                  <input 
+                    type="number" 
+                    value={planForm.storageLimitGb} 
+                    onChange={(e) => setPlanForm({ ...planForm, storageLimitGb: Number(e.target.value) })} 
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold outline-none" 
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-700 font-bold block mb-1">AI Tokens</label>
+                  <input 
+                    type="number" 
+                    value={planForm.aiTokenLimit} 
+                    onChange={(e) => setPlanForm({ ...planForm, aiTokenLimit: Number(e.target.value) })} 
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl p-2.5 text-slate-900 font-bold outline-none" 
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <label className="text-xs font-black uppercase text-slate-800 tracking-wider block">
+                    MODULE PERMISSIONS MATRIX ({ALL_GRANULAR_MODULES.length} Services):
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allOn = {};
+                        ALL_GRANULAR_MODULES.forEach(m => { allOn[m.key] = true; });
+                        setPlanForm({ ...planForm, features: { ...planForm.features, ...allOn } });
+                      }}
+                      className="px-2.5 py-1 text-[11px] font-black rounded-lg bg-emerald-100 text-emerald-800 hover:bg-emerald-200 transition cursor-pointer border border-emerald-300"
+                    >
+                      ✓ Select All ({ALL_GRANULAR_MODULES.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allOff = {};
+                        ALL_GRANULAR_MODULES.forEach(m => { allOff[m.key] = false; });
+                        setPlanForm({ ...planForm, features: { ...planForm.features, ...allOff } });
+                      }}
+                      className="px-2.5 py-1 text-[11px] font-black rounded-lg bg-rose-100 text-rose-800 hover:bg-rose-200 transition cursor-pointer border border-rose-300"
+                    >
+                      ✕ Deselect All
+                    </button>
+                  </div>
+                </div>
+
+                {/* Categorized Granular Modules */}
+                {Array.from(new Set(ALL_GRANULAR_MODULES.map(m => m.category))).map(cat => (
+                  <div key={cat} className="space-y-2 pt-2 border-t border-slate-200 first:border-0 first:pt-0">
+                    <div className="text-[11px] font-black uppercase text-emerald-700 tracking-wider">{cat}</div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {ALL_GRANULAR_MODULES.filter(m => m.category === cat).map(m => {
+                        const isChecked = planForm.features ? Boolean(planForm.features[m.key]) : false;
+                        return (
+                          <label
+                            key={m.key}
+                            style={isChecked ? { backgroundColor: '#ecfdf5', borderColor: '#a7f3d0' } : { backgroundColor: '#ffffff', borderColor: '#e2e8f0' }}
+                            className="flex items-center gap-2.5 p-2 rounded-xl border cursor-pointer font-bold text-xs transition hover:border-emerald-400"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => setPlanForm({
+                                ...planForm,
+                                features: { ...planForm.features, [m.key]: e.target.checked }
+                              })}
+                              className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                            />
+                            <span className={isChecked ? 'text-emerald-950 font-black' : 'text-slate-700 font-bold'}>{m.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="pt-3 flex items-center justify-end space-x-3 border-t border-slate-100">
+                <button type="button" onClick={() => setIsPlanModalOpen(false)} className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all">
+                  Cancel
+                </button>
+                <button type="submit" disabled={loading} style={{ color: '#ffffff', backgroundColor: brandColor }} className="px-6 py-2.5 text-white font-extrabold rounded-xl shadow-lg transition-all cursor-pointer border-none">
+                  <span style={{ color: '#ffffff' }}>{loading ? 'Saving Plan...' : 'Save Plan to MongoDB Atlas'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ADD DYNAMIC FEATURE COLUMN MODAL */}
+      {isAddFeatureModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="w-full max-w-md bg-white border border-slate-200 rounded-3xl p-6 space-y-4 shadow-2xl text-slate-900">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <Sliders className="w-5 h-5 text-amber-600" /> Add Dynamic Feature Key
+              </h3>
+              <button onClick={() => setIsAddFeatureModalOpen(false)} className="p-2 rounded-full bg-slate-100 text-slate-400 hover:text-slate-900 hover:bg-slate-200 transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddCustomFeatureColumn} className="space-y-4 text-xs">
+              <div>
+                <label className="text-slate-700 font-bold block mb-1.5">New Feature Key Name *</label>
+                <input 
+                  type="text" 
+                  value={customFeatureName} 
+                  onChange={(e) => setCustomFeatureName(e.target.value)} 
+                  placeholder="e.g. biometricAttendance, busGps, onlineExams" 
+                  required 
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-900 font-bold focus:border-amber-500 outline-none transition-all" 
+                />
+                <p className="text-[11px] text-slate-500 font-medium mt-1">This will dynamically append a new feature control column across all subscription plans in MongoDB Atlas.</p>
+              </div>
+
+              <div className="pt-3 flex items-center justify-end space-x-3 border-t border-slate-100">
+                <button type="button" onClick={() => setIsAddFeatureModalOpen(false)} className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-all">
+                  Cancel
+                </button>
+                <button type="submit" disabled={loading} style={{ color: '#ffffff', backgroundColor: '#b45309' }} className="px-5 py-2.5 text-white font-extrabold rounded-xl shadow-md transition-all cursor-pointer border-none">
+                  <span style={{ color: '#ffffff' }}>{loading ? 'Adding...' : 'Add Feature Column'}</span>
                 </button>
               </div>
             </form>

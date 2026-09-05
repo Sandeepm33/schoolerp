@@ -217,6 +217,26 @@ const impersonateSchoolAdmin = async (req, res) => {
       details: `Impersonated School Admin (${adminUser.email}) for troubleshooting.`
     }).catch(() => {});
 
+    const { SubscriptionPlan } = require('../models/saasModels');
+    let planFeatures = null;
+    let planName = school.subscriptionPlan || 'BASIC';
+    let planCode = school.subscriptionPlan || 'BASIC';
+
+    if (school.subscriptionPlan) {
+      let planObj = await SubscriptionPlan.findOne({ code: school.subscriptionPlan });
+      if (!planObj) {
+        planObj = await SubscriptionPlan.findOne({ code: new RegExp(`^${school.subscriptionPlan}$`, 'i') });
+      }
+      if (!planObj) {
+        planObj = await SubscriptionPlan.findOne({ name: new RegExp(`^${school.subscriptionPlan}$`, 'i') });
+      }
+      if (planObj) {
+        planFeatures = planObj.features || {};
+        planName = planObj.name;
+        planCode = planObj.code;
+      }
+    }
+
     res.json({
       message: `Impersonation successful. Signed in as ${adminUser.name}`,
       token: impersonatedToken,
@@ -225,8 +245,12 @@ const impersonateSchoolAdmin = async (req, res) => {
         name: adminUser.name,
         email: adminUser.email,
         role: 'SCHOOL_ADMIN',
+        schoolId: school._id,
         schoolName: school.name,
-        schoolStatus: school.status
+        schoolStatus: school.status,
+        subscriptionPlan: planCode,
+        planName: planName,
+        planFeatures: planFeatures
       }
     });
   } catch (error) {
@@ -306,7 +330,8 @@ const createOrUpdatePlan = async (req, res) => {
       if (teacherLimit) plan.teacherLimit = teacherLimit;
       if (storageLimitGb) plan.storageLimitGb = storageLimitGb;
       if (aiTokenLimit) plan.aiTokenLimit = aiTokenLimit;
-      if (features) plan.features = { ...plan.features, ...features };
+      if (features) plan.features = features;
+      plan.markModified('features');
       await plan.save();
     } else {
       plan = new SubscriptionPlan({ code, name, priceMonthly, priceAnnual, studentLimit, teacherLimit, storageLimitGb, aiTokenLimit, features });
@@ -333,11 +358,57 @@ const togglePlanFeature = async (req, res) => {
     const plan = await SubscriptionPlan.findOne({ code: planCode });
     if (!plan) return res.status(404).json({ message: 'Plan not found' });
 
-    plan.features[featureKey] = enabled;
+    if (!plan.features) plan.features = {};
+    plan.features[featureKey] = Boolean(enabled);
     plan.markModified('features');
     await plan.save();
 
     res.json({ message: `Toggled feature '${featureKey}' to ${enabled} for plan ${planCode}`, plan });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const deletePlan = async (req, res) => {
+  try {
+    const { id } = req.params;
+    let plan = await SubscriptionPlan.findByIdAndDelete(id);
+    if (!plan) {
+      plan = await SubscriptionPlan.findOneAndDelete({ code: id });
+    }
+    if (!plan) {
+      return res.status(404).json({ message: 'Subscription Plan not found' });
+    }
+
+    await AuditLog.create({
+      performedByName: req.user?.name || 'SaaS Super Admin',
+      action: 'DELETE_PLAN',
+      targetSchoolName: 'Global SaaS',
+      details: `Deleted subscription plan ${plan.name} (${plan.code})`
+    }).catch(() => {});
+
+    res.json({ message: `Subscription plan '${plan.name}' deleted successfully` });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const addCustomFeatureKey = async (req, res) => {
+  try {
+    const { featureKey, defaultValue = false } = req.body;
+    if (!featureKey) return res.status(400).json({ message: 'Feature key name is required' });
+
+    const cleanKey = featureKey.trim();
+    const plans = await SubscriptionPlan.find();
+    for (let plan of plans) {
+      if (!plan.features) plan.features = {};
+      if (plan.features[cleanKey] === undefined) {
+        plan.features[cleanKey] = Boolean(defaultValue);
+        plan.markModified('features');
+        await plan.save();
+      }
+    }
+    res.json({ message: `Added dynamic feature key '${cleanKey}' to all subscription plans successfully` });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -452,6 +523,65 @@ const getSupportTickets = async (req, res) => {
     res.json(tickets);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+const createSupportTicket = async (req, res) => {
+  try {
+    const { schoolName, userEmail, subject, priority } = req.body;
+    const ticket = await SupportTicket.create({
+      schoolName: schoolName || req.user?.schoolName || 'School Tenant',
+      userEmail: userEmail || req.user?.email || 'admin@school.com',
+      subject: subject || 'Support Ticket Request',
+      priority: priority || 'HIGH',
+      status: 'OPEN'
+    });
+    res.status(201).json({ message: 'Support Ticket created successfully in MongoDB Atlas', ticket });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+const createPlanUpgradeRequest = async (req, res) => {
+  try {
+    const { moduleName, currentPlan, schoolName, userEmail } = req.body;
+    const cleanSchoolName = schoolName || req.user?.schoolName || 'School Tenant';
+    const cleanEmail = userEmail || req.user?.email || 'admin@school.com';
+
+    const newTicket = await SupportTicket.create({
+      schoolName: cleanSchoolName,
+      userEmail: cleanEmail,
+      subject: `🚀 PLAN UPGRADE REQUEST: Enable "${moduleName || 'Requested'}" Module (${currentPlan || 'BASIC'} Plan)`,
+      priority: 'URGENT',
+      status: 'OPEN',
+      assignedAgent: 'Super Admin'
+    });
+
+    await AuditLog.create({
+      performedByName: req.user?.name || cleanEmail,
+      action: 'PLAN_UPGRADE_REQUEST',
+      targetSchoolName: cleanSchoolName,
+      details: `Requested plan upgrade to unlock module "${moduleName || 'Requested'}" under current plan ${currentPlan || 'BASIC'}`
+    }).catch(() => {});
+
+    try {
+      const { createNotificationHelper } = require('./notificationController');
+      await createNotificationHelper({
+        schoolId: req.user?.schoolId || null,
+        recipientRole: 'SAAS_SUPER_ADMIN',
+        title: `Plan Upgrade Requested by ${cleanSchoolName}`,
+        message: `${cleanEmail} requested an upgrade to unlock "${moduleName}" (${currentPlan || 'BASIC'}).`,
+        type: 'SYSTEM',
+        priority: 'URGENT'
+      });
+    } catch (e) {}
+
+    return res.status(201).json({
+      message: `Plan upgrade request for module '${moduleName}' saved to MongoDB Atlas! Super Admin notified under Support Tickets.`,
+      ticket: newTicket
+    });
+  } catch (error) {
+    return res.status(500).json({ message: error.message || 'Failed to submit plan upgrade request' });
   }
 };
 
@@ -715,9 +845,9 @@ const deleteTestimonial = async (req, res) => {
 module.exports = {
   getSchools, createSchool, updateSchool, updateSchoolStatus, deleteSchool, impersonateSchoolAdmin,
   getGlobalUsers, resetUserPassword,
-  getPlans, createOrUpdatePlan, togglePlanFeature,
+  getPlans, createOrUpdatePlan, togglePlanFeature, deletePlan, addCustomFeatureKey,
   getBranches, createBranch,
-  getSecurityEvents, getSaaSInvoices, getFeatureFlags, getSupportTickets, getSalesLeads, createInquiryLead,
+  getSecurityEvents, getSaaSInvoices, getFeatureFlags, getSupportTickets, createSupportTicket, createPlanUpgradeRequest, getSalesLeads, createInquiryLead,
   getAnnouncements, createAnnouncement, deleteAnnouncement,
   getAuditLogs, getSaaSStats,
   getPublicTestimonials, getAdminTestimonials, submitTestimonial, updateTestimonialStatus, deleteTestimonial

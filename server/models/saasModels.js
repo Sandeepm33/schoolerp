@@ -12,22 +12,9 @@ const SubscriptionPlanSchema = new mongoose.Schema({
   branchLimit: { type: Number, default: 1 },
   storageLimitGb: { type: Number, default: 10 },
   aiTokenLimit: { type: Number, default: 10000 },
-  features: {
-    admissions: { type: Boolean, default: true },
-    attendance: { type: Boolean, default: true },
-    exams: { type: Boolean, default: true },
-    payroll: { type: Boolean, default: false },
-    transport: { type: Boolean, default: false },
-    library: { type: Boolean, default: false },
-    hrms: { type: Boolean, default: false },
-    hostel: { type: Boolean, default: false },
-    ai: { type: Boolean, default: false },
-    api: { type: Boolean, default: false },
-    multiBranch: { type: Boolean, default: false },
-    whiteLabel: { type: Boolean, default: false }
-  },
+  features: { type: Object, default: {} },
   createdAt: { type: Date, default: Date.now }
-});
+}, { strict: false });
 
 // 2. SCHOOL BRANCH SCHEMA (MULTI-BRANCH TENANCY)
 const BranchSchema = new mongoose.Schema({

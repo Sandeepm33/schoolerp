@@ -44,6 +44,26 @@ const login = async (req, res) => {
       { expiresIn: '7d' }
     );
 
+    let schoolName = user.schoolName || 'Greenwood International School';
+    let subscriptionPlan = 'PRO';
+    let planFeatures = null;
+
+    if (user.schoolId) {
+      const school = await School.findById(user.schoolId);
+      if (school) {
+        schoolName = school.name.trim();
+        subscriptionPlan = school.subscriptionPlan || 'PRO';
+        try {
+          const { SubscriptionPlan } = require('../models/saasModels');
+          let planObj = await SubscriptionPlan.findOne({ code: school.subscriptionPlan });
+          if (!planObj) {
+            planObj = await SubscriptionPlan.findOne({ name: new RegExp(`^${school.subscriptionPlan}$`, 'i') });
+          }
+          if (planObj) planFeatures = planObj.features || {};
+        } catch (e) {}
+      }
+    }
+
     return res.json({
       token,
       user: {
@@ -52,7 +72,9 @@ const login = async (req, res) => {
         email: user.email,
         role: user.role,
         schoolId: user.schoolId,
-        schoolName: user.schoolName || 'Greenwood International School'
+        schoolName,
+        subscriptionPlan,
+        planFeatures
       }
     });
   } catch (error) {
@@ -67,10 +89,40 @@ const getMe = async (req, res) => {
 
     let userObj = user.toObject();
     const { School, Student } = require('../models/coreModels');
+    const { SubscriptionPlan } = require('../models/saasModels');
 
+    let school = null;
     if (userObj.schoolId) {
-      const school = await School.findById(userObj.schoolId);
-      if (school) userObj.schoolName = school.name.trim();
+      school = await School.findById(userObj.schoolId);
+    }
+    if (!school && userObj.email) {
+      school = await School.findOne({ email: userObj.email.toLowerCase().trim() });
+    }
+    if (!school && userObj.schoolName) {
+      school = await School.findOne({ name: new RegExp(`^${userObj.schoolName.trim()}$`, 'i') });
+    }
+    if (!school) {
+      school = await School.findOne({ status: 'ACTIVE' });
+    }
+
+    if (school) {
+      userObj.schoolId = school._id;
+      userObj.schoolName = school.name.trim();
+      userObj.subscriptionPlan = school.subscriptionPlan || 'BASIC';
+      try {
+        let planObj = await SubscriptionPlan.findOne({ code: school.subscriptionPlan });
+        if (!planObj) {
+          planObj = await SubscriptionPlan.findOne({ code: new RegExp(`^${school.subscriptionPlan}$`, 'i') });
+        }
+        if (!planObj) {
+          planObj = await SubscriptionPlan.findOne({ name: new RegExp(`^${school.subscriptionPlan}$`, 'i') });
+        }
+        if (planObj) {
+          userObj.planFeatures = planObj.features || {};
+          userObj.planName = planObj.name;
+          userObj.planCode = planObj.code;
+        }
+      } catch (e) {}
     }
 
     if (!userObj.schoolName) {

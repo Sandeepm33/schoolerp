@@ -7463,6 +7463,32 @@ function DashboardContent({ initialTab }) {
     setSyncKey(k => k + 1);
   }, []));
 
+  const { user } = useAuth();
+  const planFeatures = user?.planFeatures;
+  const isSuperAdmin = user?.role === 'SAAS_SUPER_ADMIN';
+  const currentPlanName = user?.planName || user?.subscriptionPlan || 'BASIC';
+
+  const checkIsTabLocked = (tabId) => {
+    if (!tabId || isSuperAdmin || ['overview', 'services', 'all-services', 'profile', 'settings', 'helpdesk'].includes(tabId)) return false;
+    const camelKey = tabId.replace(/-([a-z])/g, g => g[1].toUpperCase());
+    const planName = String(currentPlanName).toUpperCase();
+
+    if (planFeatures && typeof planFeatures === 'object') {
+      if (planFeatures[tabId] === true || planFeatures[camelKey] === true) return false;
+      if (planFeatures[tabId] === false || planFeatures[camelKey] === false) return true;
+      if (['BASIC', 'FREE', 'STARTER'].includes(planName)) return true;
+    } else {
+      if (['BASIC', 'FREE', 'STARTER'].includes(planName)) {
+        const basicAllowed = ['admissions', 'students', 'classes', 'subjects', 'attendance', 'exams', 'marks', 'homework', 'announcements', 'events'];
+        if (!basicAllowed.includes(tabId) && !basicAllowed.includes(camelKey)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+  const isLockedTab = checkIsTabLocked(tab);
+
   return (
     <div className="flex-1 min-h-screen bg-[#f4f6f8] p-6 overflow-y-auto">
       {showBack && (
@@ -7499,7 +7525,30 @@ function DashboardContent({ initialTab }) {
           </div>
         </div>
       )}
-      <ActiveTab key={syncKey} />
+      {isLockedTab ? (
+        <div className="max-w-xl mx-auto my-12 p-8 bg-white border border-slate-200 rounded-3xl shadow-xl text-center space-y-4">
+          <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mx-auto">
+            <Lock className="w-8 h-8 text-amber-700" />
+          </div>
+          <h3 className="text-xl font-black text-slate-900">Module Access Locked</h3>
+          <p className="text-xs text-slate-600 font-medium leading-relaxed">
+            The <strong>"{tabLabel}"</strong> module is currently <strong>not enabled</strong> under your school's <strong>{currentPlanName}</strong> subscription plan.
+          </p>
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-500 font-medium">
+            💡 <strong>How to Unlock:</strong> Contact your Super Admin or School Administrator to upgrade your school plan in the <strong>SaaS Master Control Panel</strong>.
+          </div>
+          <div className="pt-2 flex justify-center gap-3">
+            <button
+              onClick={() => router.push('/admin/dashboard?tab=services')}
+              className="px-6 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold shadow-md transition cursor-pointer"
+            >
+              Back to All Services
+            </button>
+          </div>
+        </div>
+      ) : (
+        <ActiveTab key={syncKey} />
+      )}
     </div>
   );
 }
