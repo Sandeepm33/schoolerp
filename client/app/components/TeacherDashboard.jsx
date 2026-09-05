@@ -2,7 +2,7 @@
 
 // Verified Clean & Syntax Valid Component
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-
+import { createPortal } from 'react-dom';
 
 import { useSearchParams, useRouter } from 'next/navigation';
 import { 
@@ -2601,6 +2601,7 @@ function TeacherLMSTab({ token, classList }) {
 function TeacherExamsTab({ token, classList }) {
   const [exams, setExams] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const [expandedIndex, setExpandedIndex] = React.useState(null);
 
   React.useEffect(() => {
     fetch(`${API_BASE}/admin/exams`, { headers: { 'Authorization': `Bearer ${token}` } })
@@ -2614,125 +2615,1280 @@ function TeacherExamsTab({ token, classList }) {
     <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-5">
       <div>
         <h3 className="text-base font-extrabold text-white flex items-center gap-2">📝 Exam Schedules & Assessment Timetables</h3>
-        <p className="text-xs text-slate-400">Scheduled midterms, finals, and class test dates</p>
+        <p className="text-xs text-slate-400">Scheduled midterms, finals, and subject-wise date-sheets</p>
       </div>
       {loading ? <Loader2 className="w-6 h-6 text-indigo-400 animate-spin mx-auto my-8" /> : (
-        <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-900 text-slate-400 text-[10px] uppercase font-black border-b border-slate-800">
-              <tr>
-                <th className="p-3.5">Exam Name</th>
-                <th className="p-3.5">Class</th>
-                <th className="p-3.5">Subject</th>
-                <th className="p-3.5">Date & Time</th>
-                <th className="p-3.5">Total Marks</th>
-                <th className="p-3.5">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {exams.length === 0 ? (
-                <tr><td colSpan="6" className="p-6 text-center text-slate-500 font-bold">No exam timetables published.</td></tr>
-              ) : exams.map((ex, i) => (
-                <tr key={i} className="hover:bg-slate-900/40">
-                  <td className="p-3.5 font-bold text-white">{ex.examName || ex.name}</td>
-                  <td className="p-3.5 text-indigo-300 font-bold">Class {ex.classId}</td>
-                  <td className="p-3.5 font-semibold text-slate-200">{ex.subject}</td>
-                  <td className="p-3.5 font-mono text-slate-300">{ex.examDate} ({ex.startTime})</td>
-                  <td className="p-3.5 font-mono text-emerald-400 font-bold">{ex.totalMarks || 100}</td>
-                  <td className="p-3.5"><span className="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">{ex.status || 'SCHEDULED'}</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-4">
+          {exams.length === 0 ? (
+            <div className="p-8 text-center text-slate-500 font-bold bg-slate-950 rounded-2xl border border-slate-800 text-xs">
+              No exam timetables published.
+            </div>
+          ) : exams.map((ex, i) => {
+            const schedules = Array.isArray(ex.subjectSchedules) ? ex.subjectSchedules : [];
+            const isExpanded = expandedIndex === i;
+            return (
+              <div key={ex._id || i} className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
+                <div className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/40">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-white text-sm">{ex.title || ex.examName || ex.name}</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                        {ex.examType || 'Exam'}
+                      </span>
+                      {(ex.targetClass || ex.classId) && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                          Class: {ex.targetClass || ex.classId}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      Academic Year: <strong className="text-slate-200">{ex.academicYear || '2026-2027'}</strong> · Subjects Scheduled: <strong className="text-emerald-400">{schedules.length}</strong>
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setExpandedIndex(isExpanded ? null : i)}
+                    className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition self-end sm:self-auto cursor-pointer"
+                  >
+                    <Eye className="w-3.5 h-3.5 text-indigo-400" />
+                    {isExpanded ? 'Hide Date-Sheet' : 'View Date-Sheet'}
+                  </button>
+                </div>
+
+                {/* Subject Date-Sheet Table */}
+                {(isExpanded || schedules.length > 0) && (
+                  <div className="p-4 bg-slate-950 border-t border-slate-800/80">
+                    <div className="overflow-x-auto rounded-xl border border-slate-800">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-900 text-slate-400 text-[10px] uppercase font-black border-b border-slate-800">
+                          <tr>
+                            <th className="p-3">#</th>
+                            <th className="p-3">Subject</th>
+                            <th className="p-3">Exam Date</th>
+                            <th className="p-3">Time</th>
+                            <th className="p-3 text-center">Total Marks</th>
+                            <th className="p-3 text-center">Pass Marks</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-800/60">
+                          {schedules.length === 0 ? (
+                            <tr>
+                              <td colSpan="6" className="p-4 text-center text-slate-500 italic">No subject schedules configured.</td>
+                            </tr>
+                          ) : schedules.map((sub, sIdx) => (
+                            <tr key={sIdx} className="hover:bg-slate-900/40">
+                              <td className="p-3 text-slate-500 font-mono">{sIdx + 1}</td>
+                              <td className="p-3 font-bold text-white">{sub.subjectName}</td>
+                              <td className="p-3 text-indigo-300 font-mono">{sub.examDate || '—'}</td>
+                              <td className="p-3 text-slate-300 font-mono">{sub.startTime || '—'} {sub.endTime ? `- ${sub.endTime}` : ''}</td>
+                              <td className="p-3 text-center font-bold text-emerald-400 font-mono">{sub.totalMarks ?? 100}</td>
+                              <td className="p-3 text-center font-bold text-amber-400 font-mono">{sub.passingMarks ?? 35}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
   );
 }
 
-// ─── MARKS ENTRY SUB-COMPONENT ────────────────────────────────────────────
-function TeacherMarksEntryTab({ token, classList }) {
-  const [selClass, setSelClass] = React.useState('LKG');
-  const [selSection, setSelSection] = React.useState('A');
+// ─── FULL SCREEN DYNAMIC MARKS ENTRY MATRIX MODAL FOR TEACHERS ─────────────
+function FullScreenTeacherMarksModal({ isOpen, onClose, token, classList = [], onRefresh }) {
+  const [classes, setClasses] = React.useState([]);
+  const [exams, setExams] = React.useState([]);
+  const [subjects, setSubjects] = React.useState([]);
+
+  const [selectedClass, setSelectedClass] = React.useState('');
+  const [selectedSection, setSelectedSection] = React.useState('');
+  const [selectedExam, setSelectedExam] = React.useState('');
+  const [selectedSubject, setSelectedSubject] = React.useState('');
+  const [maxMarks, setMaxMarks] = React.useState(100);
+  const [passingMarks, setPassingMarks] = React.useState(35);
+
   const [students, setStudents] = React.useState([]);
-  const [marksMap, setMarksMap] = React.useState({});
-  const [loading, setLoading] = React.useState(false);
-  const [savedMsg, setSavedMsg] = React.useState(false);
+  const studentsRef = React.useRef(students);
+  studentsRef.current = students;
+  const [studentLoading, setStudentLoading] = React.useState(false);
+  const [marksGrid, setMarksGrid] = React.useState({});
+  const [saving, setSaving] = React.useState(false);
+  const [msg, setMsg] = React.useState(null);
+  const [submissionStatus, setSubmissionStatus] = React.useState(null);
+
+  const [timetables, setTimetables] = React.useState([]);
+
+  // Initialize Class List and fetch Exams, Subjects & Timetables
+  React.useEffect(() => {
+    if (!isOpen) return;
+
+    // Fetch classes if not provided
+    fetch(`${API_BASE}/admin/classes`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => {
+        if (Array.isArray(d) && d.length > 0) setClasses(d);
+        else setClasses(classList);
+      })
+      .catch(() => setClasses(classList));
+
+    // Fetch Exams
+    fetch(`${API_BASE}/admin/exams`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setExams(Array.isArray(d) ? d : []))
+      .catch(() => setExams([]));
+
+    // Fetch Subjects
+    fetch(`${API_BASE}/admin/subjects`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setSubjects(Array.isArray(d) ? d : []))
+      .catch(() => setSubjects([]));
+
+    // Fetch Timetables
+    fetch(`${API_BASE}/admin/timetable`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setTimetables(Array.isArray(d) ? d : []))
+      .catch(() => setTimetables([]));
+  }, [isOpen, token, classList]);
+
+  // Teacher Class, Section & Subject Extraction
+  const teacherAssignments = React.useMemo(() => {
+    if (!user) return { classes: null, sections: null, subjects: null };
+
+    const uName = String(user.name || user.username || user.childName || '').toLowerCase().trim();
+    const desig = String(user.designation || user.role || '').toUpperCase();
+    const subjAttr = String(user.subject || user.assignedSubject || user.department || '').toUpperCase();
+
+    const assignedClassIds = new Set();
+    const assignedSectionIds = new Set();
+    const assignedSubjects = new Set();
+
+    // From User profile / metadata
+    if (Array.isArray(user.assignedClasses)) {
+      user.assignedClasses.forEach(c => assignedClassIds.add(String(c).replace(/^Class\s+/i, '').trim()));
+    }
+    if (user.classId) assignedClassIds.add(String(user.classId).replace(/^Class\s+/i, '').trim());
+    if (user.classTeacherOf) assignedClassIds.add(String(user.classTeacherOf).replace(/^Class\s+/i, '').trim());
+
+    if (Array.isArray(user.assignedSections)) {
+      user.assignedSections.forEach(s => assignedSectionIds.add(String(s).replace(/^Section\s+/i, '').trim()));
+    }
+    if (user.sectionId) assignedSectionIds.add(String(user.sectionId).replace(/^Section\s+/i, '').trim());
+
+    if (Array.isArray(user.assignedSubjects)) {
+      user.assignedSubjects.forEach(s => assignedSubjects.add(String(s.subjectName || s.name || s).trim().toUpperCase()));
+    }
+    if (user.subject) assignedSubjects.add(String(user.subject).trim().toUpperCase());
+
+    const knownSubjects = ['TELUGU', 'HINDI', 'ENGLISH', 'MATHS', 'MATHEMATICS', 'SCIENCE', 'PHYSICS', 'CHEMISTRY', 'BIOLOGY', 'SOCIAL', 'GK', 'GENERAL KNOWLEDGE', 'COMPUTER', 'EVS', 'TAMIL', 'KANNADA', 'SANSKRIT', 'FRENCH'];
+    knownSubjects.forEach(s => {
+      if (desig.includes(s) || subjAttr.includes(s)) assignedSubjects.add(s);
+    });
+
+    // From Timetable entries
+    if (Array.isArray(timetables) && timetables.length > 0) {
+      timetables.forEach(tt => {
+        const cId = String(tt.classId || '').replace(/^Class\s+/i, '').trim();
+        const sId = String(tt.sectionId || '').replace(/^Section\s+/i, '').trim();
+        if (Array.isArray(tt.schedule)) {
+          tt.schedule.forEach(p => {
+            const pTeacher = String(p.teacherName || '').toLowerCase().trim();
+            if (pTeacher && uName && (pTeacher.includes(uName) || uName.includes(pTeacher))) {
+              if (cId) assignedClassIds.add(cId);
+              if (sId) assignedSectionIds.add(sId);
+              if (p.subject) assignedSubjects.add(String(p.subject).toUpperCase());
+            }
+          });
+        }
+      });
+    }
+
+    return {
+      classes: assignedClassIds.size > 0 ? Array.from(assignedClassIds) : null,
+      sections: assignedSectionIds.size > 0 ? Array.from(assignedSectionIds) : null,
+      subjects: assignedSubjects.size > 0 ? Array.from(assignedSubjects) : null
+    };
+  }, [user, timetables]);
+
+  // Filter available classes strictly for teacher
+  const availableClasses = React.useMemo(() => {
+    if (!teacherAssignments.classes || teacherAssignments.classes.length === 0) return classes;
+    const filtered = classes.filter(c => {
+      const cName = String(c.className || c.name || '').replace(/^Class\s+/i, '').trim();
+      return teacherAssignments.classes.some(ac => ac === cName || cName.includes(ac) || ac.includes(cName));
+    });
+    return filtered.length > 0 ? filtered : classes;
+  }, [classes, teacherAssignments.classes]);
+
+  // Auto-select initial class when availableClasses loads
+  React.useEffect(() => {
+    if (availableClasses.length > 0) {
+      const availNames = availableClasses.map(c => String(c.className || c.name || '').replace(/^Class\s+/i, '').trim());
+      if (!selectedClass || !availNames.includes(String(selectedClass).trim())) {
+        setSelectedClass(availNames[0]);
+      }
+    }
+  }, [availableClasses, selectedClass]);
+
+  // Auto-fetch students whenever selectedClass or selectedSection changes
+  React.useEffect(() => {
+    if (!selectedClass || !isOpen) {
+      setStudents([]);
+      return;
+    }
+
+    setStudentLoading(true);
+    const q = selectedSection
+      ? `classId=${encodeURIComponent(selectedClass)}&sectionId=${encodeURIComponent(selectedSection)}`
+      : `classId=${encodeURIComponent(selectedClass)}`;
+
+    fetch(`${API_BASE}/students?${q}`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => {
+        const list = Array.isArray(d) ? d : (d.students || []);
+        setStudents(list);
+
+        // Initialize marks grid for loaded students
+        const initGrid = {};
+        list.forEach(s => {
+          initGrid[s._id] = {
+            studentId: s._id,
+            studentName: `${s.firstName || ''} ${s.lastName || ''}`.trim(),
+            rollNo: s.rollNo || '—',
+            marksObtained: '',
+            remarks: ''
+          };
+        });
+        setMarksGrid(initGrid);
+        setStudentLoading(false);
+      })
+      .catch(() => {
+        setStudents([]);
+        setStudentLoading(false);
+      });
+  }, [selectedClass, selectedSection, isOpen, token]);
+
+  const sectionOptions = React.useMemo(() => {
+    const cls = classes.find(c => String(c.className || c.name || '').replace(/^Class\s+/i, '').trim() === String(selectedClass).trim());
+    if (!cls || !Array.isArray(cls.sections) || cls.sections.length === 0) return ['A', 'B', 'C', 'D'];
+    return cls.sections.map(s => String(s).replace(/^Section\s+/i, '').trim());
+  }, [classes, selectedClass]);
+
+  // Filter available sections for teacher
+  const availableSections = React.useMemo(() => {
+    if (!teacherAssignments.sections || teacherAssignments.sections.length === 0) return sectionOptions;
+    const filtered = sectionOptions.filter(s => {
+      const sName = String(s).replace(/^Section\s+/i, '').trim();
+      return teacherAssignments.sections.some(as => as === sName || sName.includes(as) || as.includes(sName));
+    });
+    return filtered.length > 0 ? filtered : sectionOptions;
+  }, [sectionOptions, teacherAssignments.sections]);
+
+  // Auto-select Section for Teacher
+  React.useEffect(() => {
+    if (availableSections.length > 0) {
+      const sNames = availableSections.map(s => String(s).replace(/^Section\s+/i, '').trim());
+      if (!selectedSection || !sNames.includes(String(selectedSection).trim())) {
+        setSelectedSection(sNames[0]);
+      }
+    }
+  }, [availableSections, selectedSection]);
+
+  // Dynamic list of subjects based on selected exam's date sheet / schedule
+  const currentExamSubjects = React.useMemo(() => {
+    if (!selectedExam) return subjects.map(s => String(s.subjectName || s.name || '').trim()).filter(Boolean);
+    const examObj = exams.find(e => 
+      String(e.examName || e.title || e.name || '').trim().toLowerCase() === String(selectedExam).trim().toLowerCase()
+    );
+    if (examObj && Array.isArray(examObj.subjectSchedules) && examObj.subjectSchedules.length > 0) {
+      const schedSubjects = examObj.subjectSchedules.map(s => String(s.subjectName || s.subject || '').trim()).filter(Boolean);
+      const combined = [...schedSubjects];
+      subjects.forEach(s => {
+        const name = String(s.subjectName || s.name || '').trim();
+        if (name && !combined.some(c => c.toLowerCase() === name.toLowerCase())) {
+          combined.push(name);
+        }
+      });
+      return combined;
+    }
+    return subjects.map(s => String(s.subjectName || s.name || '').trim()).filter(Boolean);
+  }, [selectedExam, exams, subjects]);
+
+  // Extract subjects assigned to Teacher specifically for selectedClass AND selectedSection
+  const assignedTeacherSubjectsForClassSection = React.useMemo(() => {
+    if (!user || !selectedClass) return null;
+    const uName = String(user.name || user.username || user.childName || '').toLowerCase().trim();
+
+    const assignedSet = new Set();
+    const targetClass = String(selectedClass).replace(/^Class\s+/i, '').trim().toLowerCase();
+    const targetSection = selectedSection ? String(selectedSection).replace(/^Section\s+/i, '').trim().toLowerCase() : '';
+
+    // 1. From Timetables matching selectedClass and selectedSection
+    if (Array.isArray(timetables) && timetables.length > 0) {
+      timetables.forEach(tt => {
+        const cId = String(tt.classId || '').replace(/^Class\s+/i, '').trim().toLowerCase();
+        const sId = String(tt.sectionId || '').replace(/^Section\s+/i, '').trim().toLowerCase();
+
+        if (cId === targetClass && (!targetSection || !sId || sId === targetSection)) {
+          if (Array.isArray(tt.schedule)) {
+            tt.schedule.forEach(p => {
+              const pTeacher = String(p.teacherName || '').toLowerCase().trim();
+              if (pTeacher && uName && (pTeacher.includes(uName) || uName.includes(pTeacher))) {
+                if (p.subject) assignedSet.add(String(p.subject).trim().toUpperCase());
+              }
+            });
+          }
+        }
+      });
+    }
+
+    // 2. From User assignedSubjects array if structured with classId/sectionId
+    if (Array.isArray(user.assignedSubjects)) {
+      user.assignedSubjects.forEach(s => {
+        if (typeof s === 'object' && s !== null) {
+          const scId = String(s.classId || '').replace(/^Class\s+/i, '').trim().toLowerCase();
+          const ssId = String(s.sectionId || '').replace(/^Section\s+/i, '').trim().toLowerCase();
+          if ((!scId || scId === targetClass) && (!targetSection || !ssId || ssId === targetSection)) {
+            if (s.subjectName || s.name) assignedSet.add(String(s.subjectName || s.name).trim().toUpperCase());
+          }
+        }
+      });
+    }
+
+    return assignedSet.size > 0 ? Array.from(assignedSet) : null;
+  }, [user, selectedClass, selectedSection, timetables]);
+
+  const availableSubjectsForTeacher = React.useMemo(() => {
+    const allowedList = assignedTeacherSubjectsForClassSection || teacherAssignments.subjects;
+    if (!allowedList || allowedList.length === 0) return [];
+
+    return currentExamSubjects.filter(s => {
+      const subName = (typeof s === 'string' ? s : (s.subjectName || s.name || '')).toUpperCase();
+      return allowedList.some(ts => subName === ts || subName.includes(ts) || ts.includes(subName));
+    });
+  }, [currentExamSubjects, assignedTeacherSubjectsForClassSection, teacherAssignments.subjects]);
+
+  // Auto-select Teacher's Subject if available
+  React.useEffect(() => {
+    if (availableSubjectsForTeacher.length > 0) {
+      const subNames = availableSubjectsForTeacher.map(s => typeof s === 'string' ? s : (s.subjectName || s.name));
+      if (!selectedSubject || !subNames.some(sn => String(sn).trim() === String(selectedSubject).trim())) {
+        setSelectedSubject(subNames[0]);
+      }
+    } else {
+      setSelectedSubject('');
+    }
+  }, [availableSubjectsForTeacher, selectedSubject]);
 
   React.useEffect(() => {
-    setLoading(true);
-    fetch(`${API_BASE}/students?classId=${encodeURIComponent(selClass)}&sectionId=${encodeURIComponent(selSection)}`, { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : [])
-      .then(d => setStudents(Array.isArray(d) ? d : []))
-      .catch(() => setStudents([]))
-      .finally(() => setLoading(false));
-  }, [selClass, selSection, token]);
+    // Build fresh empty grid for all students
+    const freshGrid = {};
+    (studentsRef.current || []).forEach(s => {
+      freshGrid[s._id] = {
+        studentId: s._id,
+        studentName: `${s.firstName || ''} ${s.lastName || ''}`.trim(),
+        rollNo: s.rollNo || '—',
+        marksObtained: '',
+        remarks: ''
+      };
+    });
 
-  const handleSaveMarks = () => {
-    setSavedMsg(true);
-    setTimeout(() => setSavedMsg(false), 3000);
+    if (!selectedClass || !selectedExam || !selectedSubject || !isOpen) {
+      setMarksGrid(freshGrid);
+      setSubmissionStatus(null);
+      return;
+    }
+
+    fetch(`${API_BASE}/admin/marks`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(docs => {
+        const allDocs = Array.isArray(docs) ? docs : [];
+        const matchedDocs = allDocs.filter(d => {
+          const cMatch = String(d.classId || '').trim().toLowerCase() === String(selectedClass).trim().toLowerCase();
+          const eMatch = String(d.examTitle || '').trim().toLowerCase() === String(selectedExam).trim().toLowerCase();
+          const sMatch = String(d.subjectName || '').trim().toLowerCase() === String(selectedSubject).trim().toLowerCase();
+          const secMatch = !selectedSection || !d.sectionId || String(d.sectionId || '').trim().toLowerCase() === String(selectedSection).trim().toLowerCase();
+          return cMatch && eMatch && sMatch && secMatch;
+        });
+
+        const updatedGrid = { ...freshGrid };
+        if (matchedDocs.length > 0) {
+          matchedDocs.forEach(m => {
+            if (updatedGrid[m.studentId]) {
+              updatedGrid[m.studentId] = {
+                ...updatedGrid[m.studentId],
+                marksObtained: m.totalMarksObtained !== undefined && m.totalMarksObtained !== null ? m.totalMarksObtained : '',
+                remarks: m.remarks || ''
+              };
+            }
+          });
+          const status = matchedDocs[0].isPublished ? 'PUBLISHED' : (matchedDocs[0].approvalStatus || 'SUBMITTED_BY_TEACHER');
+          setSubmissionStatus(status);
+        } else {
+          setSubmissionStatus(null);
+        }
+        setMarksGrid(updatedGrid);
+      })
+      .catch(() => {
+        setMarksGrid(freshGrid);
+        setSubmissionStatus(null);
+      });
+  }, [selectedClass, selectedSection, selectedExam, selectedSubject, isOpen, token]);
+
+  const isLockedForTeacher = submissionStatus && submissionStatus !== 'REJECTED';
+
+  // Auto-populate Max Marks & Passing Marks dynamically from selected Exam & Subject schedule
+  React.useEffect(() => {
+    if (!selectedExam) return;
+
+    const examObj = exams.find(e => 
+      String(e.examName || e.title || e.name || '').trim().toLowerCase() === String(selectedExam).trim().toLowerCase()
+    );
+
+    if (examObj) {
+      const schedules = Array.isArray(examObj.subjectSchedules) ? examObj.subjectSchedules : [];
+      let matchedSched = null;
+
+      if (selectedSubject && schedules.length > 0) {
+        matchedSched = schedules.find(s => 
+          String(s.subjectName || s.subject || '').trim().toLowerCase() === String(selectedSubject).trim().toLowerCase()
+        );
+      }
+
+      if (!matchedSched && schedules.length === 1) {
+        matchedSched = schedules[0];
+      }
+
+      if (matchedSched) {
+        const total = Number(matchedSched.totalMarks !== undefined ? matchedSched.totalMarks : matchedSched.maxMarks);
+        const pass = Number(matchedSched.passMarks !== undefined ? matchedSched.passMarks : matchedSched.passingMarks);
+        if (!isNaN(total) && total > 0) setMaxMarks(total);
+        if (!isNaN(pass) && pass >= 0) setPassingMarks(pass);
+      } else {
+        const total = Number(examObj.totalMarks !== undefined ? examObj.totalMarks : examObj.maxMarks);
+        const pass = Number(examObj.passMarks !== undefined ? examObj.passMarks : examObj.passingMarks);
+        if (!isNaN(total) && total > 0) setMaxMarks(total);
+        if (!isNaN(pass) && pass >= 0) setPassingMarks(pass);
+      }
+    }
+  }, [selectedExam, selectedSubject, exams]);
+
+  const handleMarkChange = (studentId, field, val) => {
+    if (isLockedForTeacher) return;
+    setMarksGrid(prev => ({
+      ...prev,
+      [studentId]: {
+        ...prev[studentId],
+        [field]: val
+      }
+    }));
   };
 
-  return (
-    <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-5">
-      <div className="flex justify-between items-center flex-wrap gap-4 border-b border-slate-800 pb-4">
-        <div>
-          <h3 className="text-base font-extrabold text-white flex items-center gap-2">🏆 Student Marks Entry & Grade Book</h3>
-          <p className="text-xs text-slate-400">Evaluate subject marks and submit report card grades</p>
+  const handleQuickFill = (type) => {
+    if (isLockedForTeacher) return;
+    setMarksGrid(prev => {
+      const next = { ...prev };
+      students.forEach(s => {
+        if (!next[s._id]) return;
+        if (type === '100') {
+          next[s._id].marksObtained = maxMarks;
+          next[s._id].remarks = 'EXCELLENT';
+        } else if (type === 'pass') {
+          next[s._id].marksObtained = Math.round(maxMarks * 0.75);
+          next[s._id].remarks = 'GOOD PASS';
+        } else if (type === 'clear') {
+          next[s._id].marksObtained = '';
+          next[s._id].remarks = '';
+        }
+      });
+      return next;
+    });
+  };
+
+  const handleSaveAll = async () => {
+    if (isLockedForTeacher) {
+      alert('Marks for this subject have already been submitted and locked for review.');
+      return;
+    }
+    if (!selectedClass) {
+      alert('Please select a Class');
+      return;
+    }
+    if (!selectedExam) {
+      alert('Please select an Exam Title');
+      return;
+    }
+    if (!selectedSubject) {
+      alert('Please select a Subject');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const activeSubjName = selectedSubject || (availableSubjectsForTeacher[0] ? (typeof availableSubjectsForTeacher[0] === 'string' ? availableSubjectsForTeacher[0] : availableSubjectsForTeacher[0].subjectName) : '');
+      const payload = Object.values(marksGrid)
+        .filter(m => m.marksObtained !== '' && m.marksObtained !== null)
+        .map(m => {
+          const obtained = Number(m.marksObtained) || 0;
+          const maxM = Number(maxMarks) || 100;
+          const pct = Math.round((obtained / maxM) * 100);
+          return {
+            studentId: m.studentId,
+            studentName: m.studentName,
+            rollNo: m.rollNo,
+            classId: selectedClass,
+            sectionId: selectedSection || 'A',
+            examTitle: selectedExam,
+            subjectName: activeSubjName,
+            totalMarksObtained: obtained,
+            totalMaxMarks: maxM,
+            passingMarks: Number(passingMarks) || 35,
+            percentage: pct,
+            remarks: m.remarks || (pct >= 35 ? 'PASS' : 'FAIL'),
+            isPublished: false,
+            approvalStatus: 'SUBMITTED_BY_TEACHER'
+          };
+        });
+
+      if (payload.length === 0) {
+        alert('Please enter marks obtained for at least one student.');
+        setSaving(false);
+        return;
+      }
+
+      const res = await fetch(`${API_BASE}/admin/marks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || 'Failed to save marks');
+      }
+
+      setMsg({ type: 'success', text: `✅ Marks submitted for Principal review for Class ${selectedClass} (${selectedSubject})! Results will be released to parents & students after Principal & Headmaster approval.` });
+      if (onRefresh) onRefresh();
+      setTimeout(() => {
+        setMsg(null);
+        onClose();
+      }, 1400);
+    } catch (e) {
+      setMsg({ type: 'error', text: `❌ Error: ${e.message}` });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!isOpen || typeof window === 'undefined') return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[999999] bg-slate-950/95 backdrop-blur-2xl text-white flex flex-col overflow-hidden animate-in fade-in duration-200">
+
+      {/* FULL SCREEN HEADER */}
+      <div className="px-6 py-4 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between shadow-2xl">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-amber-500/20 rounded-2xl border border-amber-500/30 text-amber-400">
+            <Award className="w-6 h-6" />
+          </div>
+          <div>
+            <h2 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
+              Teacher Dynamic Evaluation Matrix
+            </h2>
+            <p className="text-xs text-slate-400 font-medium">Select Class & Section to auto-populate enrolled students for batch marks entry</p>
+          </div>
         </div>
-        <button onClick={handleSaveMarks} className="gradient-primary text-white font-bold text-xs px-4 py-2 rounded-xl shadow-lg shadow-indigo-500/20 hover:scale-105 transition cursor-pointer">
-          Save All Marks
+
+        <div className="flex items-center gap-3">
+          <span className="hidden md:inline-flex px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+            FULL SCREEN MODE
+          </span>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-2xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-700 transition cursor-pointer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+      </div>
+
+      {/* DYNAMIC SELECTION BAR */}
+      <div className="p-6 bg-slate-900/50 border-b border-slate-800/80 space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+
+          {/* 1. Class Select */}
+          <div>
+            <label className="block text-[11px] font-black uppercase text-amber-400 mb-1">1. Select Class *</label>
+            <select
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-amber-500"
+              value={selectedClass}
+              onChange={e => setSelectedClass(e.target.value)}
+            >
+              <option value="">-- Choose Class --</option>
+              {availableClasses.map((c, i) => {
+                const cName = String(c.className || c.name || '').replace(/^Class\s+/i, '').trim();
+                return (
+                  <option key={c._id || i} value={cName}>Class {cName}</option>
+                );
+              })}
+            </select>
+          </div>
+
+          {/* 2. Section Select */}
+          <div>
+            <label className="block text-[11px] font-black uppercase text-amber-400 mb-1">2. Select Section</label>
+            <select
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-amber-500"
+              value={selectedSection}
+              onChange={e => setSelectedSection(e.target.value)}
+            >
+              <option value="">All Sections</option>
+              {availableSections.map(s => (
+                <option key={s} value={s}>Section {s}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 3. Exam Select */}
+          <div>
+            <label className="block text-[11px] font-black uppercase text-amber-400 mb-1">3. Select Exam *</label>
+            <select
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-amber-500"
+              value={selectedExam}
+              onChange={e => setSelectedExam(e.target.value)}
+            >
+              <option value="">-- Choose Exam --</option>
+              {exams.map((e, i) => (
+                <option key={e._id || i} value={e.examName || e.title || e.name}>{e.examName || e.title || e.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* 4. Select Subject */}
+          <div>
+            <label className="block text-[11px] font-black uppercase text-amber-400 mb-1">4. Select Subject</label>
+            <select
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-amber-500"
+              value={selectedSubject}
+              onChange={e => setSelectedSubject(e.target.value)}
+            >
+              <option value="">{availableSubjectsForTeacher.length === 0 ? `-- No Subject Assigned for Class ${selectedClass} Section ${selectedSection || 'All'} --` : '-- Choose Subject --'}</option>
+              {availableSubjectsForTeacher.map((s, i) => {
+                const subName = typeof s === 'string' ? s : (s.subjectName || s.name);
+                return <option key={i} value={subName}>{subName}</option>;
+              })}
+            </select>
+          </div>
+
+          {/* Max Marks */}
+          <div>
+            <label className="block text-[11px] font-black uppercase text-slate-400 mb-1">Max Marks</label>
+            <input
+              type="number"
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white focus:outline-none focus:border-amber-500"
+              value={maxMarks}
+              onChange={e => setMaxMarks(Number(e.target.value))}
+            />
+          </div>
+
+          {/* Passing Marks */}
+          <div>
+            <label className="block text-[11px] font-black uppercase text-slate-400 mb-1">Passing Marks</label>
+            <input
+              type="number"
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white focus:outline-none focus:border-amber-500"
+              value={passingMarks}
+              onChange={e => setPassingMarks(Number(e.target.value))}
+            />
+          </div>
+
+        </div>
+      </div>
+
+      {/* FEEDBACK MSG */}
+      {msg && (
+        <div className={`px-6 py-3 font-bold text-xs ${msg.type === 'success' ? 'bg-emerald-500/20 text-emerald-300 border-b border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border-b border-rose-500/30'}`}>
+          {msg.text}
+        </div>
+      )}
+
+      {/* MAIN DYNAMIC STUDENTS MATRIX TABLE */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        {/* SUBMISSION STATUS BANNER FOR TEACHER */}
+        {submissionStatus && (
+          <div className={`p-4 rounded-2xl border flex items-center justify-between font-bold text-xs shadow-xl ${
+            submissionStatus === 'SUBMITTED_BY_TEACHER'
+              ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+              : submissionStatus === 'APPROVED_BY_PRINCIPAL'
+              ? 'bg-blue-500/15 border-blue-500/30 text-blue-300'
+              : submissionStatus === 'PUBLISHED'
+              ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
+              : 'bg-rose-500/15 border-rose-500/30 text-rose-300'
+          }`}>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-slate-900/60 border border-current">
+                <Clock className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-sm font-black uppercase tracking-wider">
+                  {submissionStatus === 'SUBMITTED_BY_TEACHER' && '⏳ Marks Submitted — Pending Principal Approval'}
+                  {submissionStatus === 'APPROVED_BY_PRINCIPAL' && '⏳ Approved by Principal — Pending Headmaster Release'}
+                  {submissionStatus === 'PUBLISHED' && '✓ Report Cards Released to Parents & Students'}
+                  {submissionStatus === 'REJECTED' && '✕ Marks Returned for Revision'}
+                </h4>
+                <p className="text-[11px] opacity-90 font-medium mt-0.5">
+                  {submissionStatus === 'SUBMITTED_BY_TEACHER' && `Marks for Class ${selectedClass} (${selectedSubject}) have been submitted. Re-submission is disabled while pending review.`}
+                  {submissionStatus === 'APPROVED_BY_PRINCIPAL' && `Principal has approved these marks. Awaiting Headmaster batch release.`}
+                  {submissionStatus === 'PUBLISHED' && `These marks are published as official report cards on Parent & Student portals.`}
+                  {submissionStatus === 'REJECTED' && `Submission was returned for revisions. You may update marks below and re-submit.`}
+                </p>
+              </div>
+            </div>
+            {isLockedForTeacher && (
+              <span className="px-3 py-1 rounded-xl text-[11px] font-black uppercase bg-slate-950/90 border border-amber-500/30 text-amber-300 shadow-inner">
+                🔒 Submission Locked
+              </span>
+            )}
+          </div>
+        )}
+
+        {!selectedClass ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center space-y-3 bg-slate-900/40 rounded-3xl border border-slate-800 border-dashed">
+            <BookOpen className="w-12 h-12 text-amber-500/60" />
+            <h3 className="text-base font-black text-white">Select a Class Above</h3>
+            <p className="text-xs text-slate-400 max-w-sm">Students enrolled under selected class and section will automatically populate in this matrix table.</p>
+          </div>
+        ) : studentLoading ? (
+          <div className="flex flex-col items-center justify-center py-24 space-y-3">
+            <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Loading enrolled students for Class {selectedClass}...</p>
+          </div>
+        ) : students.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center space-y-3 bg-slate-900/40 rounded-3xl border border-slate-800">
+            <Users className="w-10 h-10 text-slate-600" />
+            <p className="text-sm font-bold text-slate-400">No students found for Class {selectedClass} {selectedSection ? `Section ${selectedSection}` : ''}.</p>
+          </div>
+        ) : (
+          <div className="bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
+            <div className="px-6 py-4 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between flex-wrap gap-3">
+              <span className="text-xs font-black text-slate-300 uppercase tracking-wider">
+                {students.length} Enrolled Students Loaded for Class {selectedClass} {selectedSection ? `(Section ${selectedSection})` : ''}
+              </span>
+
+              {/* Quick Fill Actions */}
+              {!isLockedForTeacher && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handleQuickFill('100')}
+                    className="px-3 py-1 rounded-lg text-[10px] font-bold bg-amber-500/20 text-amber-300 hover:bg-amber-500/30 border border-amber-500/30 transition cursor-pointer"
+                  >
+                    ⚡ Fill 100%
+                  </button>
+                  <button
+                    onClick={() => handleQuickFill('pass')}
+                    className="px-3 py-1 rounded-lg text-[10px] font-bold bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500/30 border border-emerald-500/30 transition cursor-pointer"
+                  >
+                    ✓ Fill 75%
+                  </button>
+                  <button
+                    onClick={() => handleQuickFill('clear')}
+                    className="px-3 py-1 rounded-lg text-[10px] font-bold bg-slate-800 text-slate-400 hover:text-white border border-slate-700 transition cursor-pointer"
+                  >
+                    ✕ Clear
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-slate-800 bg-slate-950/40 text-slate-400 font-bold uppercase text-[11px]">
+                  <th className="px-4 py-3 text-left w-24">Roll No</th>
+                  <th className="px-4 py-3 text-left min-w-[200px]">Student Name</th>
+                  <th className="px-4 py-3 text-left w-36">Marks Obtained *</th>
+                  <th className="px-4 py-3 text-left w-28">Max Marks</th>
+                  <th className="px-4 py-3 text-left w-28">Percentage</th>
+                  <th className="px-4 py-3 text-left w-32">Status</th>
+                  <th className="px-4 py-3 text-left min-w-[200px]">Remarks / Evaluation</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60">
+                {students.map(s => {
+                  const item = marksGrid[s._id] || {};
+                  const obtained = item.marksObtained !== '' && item.marksObtained !== null ? Number(item.marksObtained) : null;
+                  const pct = obtained !== null ? Math.round((obtained / (maxMarks || 1)) * 100) : null;
+                  const isPass = obtained !== null ? obtained >= passingMarks : null;
+
+                  return (
+                    <tr key={s._id} className="hover:bg-slate-800/40 transition">
+                      <td className="px-4 py-3 font-mono font-bold text-amber-400 text-xs">
+                        {s.rollNo || '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <span className="w-7 h-7 rounded-xl bg-amber-500/20 text-amber-300 font-black flex items-center justify-center text-xs border border-amber-500/30">
+                            {s.firstName ? s.firstName[0].toUpperCase() : 'S'}
+                          </span>
+                          <div>
+                            <span className="font-extrabold text-white text-xs block">{s.firstName} {s.lastName}</span>
+                            <span className="text-[10px] text-slate-500 font-mono">Sec {s.sectionId || 'A'} • Adm #{s.admissionNo || '—'}</span>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="number"
+                          placeholder="e.g. 85"
+                          min="0"
+                          max={maxMarks}
+                          disabled={isLockedForTeacher}
+                          readOnly={isLockedForTeacher}
+                          className={`w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 font-mono text-sm font-bold text-amber-300 focus:outline-none focus:border-amber-500 ${isLockedForTeacher ? 'opacity-60 cursor-not-allowed bg-slate-900 border-slate-800' : ''}`}
+                          value={item.marksObtained ?? ''}
+                          onChange={e => handleMarkChange(s._id, 'marksObtained', e.target.value)}
+                        />
+                      </td>
+                      <td className="px-4 py-3 font-mono font-bold text-slate-400">
+                        {maxMarks}
+                      </td>
+                      <td className="px-4 py-3 font-mono font-bold text-white">
+                        {pct !== null ? `${pct}%` : '—'}
+                      </td>
+                      <td className="px-4 py-3">
+                        {isPass === null ? (
+                          <span className="text-slate-600 font-semibold">—</span>
+                        ) : isPass ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                            ✓ PASS ({pct >= 90 ? 'A+' : pct >= 75 ? 'A' : 'B'})
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                            ✕ FAIL
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="text"
+                          placeholder="e.g. Good progress"
+                          disabled={isLockedForTeacher}
+                          readOnly={isLockedForTeacher}
+                          className={`w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-amber-500 ${isLockedForTeacher ? 'opacity-60 cursor-not-allowed bg-slate-900 border-slate-800' : ''}`}
+                          value={item.remarks ?? ''}
+                          onChange={e => handleMarkChange(s._id, 'remarks', e.target.value)}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* FOOTER BAR */}
+      <div className="px-6 py-4 bg-slate-900 border-t border-slate-800 flex items-center justify-between">
+        <span className="text-xs font-bold text-slate-400">
+          {isLockedForTeacher 
+            ? '🔒 Submission locked. Marks are pending review by Principal & Headmaster.' 
+            : '⚠️ Teacher submissions require Principal & Headmaster release.'}
+        </span>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition cursor-pointer"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSaveAll}
+            disabled={saving || !selectedClass || isLockedForTeacher}
+            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs shadow-xl shadow-amber-500/20 transition flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : isLockedForTeacher ? (
+              <CheckCircle className="w-4 h-4 text-emerald-950" />
+            ) : (
+              <CheckCircle className="w-4 h-4" />
+            )}
+            <span>
+              {isLockedForTeacher 
+                ? `✓ Marks Submitted (${submissionStatus === 'PUBLISHED' ? 'Released' : 'Pending Review'})` 
+                : '🚀 Submit Marks to Principal for Approval'}
+            </span>
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ─── MARKS ENTRY SUB-COMPONENT (INLINE + FULLSCREEN TRIGGER) ──────────────
+function TeacherMarksEntryTab({ token, classList = [] }) {
+  const [rows, setRows] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [isFullModalOpen, setIsFullModalOpen] = React.useState(false);
+
+  const [selectedClassFilter, setSelectedClassFilter] = React.useState('');
+  const [selectedSubjectFilter, setSelectedSubjectFilter] = React.useState('');
+  const [selectedExamFilter, setSelectedExamFilter] = React.useState('');
+  const [viewMode, setViewMode] = React.useState('grouped'); // 'grouped' | 'flat'
+
+  const load = React.useCallback(() => {
+    setLoading(true);
+    fetch(`${API_BASE}/admin/marks`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => {
+        setRows(Array.isArray(d) ? d : []);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [token]);
+
+  React.useEffect(() => {
+    load();
+  }, [load]);
+
+  const availableClassesList = React.useMemo(() => {
+    const set = new Set();
+    rows.forEach(r => { if (r.classId) set.add(String(r.classId).trim()); });
+    return Array.from(set).sort();
+  }, [rows]);
+
+  const availableSubjectsList = React.useMemo(() => {
+    const map = {};
+    rows.forEach(r => {
+      const s = String(r.subjectName || 'Unassigned').trim();
+      map[s] = (map[s] || 0) + 1;
+    });
+    return map;
+  }, [rows]);
+
+  const availableExamsList = React.useMemo(() => {
+    const set = new Set();
+    rows.forEach(r => { if (r.examTitle) set.add(String(r.examTitle).trim()); });
+    return Array.from(set).sort();
+  }, [rows]);
+
+  const filteredDisplayRows = React.useMemo(() => {
+    return rows.filter(r => {
+      if (selectedClassFilter && String(r.classId || '').trim().toLowerCase() !== selectedClassFilter.toLowerCase()) return false;
+      if (selectedSubjectFilter && String(r.subjectName || '').trim().toLowerCase() !== selectedSubjectFilter.toLowerCase()) return false;
+      if (selectedExamFilter && String(r.examTitle || '').trim().toLowerCase() !== selectedExamFilter.toLowerCase()) return false;
+      return true;
+    });
+  }, [rows, selectedClassFilter, selectedSubjectFilter, selectedExamFilter]);
+
+  const subjectClassGroups = React.useMemo(() => {
+    const groups = {};
+    filteredDisplayRows.forEach(r => {
+      const cName = r.classId ? `Class ${r.classId}` : 'Unassigned Class';
+      const sec = r.sectionId ? ` (${r.sectionId})` : '';
+      const sName = r.subjectName || 'Unassigned Subject';
+      const eTitle = r.examTitle || 'Exam';
+      const key = `${cName}${sec}___${sName}___${eTitle}`;
+
+      if (!groups[key]) {
+        groups[key] = {
+          key,
+          classId: r.classId,
+          sectionId: r.sectionId,
+          subjectName: sName,
+          examTitle: eTitle,
+          items: []
+        };
+      }
+      groups[key].items.push(r);
+    });
+
+    return Object.values(groups);
+  }, [filteredDisplayRows]);
+
+  return (
+    <div className="space-y-5">
+      {/* HERO LAUNCHER CARD */}
+      <div className="glass-panel p-6 rounded-3xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-slate-900 to-slate-950 shadow-xl flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-lg">
+            <Award className="w-7 h-7" />
+          </div>
+          <div>
+            <h3 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
+              Full-Screen Dynamic Class & Section Grade Matrix
+            </h3>
+            <p className="text-xs text-slate-300 font-medium">
+              Auto-populate enrolled students as per selected Class and Section for dynamic evaluation & batch marks submission.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setIsFullModalOpen(true)}
+          className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-xs shadow-xl shadow-amber-500/20 hover:scale-105 transition flex items-center gap-2 cursor-pointer"
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>🚀 Open Full-Screen Evaluation Matrix</span>
         </button>
       </div>
 
-      {savedMsg && (
-        <div className="p-3 rounded-xl bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-xs font-bold">
-          ✅ Student marks saved successfully!
-        </div>
-      )}
+      {/* CLASS-WISE & SUBJECT-WISE INTERACTIVE FILTER & VIEW BAR */}
+      <div className="p-5 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30">
+              <Filter className="w-5 h-5" />
+            </div>
+            <div>
+              <h4 className="text-sm font-black text-white">Class-Wise & Subject-Wise Submitted Catalog</h4>
+              <p className="text-xs text-slate-400 font-medium">View marks organized into distinct subject and class cards</p>
+            </div>
+          </div>
 
-      <div className="flex gap-3">
-        <select value={selClass} onChange={e => setSelClass(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-bold">
-          {classList.map((c, i) => <option key={i} value={String(c.className || c.name).replace(/^Class\s+/i,'').trim()}>{String(c.className || c.name)}</option>)}
-        </select>
-        <select value={selSection} onChange={e => setSelSection(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white font-bold">
-          {['A','B','C','D'].map(s => <option key={s} value={s}>Section {s}</option>)}
-        </select>
+          <div className="flex items-center gap-2">
+            <div className="flex items-center p-1 bg-slate-950 rounded-xl border border-slate-800">
+              <button
+                onClick={() => setViewMode('grouped')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${viewMode === 'grouped' ? 'bg-amber-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'}`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Grouped View</span>
+              </button>
+              <button
+                onClick={() => setViewMode('flat')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${viewMode === 'flat' ? 'bg-amber-500 text-slate-950 shadow-md' : 'text-slate-400 hover:text-white'}`}
+              >
+                <List className="w-3.5 h-3.5" />
+                <span>List View</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* DROPDOWN & SUBJECT PILL FILTERS */}
+        <div className="space-y-3 pt-2 border-t border-slate-800/80">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-bold text-slate-400">Class:</label>
+              <select
+                className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs font-bold text-white focus:outline-none focus:border-amber-500"
+                value={selectedClassFilter}
+                onChange={e => setSelectedClassFilter(e.target.value)}
+              >
+                <option value="">All Classes ({availableClassesList.length})</option>
+                {availableClassesList.map(c => (
+                  <option key={c} value={c}>Class {c}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-bold text-slate-400">Exam:</label>
+              <select
+                className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-1.5 text-xs font-bold text-white focus:outline-none focus:border-amber-500"
+                value={selectedExamFilter}
+                onChange={e => setSelectedExamFilter(e.target.value)}
+              >
+                <option value="">All Exams ({availableExamsList.length})</option>
+                {availableExamsList.map(e => (
+                  <option key={e} value={e}>{e}</option>
+                ))}
+              </select>
+            </div>
+
+            {(selectedClassFilter || selectedSubjectFilter || selectedExamFilter) && (
+              <button
+                onClick={() => { setSelectedClassFilter(''); setSelectedSubjectFilter(''); setSelectedExamFilter(''); }}
+                className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset Filters</span>
+              </button>
+            )}
+          </div>
+
+          {/* INTERACTIVE SUBJECT PILLS */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+            <span className="text-[11px] font-black uppercase text-amber-400 shrink-0">Subjects:</span>
+            <button
+              onClick={() => setSelectedSubjectFilter('')}
+              className={`px-3 py-1 rounded-xl text-xs font-bold transition shrink-0 cursor-pointer ${!selectedSubjectFilter ? 'bg-amber-500 text-slate-950 shadow-md font-black' : 'bg-slate-950 text-slate-300 hover:bg-slate-800 border border-slate-800'}`}
+            >
+              All Subjects ({filteredDisplayRows.length})
+            </button>
+            {Object.entries(availableSubjectsList).map(([sName, count]) => (
+              <button
+                key={sName}
+                onClick={() => setSelectedSubjectFilter(selectedSubjectFilter === sName ? '' : sName)}
+                className={`px-3 py-1 rounded-xl text-xs font-bold transition shrink-0 cursor-pointer flex items-center gap-1.5 ${selectedSubjectFilter === sName ? 'bg-amber-500 text-slate-950 shadow-md font-black' : 'bg-slate-950 text-slate-300 hover:bg-slate-800 border border-slate-800'}`}
+              >
+                <span>{sName}</span>
+                <span className={`px-1.5 py-0.2 rounded-md text-[10px] font-mono ${selectedSubjectFilter === sName ? 'bg-slate-950/30 text-slate-950 font-black' : 'bg-slate-800 text-amber-400'}`}>
+                  {count}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {loading ? <Loader2 className="w-6 h-6 text-indigo-400 animate-spin mx-auto my-8" /> : (
-        <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-900 text-slate-400 text-[10px] uppercase font-black border-b border-slate-800">
-              <tr>
-                <th className="p-3.5">Roll No</th>
-                <th className="p-3.5">Student Name</th>
-                <th className="p-3.5">Obtained Marks (out of 100)</th>
-                <th className="p-3.5">Remarks</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {students.map(st => (
-                <tr key={st._id} className="hover:bg-slate-900/40">
-                  <td className="p-3.5 font-mono font-bold text-indigo-400">{st.rollNo || 'N/A'}</td>
-                  <td className="p-3.5 font-bold text-white">{st.firstName} {st.lastName}</td>
-                  <td className="p-3.5">
-                    <input
-                      type="number" min="0" max="100" placeholder="85"
-                      value={marksMap[st._id] || ''}
-                      onChange={e => setMarksMap({ ...marksMap, [st._id]: e.target.value })}
-                      className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1 text-xs text-white font-mono w-24 font-bold focus:border-indigo-500 focus:outline-none"
-                    />
-                  </td>
-                  <td className="p-3.5">
-                    <input type="text" placeholder="Excellent progress" className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-1 text-xs text-slate-300 w-full focus:outline-none" />
-                  </td>
+      {/* GROUPED VIEW MODE OR FLAT LIST TABLE */}
+      {viewMode === 'grouped' ? (
+        <div className="space-y-6">
+          {loading ? (
+            <div className="flex justify-center py-16">
+              <Loader2 className="w-8 h-8 text-amber-400 animate-spin" />
+            </div>
+          ) : subjectClassGroups.length === 0 ? (
+            <div className="p-12 text-center bg-slate-900/60 rounded-3xl border border-slate-800 space-y-3">
+              <Award className="w-10 h-10 text-slate-600 mx-auto" />
+              <p className="text-sm font-bold text-slate-400">No marks found for the selected subject and class filters.</p>
+            </div>
+          ) : (
+            subjectClassGroups.map(grp => (
+              <div key={grp.key} className="bg-slate-900 border border-slate-700/80 rounded-3xl overflow-hidden shadow-xl space-y-3 p-5">
+                {/* SECTION GROUP HEADER */}
+                <div className="flex items-center justify-between flex-wrap gap-3 pb-3 border-b border-slate-700/60">
+                  <div className="flex items-center gap-3">
+                    <div className="px-3.5 py-1.5 rounded-xl bg-amber-500 text-slate-950 font-black text-xs uppercase tracking-wider shadow-sm">
+                      SUBJECT: {grp.subjectName}
+                    </div>
+                    <h3 className="text-lg font-black text-white flex items-center gap-2">
+                      Class {grp.classId} {grp.sectionId ? `(${grp.sectionId})` : ''}
+                      <span className="text-xs text-slate-300 font-semibold">— {grp.examTitle}</span>
+                    </h3>
+                  </div>
+
+                  <span className="px-3 py-1 rounded-full text-xs font-mono font-bold bg-slate-950 text-amber-300 border border-amber-500/30">
+                    {grp.items.length} Student Records
+                  </span>
+                </div>
+
+                {/* DISTINCT GROUPED TABLE */}
+                <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden shadow-inner">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-900 text-emerald-400 font-black uppercase text-[11px] tracking-wider border-b border-slate-800">
+                      <tr>
+                        <th className="p-4 text-slate-400 font-mono">#</th>
+                        <th className="p-4">Roll No</th>
+                        <th className="p-4">Student Name</th>
+                        <th className="p-4">Marks Obtained</th>
+                        <th className="p-4">Max Marks</th>
+                        <th className="p-4">Percentage</th>
+                        <th className="p-4 text-right">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-800 text-white font-medium">
+                      {grp.items.map((r, idx) => {
+                        const status = r.isPublished ? 'PUBLISHED' : (r.approvalStatus || 'PUBLISHED');
+                        return (
+                          <tr key={r._id || idx} className="bg-slate-900/90 hover:bg-slate-800 transition">
+                            <td className="p-4 font-mono text-slate-400 font-bold">{idx + 1}</td>
+                            <td className="p-4 font-mono font-extrabold text-slate-200">{r.rollNo || '—'}</td>
+                            <td className="p-4 font-extrabold text-white flex items-center gap-2.5">
+                              <div className="w-7 h-7 rounded-full bg-slate-800 border border-amber-500/30 flex items-center justify-center text-xs font-black text-amber-400 shadow-sm">
+                                {(r.studentName || 'S')[0]}
+                              </div>
+                              <span className="text-sm font-black text-white">{r.studentName}</span>
+                            </td>
+                            <td className="p-4 font-mono font-black text-emerald-400 text-base">{r.totalMarksObtained}</td>
+                            <td className="p-4 font-mono text-slate-300 font-bold">{r.totalMaxMarks}</td>
+                            <td className="p-4 font-mono font-black text-amber-300 text-sm">{r.percentage !== undefined ? `${r.percentage}%` : '—'}</td>
+                            <td className="p-4 text-right">
+                              {status === 'SUBMITTED_BY_TEACHER' && (
+                                <span className="px-3 py-1 rounded-full text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm">
+                                  ⏳ Pending Principal
+                                </span>
+                              )}
+                              {status === 'APPROVED_BY_PRINCIPAL' && (
+                                <span className="px-3 py-1 rounded-full text-xs font-black bg-sky-500/20 text-sky-300 border border-sky-500/40 shadow-sm">
+                                  ⏳ Pending Headmaster
+                                </span>
+                              )}
+                              {(status === 'PUBLISHED' || r.isPublished) && (
+                                <span className="px-3 py-1 rounded-full text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm">
+                                  ✓ Published
+                                </span>
+                              )}
+                              {status === 'REJECTED' && (
+                                <span className="px-3 py-1 rounded-full text-xs font-black bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm">
+                                  ✕ Rejected
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      ) : (
+        /* FLAT LIST VIEW MODE */
+        <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-4">
+          <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-900 text-slate-400 text-[10px] uppercase font-black border-b border-slate-800">
+                <tr>
+                  <th className="p-3.5">Roll No</th>
+                  <th className="p-3.5">Student Name</th>
+                  <th className="p-3.5">Class & Section</th>
+                  <th className="p-3.5">Exam Title</th>
+                  <th className="p-3.5">Subject</th>
+                  <th className="p-3.5">Marks Obtained</th>
+                  <th className="p-3.5">Max Marks</th>
+                  <th className="p-3.5">Percentage</th>
+                  <th className="p-3.5 text-right">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-800/60">
+                {filteredDisplayRows.map((r, i) => {
+                  const status = r.isPublished ? 'PUBLISHED' : (r.approvalStatus || 'PUBLISHED');
+                  return (
+                    <tr key={r._id || i} className="hover:bg-slate-900/40">
+                      <td className="p-3.5 font-mono font-bold text-amber-400">{r.rollNo || '—'}</td>
+                      <td className="p-3.5 font-bold text-white">{r.studentName}</td>
+                      <td className="p-3.5 text-indigo-300 font-bold">Class {r.classId} {r.sectionId ? `(${r.sectionId})` : ''}</td>
+                      <td className="p-3.5 text-slate-200 font-semibold">{r.examTitle}</td>
+                      <td className="p-3.5 text-slate-300">{r.subjectName || '—'}</td>
+                      <td className="p-3.5 font-mono font-bold text-white">{r.totalMarksObtained}</td>
+                      <td className="p-3.5 font-mono text-slate-400">{r.totalMaxMarks}</td>
+                      <td className="p-3.5 font-mono font-bold text-amber-300">{r.percentage !== undefined ? `${r.percentage}%` : '—'}</td>
+                      <td className="p-3.5 text-right">
+                        {status === 'SUBMITTED_BY_TEACHER' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">⏳ Pending Principal</span>}
+                        {status === 'APPROVED_BY_PRINCIPAL' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">⏳ Pending Headmaster</span>}
+                        {(status === 'PUBLISHED' || r.isPublished) && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">✓ Published</span>}
+                        {status === 'REJECTED' && <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/30">✕ Rejected</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
+
+      {/* FULL SCREEN MARKS MODAL */}
+      <FullScreenTeacherMarksModal
+        isOpen={isFullModalOpen}
+        onClose={() => setIsFullModalOpen(false)}
+        token={token}
+        classList={classList}
+        onRefresh={load}
+      />
     </div>
   );
 }

@@ -138,9 +138,30 @@ const getExams = async (req, res) => {
 const getStudentMarks = async (req, res) => {
   try {
     const { studentId } = req.query;
-    let query = {};
-    if (studentId) query.studentId = studentId;
-    const marks = await Mark.find(query);
+    const role = String(req.user?.role || req.user?.designation || '').toUpperCase();
+    let query = { $or: [{ isPublished: true }, { approvalStatus: 'PUBLISHED' }] };
+
+    if (role === 'STUDENT' || role === 'PARENT') {
+      const sId = studentId || req.user?.mappedStudentId || req.user?.studentId || req.user?.linkedStudentId;
+      const sName = req.user?.childName || req.user?.name;
+
+      const filters = [];
+      if (sId) filters.push({ studentId: sId });
+      if (sName) filters.push({ studentName: new RegExp(sName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') });
+
+      if (filters.length > 0) {
+        query = {
+          $and: [
+            { $or: [{ isPublished: true }, { approvalStatus: 'PUBLISHED' }] },
+            { $or: filters }
+          ]
+        };
+      }
+    } else if (studentId) {
+      query.studentId = studentId;
+    }
+
+    const marks = await Mark.find(query).sort({ createdAt: -1 });
     res.json(marks);
   } catch (error) {
     res.status(500).json({ message: error.message });

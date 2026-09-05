@@ -246,6 +246,7 @@ router.post('/admin/marks', authMiddleware, admin.createMark);
 router.put('/admin/marks/:id', authMiddleware, admin.updateMark);
 router.delete('/admin/marks/:id', authMiddleware, admin.deleteMark);
 router.post('/admin/marks/publish', authMiddleware, admin.publishMarks);
+router.post('/admin/marks/approve', authMiddleware, admin.approveMarkWorkflow);
 
 // Timetable (Publicly readable for Parents & Students)
 router.get('/timetable', admin.getTimetable);

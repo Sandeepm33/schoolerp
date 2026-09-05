@@ -43,6 +43,11 @@ const logAudit = async (req, action, module, recordId = null, oldVal = null, new
 const ok = (res, data, status = 200) => res.status(status).json(data);
 const err = (res, message, status = 500) => res.status(status).json({ message });
 
+const isSchoolAdminReq = (req) => {
+  const role = String(req.user?.role || req.user?.designation || '').toUpperCase();
+  return role.includes('SCHOOL_ADMIN') || role.includes('PRINCIPAL') || role.includes('HEADMASTER') || role.includes('HEAD_MASTER');
+};
+
 // ─────────────────────────────────────────────────────────
 // 1. ACADEMIC YEAR
 // ─────────────────────────────────────────────────────────
@@ -126,6 +131,7 @@ const getClasses = async (req, res) => {
 
 const createClass = async (req, res) => {
   try {
+    if (!isSchoolAdminReq(req)) return err(res, 'Access denied. Only School Administrators can create or edit classes.', 403);
     const schoolId = getSchoolId(req);
     const rawName = req.body.className;
     const cleanClass = normalizeClassName(rawName);
@@ -171,6 +177,7 @@ const createClass = async (req, res) => {
 
 const updateClass = async (req, res) => {
   try {
+    if (!isSchoolAdminReq(req)) return err(res, 'Access denied. Only School Administrators can create or edit classes.', 403);
     const data = { ...req.body };
     if (data.className) data.className = normalizeClassName(data.className);
     const doc = await ClassRoom.findByIdAndUpdate(req.params.id, data, { new: true });
@@ -180,6 +187,7 @@ const updateClass = async (req, res) => {
 
 const deleteClass = async (req, res) => {
   try {
+    if (!isSchoolAdminReq(req)) return err(res, 'Access denied. Only School Administrators can delete classes.', 403);
     await ClassRoom.findByIdAndUpdate(req.params.id, { isActive: false });
     ok(res, { message: 'Archived successfully' });
   } catch (e) { err(res, e.message); }
@@ -187,6 +195,7 @@ const deleteClass = async (req, res) => {
 
 const createClassesBulk = async (req, res) => {
   try {
+    if (!isSchoolAdminReq(req)) return err(res, 'Access denied. Only School Administrators can create classes.', 403);
     const schoolId = getSchoolId(req);
     const { classes } = req.body;
 
@@ -353,6 +362,7 @@ const getStudentList = async (req, res) => {
 
 const createStudentRecord = async (req, res) => {
   try {
+    if (!isSchoolAdminReq(req)) return err(res, 'Access denied. Only School Administrators can create student records.', 403);
     const doc = await Student.create({ ...req.body, schoolId: getSchoolId(req) });
     await logAudit(req, 'CREATE', 'Student', doc._id, null, doc);
     ok(res, doc, 201);
@@ -361,6 +371,7 @@ const createStudentRecord = async (req, res) => {
 
 const updateStudentRecord = async (req, res) => {
   try {
+    if (!isSchoolAdminReq(req)) return err(res, 'Access denied. Only School Administrators can edit student records.', 403);
     const old = await Student.findById(req.params.id);
     const doc = await Student.findByIdAndUpdate(req.params.id, req.body, { new: true, strict: false });
     
@@ -396,6 +407,7 @@ const updateStudentRecord = async (req, res) => {
 
 const deleteStudentRecord = async (req, res) => {
   try {
+    if (!isSchoolAdminReq(req)) return err(res, 'Access denied. Only School Administrators can delete student records.', 403);
     await Student.findByIdAndDelete(req.params.id);
     ok(res, { message: 'Student deleted' });
   } catch (e) { err(res, e.message); }
@@ -475,6 +487,7 @@ const previewNextRollNo = async (req, res) => {
 // ─────────────────────────────────────────────────────────
 const enrollStudentWithAccounts = async (req, res) => {
   try {
+    if (!isSchoolAdminReq(req)) return err(res, 'Access denied. Only School Administrators can enroll students.', 403);
     const schoolId = getSchoolId(req);
     const {
       firstName, lastName, dob, gender, bloodGroup, address,
@@ -1003,45 +1016,181 @@ const publishExam = async (req, res) => {
 const getMarks = async (req, res) => {
   try {
     const { examId, classId, studentId } = req.query;
+    const role = String(req.user?.role || req.user?.designation || '').toUpperCase();
     const query = {};
+
     if (examId) query.examId = examId;
     if (classId) query.classId = classId;
     if (studentId) query.studentId = studentId;
+
+    // Security & Privacy filter: Parents & Students MUST ONLY see their own / child's published marks
+    if (role === 'STUDENT' || role === 'PARENT') {
+      query.isPublished = true;
+      const sId = studentId || req.user?.mappedStudentId || req.user?.studentId || req.user?.linkedStudentId;
+      const sName = req.user?.childName || req.user?.name;
+
+      const filters = [];
+      if (sId) filters.push({ studentId: sId });
+      if (sName) filters.push({ studentName: new RegExp(sName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') });
+
+      if (filters.length > 0) {
+        query.$or = filters;
+      }
+    }
+
     const docs = await Mark.find(query).sort({ percentage: -1 });
-    ok(res, docs);
+    const formatted = docs.map(d => {
+      const obj = d.toObject ? d.toObject() : { ...d };
+      if (!obj.subjectName && Array.isArray(obj.subjectMarks) && obj.subjectMarks[0]?.subject) {
+        obj.subjectName = obj.subjectMarks[0].subject;
+      }
+      return obj;
+    });
+    ok(res, formatted);
   } catch (e) { err(res, e.message); }
 };
 const createMark = async (req, res) => {
   try {
     const data = req.body;
-    if (data.subjectMarks) {
+    const userRole = String(req.user?.role || req.user?.designation || '').toUpperCase();
+    const userName = req.user?.name || 'User';
+
+    const isTeacher = userRole.includes('TEACHER');
+    const isPrincipal = userRole.includes('PRINCIPAL') || userRole.includes('VICE_PRINCIPAL');
+    const isHeadmaster = userRole.includes('HEADMASTER') || userRole.includes('HEAD_MASTER');
+
+    // ONLY Headmaster can set isPublished: true. Principal and Teacher mark entries MUST default to false.
+    let initialStatus = 'SUBMITTED_BY_TEACHER';
+    let initialPublished = false;
+
+    if (isPrincipal && !isHeadmaster) {
+      initialStatus = 'APPROVED_BY_PRINCIPAL';
+      initialPublished = false;
+    } else if (isHeadmaster) {
+      initialStatus = 'PUBLISHED';
+      initialPublished = true;
+    }
+
+    if (Array.isArray(data)) {
+      const preparedData = data.map(item => {
+        const itemStatus = item.approvalStatus || initialStatus;
+        // Strictly prohibit setting isPublished to true unless approvalStatus is PUBLISHED (Headmaster action)
+        const finalPublished = itemStatus === 'PUBLISHED' ? true : false;
+        return {
+          ...item,
+          subjectName: item.subjectName || (Array.isArray(item.subjectMarks) && item.subjectMarks[0]?.subject) || 'General',
+          approvalStatus: itemStatus,
+          isPublished: finalPublished,
+          submittedBy: { name: userName, role: userRole, date: new Date() }
+        };
+      });
+
+      // Upsert marks per student, class, exam & subject
+      const docs = await Promise.all(preparedData.map(async item => {
+        const filter = {
+          studentId: item.studentId,
+          classId: item.classId,
+          examTitle: item.examTitle,
+          subjectName: item.subjectName
+        };
+        const updated = await Mark.findOneAndUpdate(
+          filter,
+          { $set: item },
+          { new: true, upsert: true }
+        );
+        return updated;
+      }));
+
+      return ok(res, docs, 201);
+    }
+
+    if (data && data.subjectMarks) {
       const total = data.subjectMarks.reduce((s, m) => s + (m.marksObtained || 0), 0);
       const max = data.subjectMarks.reduce((s, m) => s + (m.maxMarks || 100), 0);
       data.totalMarksObtained = total;
       data.totalMaxMarks = max;
       data.percentage = max > 0 ? Math.round((total / max) * 100) : 0;
     }
+    const itemStatus = data.approvalStatus || initialStatus;
+    data.approvalStatus = itemStatus;
+    data.isPublished = itemStatus === 'PUBLISHED' ? true : false;
+    data.submittedBy = { name: userName, role: userRole, date: new Date() };
+
     const doc = await Mark.create(data);
     ok(res, doc, 201);
   } catch (e) { err(res, e.message); }
 };
+
 const updateMark = async (req, res) => {
   try {
     const doc = await Mark.findByIdAndUpdate(req.params.id, req.body, { new: true });
     ok(res, doc);
   } catch (e) { err(res, e.message); }
 };
+
 const deleteMark = async (req, res) => {
   try {
     await Mark.findByIdAndDelete(req.params.id);
     ok(res, { message: 'Mark record deleted' });
   } catch (e) { err(res, e.message); }
 };
+
 const publishMarks = async (req, res) => {
   try {
-    const { examId } = req.body;
-    await Mark.updateMany({ examId }, { isPublished: true });
-    ok(res, { message: 'Results published' });
+    const userRole = String(req.user?.role || req.user?.designation || '').toUpperCase();
+    const isHeadmaster = userRole.includes('HEADMASTER') || userRole.includes('HEAD_MASTER');
+    const isSchoolAdmin = userRole.includes('SUPER_ADMIN');
+
+    if (!isHeadmaster && !isSchoolAdmin) {
+      return err(res, 'Only Headmaster can publish mark results to parents and students');
+    }
+
+    const { examId, ids } = req.body;
+    if (ids && Array.isArray(ids)) {
+      await Mark.updateMany({ _id: { $in: ids } }, { isPublished: true, approvalStatus: 'PUBLISHED' });
+    } else if (examId) {
+      await Mark.updateMany({ examId }, { isPublished: true, approvalStatus: 'PUBLISHED' });
+    } else {
+      await Mark.updateMany({}, { isPublished: true, approvalStatus: 'PUBLISHED' });
+    }
+    ok(res, { message: 'Results published to parents and students successfully' });
+  } catch (e) { err(res, e.message); }
+};
+
+const approveMarkWorkflow = async (req, res) => {
+  try {
+    const { id, ids, action, comments } = req.body; // action: 'APPROVE' | 'REJECT'
+    const userRole = String(req.user?.role || req.user?.designation || '').toUpperCase();
+    const userName = req.user?.name || 'Admin';
+
+    const targetIds = Array.isArray(ids) ? ids : (id ? [id] : []);
+    if (targetIds.length === 0) return err(res, 'No mark records specified');
+
+    for (const mId of targetIds) {
+      const mark = await Mark.findById(mId);
+      if (!mark) continue;
+
+      if (action === 'REJECT') {
+        mark.approvalStatus = 'REJECTED';
+        mark.isPublished = false;
+      } else if (mark.approvalStatus === 'APPROVED_BY_PRINCIPAL') {
+        // Stage 2: Headmaster Release (From APPROVED_BY_PRINCIPAL -> PUBLISHED)
+        mark.approvalStatus = 'PUBLISHED';
+        mark.isPublished = true;
+        mark.headmasterApproval = { approvedBy: userName, approvedAt: new Date(), comments: comments || 'Approved & Released by Headmaster' };
+        if (!mark.principalApproval || !mark.principalApproval.approvedBy) {
+          mark.principalApproval = { approvedBy: 'Approved (Principal Forward)', approvedAt: new Date() };
+        }
+      } else {
+        // Stage 1: Principal Approval (From SUBMITTED_BY_TEACHER -> APPROVED_BY_PRINCIPAL)
+        // MUST NEVER PUBLISH DIRECTLY TO PARENTS/STUDENTS.
+        mark.approvalStatus = 'APPROVED_BY_PRINCIPAL';
+        mark.isPublished = false;
+        mark.principalApproval = { approvedBy: userName, approvedAt: new Date(), comments: comments || 'Approved & Forwarded by Principal' };
+      }
+      await mark.save();
+    }
+    ok(res, { message: `Successfully ${action === 'REJECT' ? 'rejected' : 'approved'} ${targetIds.length} mark record(s)` });
   } catch (e) { err(res, e.message); }
 };
 
@@ -1156,6 +1305,7 @@ const getTimetable = async (req, res) => {
 };
 const saveTimetable = async (req, res) => {
   try {
+    if (!isSchoolAdminReq(req)) return err(res, 'Access denied. Only School Administrators can save or modify timetables.', 403);
     const { classId, sectionId } = req.body;
     const cleanCls = String(classId || 'LKG').replace(/^Class\s+/i, '').trim();
     const cleanSec = String(sectionId || 'A').replace(/^Section\s+/i, '').trim();
@@ -1939,6 +2089,8 @@ const getReportsDashboard = async (req, res) => {
       pendingLeaves,
       openTickets,
       pendingPayrolls,
+      feesDocs,
+      studentsList
     ] = await Promise.all([
       Student.countDocuments({ schoolId }),
       StaffHRMS.countDocuments({ schoolId, isArchived: false }),
@@ -1948,11 +2100,30 @@ const getReportsDashboard = async (req, res) => {
       LeaveRequest.countDocuments({ schoolId, status: 'PENDING' }),
       Helpdesk.countDocuments({ schoolId, status: 'OPEN' }),
       Payroll.countDocuments({ schoolId, status: 'GENERATED' }),
+      StudentFee.find({ schoolId }),
+      Student.find({ schoolId }, 'grade className classId').lean()
     ]);
+
+    let feeCollected = 0;
+    let feeTarget = 0;
+    (feesDocs || []).forEach(f => {
+      const tgt = Number(f.totalAmount || f.amount || 0);
+      const paid = Number(f.paidAmount || (f.status === 'PAID' ? tgt : 0));
+      feeTarget += tgt;
+      feeCollected += paid;
+    });
+
+    // Dynamic grade distribution
+    const gradeBreakdown = {};
+    (studentsList || []).forEach(s => {
+      const k = s.grade || s.className || 'General';
+      gradeBreakdown[k] = (gradeBreakdown[k] || 0) + 1;
+    });
 
     ok(res, {
       totalStudents, totalStaff, totalExams, totalLibraryBooks,
       totalTransport, pendingLeaves, openTickets, pendingPayrolls,
+      feeCollected, feeTarget, gradeBreakdown
     });
   } catch (e) { err(res, e.message); }
 };
@@ -1978,7 +2149,7 @@ module.exports = {
   getStaffAttendance, markStaffAttendance, approveStaffAttendanceCorrection,
   // Academics
   getExams, createExam, updateExam, deleteExam, publishExam,
-  getMarks, createMark, updateMark, deleteMark, publishMarks,
+  getMarks, createMark, updateMark, deleteMark, publishMarks, approveMarkWorkflow,
   getHomework, createHomework, updateHomework, deleteHomework, verifyHomeworkSubmission,
   getLMSContent, createLMSContent, updateLMSContent, deleteLMSContent,
   getTimetable, saveTimetable,

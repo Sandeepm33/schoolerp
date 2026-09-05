@@ -50,14 +50,14 @@ const ALL_SERVICES = [
   { id: 'enquiry',         name: 'Enquiry & Leads',    category: 'ADMISSIONS', roles: ['SCHOOL_ADMIN'], icon: ClipboardList,  iconColor: 'text-sky-500' },
   { id: 'students',        name: 'Student Directory',  category: 'ADMISSIONS', roles: ['SCHOOL_ADMIN', 'TEACHER'], icon: GraduationCap,  iconColor: 'text-indigo-500' },
   { id: 'parents',         name: 'Parent Directory',   category: 'ADMISSIONS', roles: ['SCHOOL_ADMIN'], icon: HeartHandshake, iconColor: 'text-teal-500' },
-  { id: 'health',          name: 'Health Records',     category: 'ADMISSIONS', roles: ['SCHOOL_ADMIN', 'TEACHER'], icon: Stethoscope,    iconColor: 'text-emerald-500' },
-  { id: 'discipline',      name: 'Discipline Tracker', category: 'ADMISSIONS', roles: ['SCHOOL_ADMIN', 'TEACHER'], icon: AlertTriangle,  iconColor: 'text-rose-500' },
+  { id: 'health',          name: 'Health Records',     category: 'ADMISSIONS', roles: ['SCHOOL_ADMIN', 'TEACHER', 'PARENT', 'STUDENT'], icon: Stethoscope,    iconColor: 'text-emerald-500' },
+  { id: 'discipline',      name: 'Discipline Tracker', category: 'ADMISSIONS', roles: ['SCHOOL_ADMIN', 'TEACHER', 'PARENT', 'STUDENT'], icon: AlertTriangle,  iconColor: 'text-rose-500' },
   { id: 'ai-risk',         name: 'AI Risk Detector',   category: 'ADMISSIONS', roles: ['SCHOOL_ADMIN'], icon: Sparkles,       iconColor: 'text-purple-500' },
 
   // ACADEMICS & EXAMS
   { id: 'academic-years',  name: 'Academic Session',   category: 'ACADEMICS',  roles: ['SCHOOL_ADMIN'], icon: Calendar,       iconColor: 'text-blue-500' },
   { id: 'classes',         name: 'Classes & Sections', category: 'ACADEMICS',  roles: ['SCHOOL_ADMIN', 'TEACHER'], icon: BookOpen,       iconColor: 'text-indigo-500' },
-  { id: 'subjects',        name: 'Subjects',           category: 'ACADEMICS',  roles: ['SCHOOL_ADMIN', 'TEACHER'], icon: BookMarked,     iconColor: 'text-violet-500' },
+  { id: 'subjects',        name: 'Subjects',           category: 'ACADEMICS',  roles: ['SCHOOL_ADMIN', 'TEACHER', 'PARENT', 'STUDENT'], icon: BookMarked,     iconColor: 'text-violet-500' },
   { id: 'timetable',       name: 'Timetable',          category: 'ACADEMICS',  roles: ['SCHOOL_ADMIN', 'TEACHER', 'PARENT', 'STUDENT'], icon: Calendar, iconColor: 'text-purple-500' },
   { id: 'homework',        name: 'Homework',           category: 'ACADEMICS',  roles: ['SCHOOL_ADMIN', 'TEACHER', 'PARENT', 'STUDENT'], icon: FileText, iconColor: 'text-fuchsia-500' },
   { id: 'lms',             name: 'LMS & E-Learning',   category: 'ACADEMICS',  roles: ['SCHOOL_ADMIN', 'TEACHER', 'PARENT', 'STUDENT'], icon: BookOpen, iconColor: 'text-pink-500' },
@@ -80,14 +80,14 @@ const ALL_SERVICES = [
   // CAMPUS & FACILITIES
   { id: 'library',         name: 'Library System',     category: 'FACILITIES', roles: ['SCHOOL_ADMIN', 'TEACHER', 'PARENT', 'STUDENT'], icon: Library, iconColor: 'text-amber-500' },
   { id: 'transport',       name: 'Transport & GPS',    category: 'FACILITIES', roles: ['SCHOOL_ADMIN', 'PARENT', 'STUDENT'], icon: Bus, iconColor: 'text-orange-500' },
-  { id: 'hostel',          name: 'Hostels & Rooms',    category: 'FACILITIES', roles: ['SCHOOL_ADMIN'], icon: Home, iconColor: 'text-rose-500' },
+  { id: 'hostel',          name: 'Hostels & Rooms',    category: 'FACILITIES', roles: ['SCHOOL_ADMIN', 'PARENT', 'STUDENT'], icon: Home, iconColor: 'text-rose-500' },
   { id: 'inventory',       name: 'Asset Inventory',    category: 'FACILITIES', roles: ['SCHOOL_ADMIN'], icon: Box, iconColor: 'text-amber-600' },
 
   // COMMUNICATION & ADMIN
   { id: 'announcements',   name: 'Announcements',      category: 'ADMIN',      roles: ['SCHOOL_ADMIN', 'TEACHER', 'PARENT', 'STUDENT'], icon: Megaphone, iconColor: 'text-purple-500' },
   { id: 'events',          name: 'School Calendar',    category: 'ADMIN',      roles: ['SCHOOL_ADMIN', 'TEACHER', 'PARENT', 'STUDENT'], icon: Calendar, iconColor: 'text-pink-500' },
   { id: 'visitors',        name: 'Visitor Gate Passes',category: 'ADMIN',      roles: ['SCHOOL_ADMIN'], icon: MapPin, iconColor: 'text-rose-500' },
-  { id: 'certificates',    name: 'Certificates & TC',  category: 'ADMIN',      roles: ['SCHOOL_ADMIN'], icon: FileBadge2, iconColor: 'text-indigo-500' },
+  { id: 'certificates',    name: 'Certificates & TC',  category: 'ADMIN',      roles: ['SCHOOL_ADMIN', 'PARENT', 'STUDENT'], icon: FileBadge2, iconColor: 'text-indigo-500' },
   { id: 'helpdesk',        name: 'Campus Helpdesk',    category: 'ADMIN',      roles: ['SCHOOL_ADMIN', 'TEACHER', 'PARENT', 'STUDENT'], icon: Ticket, iconColor: 'text-orange-500' },
   { id: 'audit-logs',      name: 'Audit Logs',         category: 'ADMIN',      roles: ['SCHOOL_ADMIN'], icon: ShieldCheck, iconColor: 'text-slate-500' },
   { id: 'reports',         name: 'Reports & Analytics',category: 'ADMIN',      roles: ['SCHOOL_ADMIN', 'ACCOUNTANT'], icon: BarChart3, iconColor: 'text-blue-500' },
@@ -114,7 +114,7 @@ const SUPER_ADMIN_CATEGORIES = [
   { id: 'SAAS_BUSINESS', label: 'Business & Support' },
 ];
 
-export default function AllServicesPanel({ role = 'SCHOOL_ADMIN' }) {
+export default function AllServicesPanel({ role }) {
   const router = useRouter();
   const { user: authUser } = useAuth();
   const [mounted, setMounted] = useState(false);
@@ -248,8 +248,11 @@ export default function AllServicesPanel({ role = 'SCHOOL_ADMIN' }) {
 
   const plansToRender = availablePlans.length > 0 ? availablePlans : DEFAULT_PLANS;
 
-  const isSuperAdmin = role === 'SAAS_SUPER_ADMIN' || user?.role === 'SAAS_SUPER_ADMIN';
-  const isAdminRole = ADMIN_ROLES.includes(role);
+  // Determine effective active role: strictly prioritize explicitly passed prop first
+  const activeRole = String(role || user?.role || 'SCHOOL_ADMIN').toUpperCase();
+  const isSuperAdmin = activeRole === 'SAAS_SUPER_ADMIN';
+  const isAdminRole = ADMIN_ROLES.includes(activeRole);
+  const isSchoolAdmin = isAdminRole || ['SCHOOL_ADMIN', 'PRINCIPAL', 'HEADMASTER', 'HEAD_MASTER', 'SCHOOL_ADMINISTRATOR'].includes(activeRole);
   const planFeatures = user?.planFeatures;
   const currentPlanName = user?.planName || user?.subscriptionPlan || 'BASIC';
 
@@ -276,7 +279,7 @@ export default function AllServicesPanel({ role = 'SCHOOL_ADMIN' }) {
     return false;
   };
 
-  // Define visible services based on role: SuperAdmin sees ONLY SuperAdmin services
+  // Define visible services based on activeRole: SuperAdmin sees SAAS, School Admin sees ALL, student/parent/teacher/accountant see ONLY their allowed modules
   let visibleServices = [];
   if (isSuperAdmin) {
     visibleServices = SUPER_ADMIN_SERVICES.map(s => ({ ...s, target: 'saas' }));
@@ -284,7 +287,7 @@ export default function AllServicesPanel({ role = 'SCHOOL_ADMIN' }) {
     visibleServices = ALL_SERVICES.map(s => ({ ...s, target: 'tenant' }));
   } else {
     visibleServices = ALL_SERVICES
-      .filter(s => s.roles.includes(role))
+      .filter(s => s.roles.includes(activeRole))
       .filter(s => !checkIsLocked(s.id))
       .map(s => ({ ...s, target: 'tenant' }));
   }
@@ -375,7 +378,7 @@ export default function AllServicesPanel({ role = 'SCHOOL_ADMIN' }) {
         </div>
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-          {!isSuperAdmin && (
+          {isSchoolAdmin && !isSuperAdmin && (
             <button
               onClick={() => handleOpenPlanSelector()}
               style={{
@@ -541,7 +544,7 @@ export default function AllServicesPanel({ role = 'SCHOOL_ADMIN' }) {
                 >
                   Manage SaaS Plans
                 </button>
-              ) : (
+              ) : isSchoolAdmin ? (
                 <button
                   onClick={() => handleOpenPlanSelector(lockedModalItem)}
                   style={{ padding: '8px 16px', borderRadius: '12px', background: '#02563d', color: '#ffffff', fontWeight: 800, fontSize: '12px', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
@@ -549,7 +552,7 @@ export default function AllServicesPanel({ role = 'SCHOOL_ADMIN' }) {
                   <Sparkles style={{ width: '14px', height: '14px' }} />
                   View All Plans & Select
                 </button>
-              )}
+              ) : null}
             </div>
           </div>
         </div>,

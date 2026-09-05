@@ -29,13 +29,21 @@ const TimetableSchema = new mongoose.Schema({
 const ExamSchema = new mongoose.Schema({
   schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
   title: { type: String, required: true },
-  examType: { type: String, enum: ['Unit Test', 'Periodic Test', 'Mid-Term', 'Final Exam', 'Practical', 'Internal Assessment'], default: 'Mid-Term' },
+  examType: { type: String, default: 'Mid-Term' },
   targetClass: { type: String },
   subjects: [String],
   startDate: Date,
   endDate: Date,
   totalMarks: { type: Number, default: 100 },
   passingMarks: { type: Number, default: 35 },
+  subjectSchedules: [{
+    subjectName: String,
+    examDate: String,
+    startTime: String,
+    endTime: String,
+    totalMarks: Number,
+    passingMarks: Number
+  }],
   isPublished: { type: Boolean, default: false },
   isLocked: { type: Boolean, default: false },
   academicYear: { type: String, default: '2026-2027' },
@@ -50,10 +58,12 @@ const MarkSchema = new mongoose.Schema({
   rollNo: String,
   classId: String,
   sectionId: String,
+  subjectName: String,
   subjectMarks: [{
     subject: String,
     marksObtained: Number,
     maxMarks: { type: Number, default: 100 },
+    passingMarks: { type: Number, default: 35 },
     grade: String,
     remarks: String
   }],
@@ -61,6 +71,22 @@ const MarkSchema = new mongoose.Schema({
   totalMaxMarks: Number,
   percentage: Number,
   rank: Number,
+  approvalStatus: { type: String, default: 'PUBLISHED' }, // SUBMITTED_BY_TEACHER | APPROVED_BY_PRINCIPAL | APPROVED_BY_HEADMASTER | PUBLISHED | REJECTED
+  submittedBy: {
+    name: String,
+    role: String,
+    date: { type: Date, default: Date.now }
+  },
+  principalApproval: {
+    approvedBy: String,
+    approvedAt: Date,
+    comments: String
+  },
+  headmasterApproval: {
+    approvedBy: String,
+    approvedAt: Date,
+    comments: String
+  },
   isPublished: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
