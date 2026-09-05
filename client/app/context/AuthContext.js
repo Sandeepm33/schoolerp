@@ -4,45 +4,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext();
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_BASE;
-
-const DEMO_PRESETS = {
-  'superadmin@saas.com': {
-    name: 'SaaS Platform Super Admin',
-    email: 'superadmin@saas.com',
-    role: 'SAAS_SUPER_ADMIN',
-    schoolName: 'SaaS Master Control Panel',
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop'
-  },
-  'admin@greenwood.edu': {
-    name: 'Principal Eleanor Vance',
-    email: 'admin@greenwood.edu',
-    role: 'SCHOOL_ADMIN',
-    schoolName: 'Greenwood International School',
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150&auto=format&fit=crop'
-  },
-  'accountant@greenwood.edu': {
-    name: 'Marcus Vance',
-    email: 'accountant@greenwood.edu',
-    role: 'ACCOUNTANT',
-    schoolName: 'Greenwood International School',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop'
-  },
-  'teacher@greenwood.edu': {
-    name: 'Sarah Jenkins',
-    email: 'teacher@greenwood.edu',
-    role: 'TEACHER',
-    schoolName: 'Greenwood International School',
-    avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&auto=format&fit=crop'
-  },
-  'parent@greenwood.edu': {
-    name: 'Robert Davis',
-    email: 'parent@greenwood.edu',
-    role: 'PARENT',
-    schoolName: 'Greenwood International School',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop'
-  }
-};
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:5000/api';
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -58,7 +20,7 @@ export const AuthProvider = ({ children }) => {
         setUser(JSON.parse(savedUser));
         setToken(savedToken);
 
-        // Sync fresh profile data from backend
+        // Sync fresh profile data from backend if server is reachable
         fetch(`${API_BASE}/auth/me`, {
           headers: { 'Authorization': `Bearer ${savedToken}` }
         })
@@ -109,25 +71,12 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('erp_token', data.token);
         return fullUser;
       } else {
-        if (DEMO_PRESETS[cleanEmail]) {
-          const demoUser = DEMO_PRESETS[cleanEmail];
-          setUser(demoUser);
-          setToken(`demo_token_${demoUser.role.toLowerCase()}`);
-          localStorage.setItem('erp_user', JSON.stringify(demoUser));
-          localStorage.setItem('erp_token', `demo_token_${demoUser.role.toLowerCase()}`);
-          return demoUser;
-        }
-        const data = await res.json().catch(() => ({ message: 'Invalid email or password' }));
-        throw new Error(data.message || 'Authentication failed');
+        const data = await res.json().catch(() => ({ message: 'Invalid email/mobile or password' }));
+        throw new Error(data.message || 'Invalid email/mobile or password');
       }
     } catch (e) {
-      if (DEMO_PRESETS[cleanEmail]) {
-        const demoUser = DEMO_PRESETS[cleanEmail];
-        setUser(demoUser);
-        setToken(`demo_token_${demoUser.role.toLowerCase()}`);
-        localStorage.setItem('erp_user', JSON.stringify(demoUser));
-        localStorage.setItem('erp_token', `demo_token_${demoUser.role.toLowerCase()}`);
-        return demoUser;
+      if (e.message === 'Failed to fetch' || e.name === 'TypeError' || e.message?.includes('fetch')) {
+        throw new Error('Unable to connect to authentication server. Please ensure backend server is running.');
       }
       throw e;
     } finally {
@@ -170,3 +119,5 @@ export const AuthProvider = ({ children }) => {
 };
 
 export const useAuth = () => useContext(AuthContext);
+
+

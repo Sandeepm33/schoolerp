@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { DollarSign, CreditCard, Receipt, PlusCircle, CheckCircle, Search, AlertCircle, FileSpreadsheet, LayoutDashboard } from 'lucide-react';
+import { DollarSign, CreditCard, Receipt, PlusCircle, CheckCircle, Search, AlertCircle, FileSpreadsheet, LayoutDashboard, List, LayoutGrid } from 'lucide-react';
 import { useAuth, API_BASE } from '../context/AuthContext';
 import { useDataSync, notifyGlobalDataChange } from '../context/DataSyncContext';
 import AllServicesPanel from './AllServicesPanel';
@@ -81,6 +81,8 @@ export default function AccountantDashboard() {
       console.error(e);
     }
   };
+
+  const [feeViewMode, setFeeViewMode] = useState('list');
 
   return (
     <div className="space-y-6">
@@ -194,53 +196,131 @@ export default function AccountantDashboard() {
         
         {/* Ledger Table */}
         <div className="lg:col-span-2 glass-panel p-6 rounded-2xl border border-slate-800 space-y-4">
-          <h3 className="text-lg font-bold text-white">Student Fee Ledger</h3>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h3 className="text-lg font-bold text-white">Student Fee Ledger</h3>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-900 text-slate-400 uppercase font-semibold">
-                <tr>
-                  <th className="p-3">Student</th>
-                  <th className="p-3">Fee Structure</th>
-                  <th className="p-3">Total</th>
-                  <th className="p-3">Paid</th>
-                  <th className="p-3">Due</th>
-                  <th className="p-3">Status</th>
-                  <th className="p-3">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-800 text-slate-200">
-                {studentFees.map(fee => (
-                  <tr key={fee._id} className="hover:bg-slate-800/40">
-                    <td className="p-3 font-bold text-white">{fee.studentName}</td>
-                    <td className="p-3 text-slate-400">{fee.feeStructureTitle}</td>
-                    <td className="p-3 font-mono">${fee.totalAmount}</td>
-                    <td className="p-3 font-mono text-emerald-400">${fee.paidAmount}</td>
-                    <td className="p-3 font-mono text-amber-400">${fee.dueAmount}</td>
-                    <td className="p-3">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                        fee.status === 'PAID' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-300'
+            {/* View Switcher */}
+            <div className="flex items-center p-1 rounded-xl bg-slate-900 border border-slate-700">
+              <button
+                type="button"
+                onClick={() => setFeeViewMode('list')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                  feeViewMode === 'list'
+                    ? 'bg-indigo-600 text-white shadow-sm font-black'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <List className="w-3.5 h-3.5" />
+                <span>List View</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFeeViewMode('grid')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                  feeViewMode === 'grid'
+                    ? 'bg-indigo-600 text-white shadow-sm font-black'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Grid View</span>
+              </button>
+            </div>
+          </div>
+
+          {feeViewMode === 'grid' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              {studentFees.map(fee => (
+                <div key={fee._id} className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 space-y-3 flex flex-col justify-between shadow-lg">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                      <h4 className="font-extrabold text-white text-sm">{fee.studentName}</h4>
+                      <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold ${
+                        fee.status === 'PAID' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                       }`}>
                         {fee.status}
                       </span>
-                    </td>
-                    <td className="p-3">
-                      {fee.dueAmount > 0 ? (
-                        <button 
-                          onClick={() => { setSelectedFee(fee); setReceiptResult(null); }}
-                          className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[11px] font-semibold transition"
-                        >
-                          Record Payment
-                        </button>
-                      ) : (
-                        <span className="text-[11px] text-slate-500">Fully Paid</span>
-                      )}
-                    </td>
+                    </div>
+
+                    <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 space-y-1 text-xs">
+                      <div className="text-slate-400 font-medium">Structure: <strong className="text-slate-200">{fee.feeStructureTitle}</strong></div>
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="text-slate-400">Total Amount:</span>
+                        <span className="font-mono text-white font-bold">${fee.totalAmount}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Paid Amount:</span>
+                        <span className="font-mono text-emerald-400 font-bold">${fee.paidAmount}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-400">Remaining Due:</span>
+                        <span className="font-mono text-amber-400 font-bold">${fee.dueAmount}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-800">
+                    {fee.dueAmount > 0 ? (
+                      <button 
+                        onClick={() => { setSelectedFee(fee); setReceiptResult(null); }}
+                        className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 shadow-md cursor-pointer"
+                      >
+                        <CreditCard className="w-3.5 h-3.5" /> Record Payment
+                      </button>
+                    ) : (
+                      <span className="text-xs text-emerald-400 font-bold text-center block py-1">Fully Paid ✓</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-900 text-slate-400 uppercase font-semibold">
+                  <tr>
+                    <th className="p-3">Student</th>
+                    <th className="p-3">Fee Structure</th>
+                    <th className="p-3">Total</th>
+                    <th className="p-3">Paid</th>
+                    <th className="p-3">Due</th>
+                    <th className="p-3">Status</th>
+                    <th className="p-3">Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-800 text-slate-200">
+                  {studentFees.map(fee => (
+                    <tr key={fee._id} className="hover:bg-slate-800/40">
+                      <td className="p-3 font-bold text-white">{fee.studentName}</td>
+                      <td className="p-3 text-slate-400">{fee.feeStructureTitle}</td>
+                      <td className="p-3 font-mono">${fee.totalAmount}</td>
+                      <td className="p-3 font-mono text-emerald-400">${fee.paidAmount}</td>
+                      <td className="p-3 font-mono text-amber-400">${fee.dueAmount}</td>
+                      <td className="p-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                          fee.status === 'PAID' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-amber-500/20 text-amber-300'
+                        }`}>
+                          {fee.status}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        {fee.dueAmount > 0 ? (
+                          <button 
+                            onClick={() => { setSelectedFee(fee); setReceiptResult(null); }}
+                            className="px-3 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[11px] font-semibold transition"
+                          >
+                            Record Payment
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-slate-500">Fully Paid</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
 
         {/* Record Manual Payment Form Panel */}

@@ -141,6 +141,9 @@ function SidebarContent({ isCollapsed, onToggle }) {
   const handleNavClick = (e, item) => {
     if (item.href) {
       e.preventDefault();
+      if (typeof window !== 'undefined' && window.innerWidth < 768 && !isCollapsed) {
+        onToggle();
+      }
       router.push(item.href);
     }
   };
@@ -264,7 +267,14 @@ function SidebarContent({ isCollapsed, onToggle }) {
   // MODE B: DEFAULT OPEN SIDEBAR (isCollapsed === false) - ORIGINAL FULL SIDEBAR VIEW
   // ----------------------------------------------------
   return (
-    <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-screen sticky top-0 shrink-0 select-none z-30 transition-all duration-300">
+    <>
+      {/* Mobile Drawer Overlay Backdrop */}
+      <div 
+        className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-40 md:hidden animate-in fade-in cursor-pointer" 
+        onClick={onToggle} 
+        title="Close Sidebar"
+      />
+      <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-screen fixed inset-y-0 left-0 z-50 md:sticky top-0 shrink-0 select-none transition-all duration-300 shadow-2xl md:shadow-none">
       
       {/* FULL BRANDING HEADER */}
       <div className="p-4 border-b border-slate-200 flex items-center justify-between bg-white">
@@ -377,6 +387,7 @@ function SidebarContent({ isCollapsed, onToggle }) {
       <AIChatModal isOpen={isAIChatOpen} onClose={() => setIsAIChatOpen(false)} />
 
     </aside>
+    </>
   );
 }
 

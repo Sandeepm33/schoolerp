@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { motion } from 'framer-motion';
 
 import { 
   Building2, Key, ShieldCheck, Mail, Lock, Eye, EyeOff, 
@@ -27,6 +28,155 @@ export default function LandingPage() {
   const [submittingInquiry, setSubmittingInquiry] = useState(false);
   const [inquiryError, setInquiryError] = useState(null);
   const [activeFaq, setActiveFaq] = useState(null);
+
+  // Live Field Validation & Touch Tracking State
+  const [inquiryTouched, setInquiryTouched] = useState({
+    schoolName: false,
+    name: false,
+    mobile: false,
+    email: false,
+    strength: false,
+    description: false
+  });
+
+  const [inquiryErrors, setInquiryErrors] = useState({
+    schoolName: '',
+    name: '',
+    mobile: '',
+    email: '',
+    strength: '',
+    description: ''
+  });
+
+  const validateInquiryField = (field, value) => {
+    let err = '';
+    const trimmed = (value || '').trim();
+
+    switch (field) {
+      case 'schoolName':
+        if (!trimmed) {
+          err = 'School / College name is required';
+        } else if (trimmed.length < 2) {
+          err = 'School name must be at least 2 characters';
+        }
+        break;
+
+      case 'name':
+        if (!trimmed) {
+          err = 'Your full name is required';
+        } else if (trimmed.length < 2) {
+          err = 'Full name must be at least 2 characters';
+        } else if (!/^[a-zA-Z\s\.\'-]+$/.test(trimmed)) {
+          err = 'Name can only contain letters and spaces';
+        }
+        break;
+
+      case 'mobile':
+        const cleanPhone = (value || '').replace(/\D/g, '');
+        if (!trimmed) {
+          err = 'Mobile number is required';
+        } else if (cleanPhone.length < 10) {
+          err = 'Please enter a valid 10-digit mobile number';
+        }
+        break;
+
+      case 'email':
+        if (!trimmed) {
+          err = 'Email address is required';
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+          err = 'Please enter a valid email address (e.g. principal@school.edu)';
+        }
+        break;
+
+      case 'strength':
+        if (trimmed) {
+          const cleanStrength = (value || '').replace(/\D/g, '');
+          if (!cleanStrength || Number(cleanStrength) <= 0) {
+            err = 'Student strength must be a positive number';
+          } else if (Number(cleanStrength) > 500000) {
+            err = 'Please enter a realistic student strength';
+          }
+        }
+        break;
+
+      case 'description':
+        if (trimmed.length > 1000) {
+          err = 'Remarks cannot exceed 1000 characters';
+        }
+        break;
+
+      default:
+        break;
+    }
+
+    return err;
+  };
+
+  const handleInquiryBlur = (field) => {
+    setInquiryTouched(prev => ({ ...prev, [field]: true }));
+    let val = '';
+    if (field === 'schoolName') val = inquirySchoolName;
+    if (field === 'name') val = inquiryName;
+    if (field === 'mobile') val = inquiryMobile;
+    if (field === 'email') val = inquiryEmail;
+    if (field === 'strength') val = inquirySchoolStrength;
+    if (field === 'description') val = inquiryDescription;
+
+    const err = validateInquiryField(field, val);
+    setInquiryErrors(prev => ({ ...prev, [field]: err }));
+  };
+
+  const handleInquiryChange = (field, value) => {
+    let sanitizedVal = value;
+
+    if (field === 'mobile') {
+      // Enforce numeric only (digits 0-9) and limit to 10 digits max
+      sanitizedVal = (value || '').replace(/\D/g, '').slice(0, 10);
+      setInquiryMobile(sanitizedVal);
+    } else if (field === 'strength') {
+      // Enforce numeric only (digits 0-9)
+      sanitizedVal = (value || '').replace(/\D/g, '');
+      setInquirySchoolStrength(sanitizedVal);
+    } else if (field === 'schoolName') {
+      setInquirySchoolName(value);
+    } else if (field === 'name') {
+      setInquiryName(value);
+    } else if (field === 'email') {
+      setInquiryEmail(value);
+    } else if (field === 'description') {
+      setInquiryDescription(value);
+    }
+
+    if (inquiryTouched[field]) {
+      const err = validateInquiryField(field, sanitizedVal);
+      setInquiryErrors(prev => ({ ...prev, [field]: err }));
+    }
+  };
+
+  const validateAllInquiryFields = () => {
+    const errors = {
+      schoolName: validateInquiryField('schoolName', inquirySchoolName),
+      name: validateInquiryField('name', inquiryName),
+      mobile: validateInquiryField('mobile', inquiryMobile),
+      email: validateInquiryField('email', inquiryEmail),
+      strength: validateInquiryField('strength', inquirySchoolStrength),
+      description: validateInquiryField('description', inquiryDescription)
+    };
+
+    setInquiryTouched({
+      schoolName: true,
+      name: true,
+      mobile: true,
+      email: true,
+      strength: true,
+      description: true
+    });
+
+    setInquiryErrors(errors);
+
+    const hasErrors = Object.values(errors).some(err => Boolean(err));
+    return !hasErrors;
+  };
 
   // 36 ACTUAL APPLICATION MODULES (EXACT DESIGN AS IN SYSTEM)
   const appModules = [
@@ -84,8 +234,15 @@ export default function LandingPage() {
 
   const handleInquirySubmit = async (e) => {
     e.preventDefault();
-    setSubmittingInquiry(true);
     setInquiryError(null);
+
+    const isValid = validateAllInquiryFields();
+    if (!isValid) {
+      setInquiryError('Please correct the highlighted errors in the form before submitting.');
+      return;
+    }
+
+    setSubmittingInquiry(true);
 
     const payload = {
       schoolName: inquirySchoolName,
@@ -134,6 +291,22 @@ export default function LandingPage() {
         setInquiryEmail('');
         setInquirySchoolStrength('');
         setInquiryDescription('');
+        setInquiryTouched({
+          schoolName: false,
+          name: false,
+          mobile: false,
+          email: false,
+          strength: false,
+          description: false
+        });
+        setInquiryErrors({
+          schoolName: '',
+          name: '',
+          mobile: '',
+          email: '',
+          strength: '',
+          description: ''
+        });
         
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new Event('erp_data_changed'));
@@ -198,55 +371,87 @@ export default function LandingPage() {
         
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
           
-          {/* Hero Left Column (Pure Text & Value Props, No Image) */}
+          {/* Hero Left Column (Pure Text & Value Props with Framer Motion) */}
           <div className="lg:col-span-7 space-y-6">
-            <div className="inline-flex items-center space-x-2 bg-blue-100/90 border border-blue-200/80 px-4 py-1.5 rounded-full text-blue-700 text-xs font-bold uppercase tracking-wider shadow-xs">
+            <motion.div 
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+              className="inline-flex items-center space-x-2 bg-blue-100/90 border border-blue-200/80 px-4 py-1.5 rounded-full text-blue-700 text-xs font-bold uppercase tracking-wider shadow-xs"
+            >
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
               <span>Trusted by 500+ Top Institutions Across India</span>
-            </div>
+            </motion.div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-slate-900 leading-[1.1] tracking-tight">
+            <motion.h1 
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.15, ease: [0.215, 0.61, 0.355, 1.0] }}
+              className="text-4xl sm:text-5xl lg:text-6xl font-black text-slate-900 leading-[1.1] tracking-tight"
+            >
               Power Your School With <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 via-indigo-600 to-amber-500">Next-Gen Cloud ERP</span>
-            </h1>
+            </motion.h1>
 
-            <p className="text-slate-600 text-base sm:text-lg font-medium leading-relaxed max-w-xl">
+            <motion.p 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.3, ease: 'easeOut' }}
+              className="text-slate-600 text-base sm:text-lg font-medium leading-relaxed max-w-xl"
+            >
               The most complete School Operating System with 36 integrated modules: Admissions, Fee Collection, AI Timetable Builder, Exam Marksheets, Live Transport GPS, HRMS, and Mobile Parent App.
-            </p>
+            </motion.p>
 
             {/* Quick Value Cards */}
-            <div className="grid grid-cols-2 gap-4 pt-2 font-medium text-xs text-slate-700">
-              <div className="flex items-center space-x-3.5 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-blue-300 transition-all">
+            <motion.div 
+              initial={{ opacity: 0, y: 25 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.7, delay: 0.45 }}
+              className="grid grid-cols-2 gap-4 pt-2 font-medium text-xs text-slate-700"
+            >
+              <motion.div 
+                whileHover={{ scale: 1.03, y: -2 }}
+                className="flex items-center space-x-3.5 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-blue-300 transition-all cursor-pointer"
+              >
                 <span className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-lg shrink-0">☁️</span>
                 <div>
                   <div className="font-bold text-slate-900 text-sm">100% Cloud Based</div>
                   <div className="text-[11px] text-slate-500">Zero server maintenance</div>
                 </div>
-              </div>
+              </motion.div>
 
-              <div className="flex items-center space-x-3.5 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-emerald-300 transition-all">
+              <motion.div 
+                whileHover={{ scale: 1.03, y: -2 }}
+                className="flex items-center space-x-3.5 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-emerald-300 transition-all cursor-pointer"
+              >
                 <span className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold text-lg shrink-0">⚡</span>
                 <div>
                   <div className="font-bold text-slate-900 text-sm">Go Live in 48 Hours</div>
                   <div className="text-[11px] text-slate-500">Free data migration</div>
                 </div>
-              </div>
+              </motion.div>
 
-              <div className="flex items-center space-x-3.5 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-purple-300 transition-all">
+              <motion.div 
+                whileHover={{ scale: 1.03, y: -2 }}
+                className="flex items-center space-x-3.5 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-purple-300 transition-all cursor-pointer"
+              >
                 <span className="w-9 h-9 rounded-xl bg-purple-100 text-purple-600 flex items-center justify-center font-bold text-lg shrink-0">📱</span>
                 <div>
                   <div className="font-bold text-slate-900 text-sm">Mobile Parent App</div>
                   <div className="text-[11px] text-slate-500">iOS & Android included</div>
                 </div>
-              </div>
+              </motion.div>
 
-              <div className="flex items-center space-x-3.5 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-amber-300 transition-all">
+              <motion.div 
+                whileHover={{ scale: 1.03, y: -2 }}
+                className="flex items-center space-x-3.5 bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs hover:border-amber-300 transition-all cursor-pointer"
+              >
                 <span className="w-9 h-9 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center font-bold text-lg shrink-0">🔒</span>
                 <div>
                   <div className="font-bold text-slate-900 text-sm">Bank-Grade Security</div>
                   <div className="text-[11px] text-slate-500">SSL & Role permissions</div>
                 </div>
-              </div>
-            </div>
+              </motion.div>
+            </motion.div>
           </div>
 
           {/* Hero Right: Quick Enquiry Form */}
@@ -276,84 +481,227 @@ export default function LandingPage() {
                   </button>
                 </div>
               ) : (
-                <form onSubmit={handleInquirySubmit} className="space-y-4">
+                <form onSubmit={handleInquirySubmit} noValidate className="space-y-4">
                   {inquiryError && (
-                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
+                    <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2 animate-in fade-in">
                       <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
                       <span>{inquiryError}</span>
                     </div>
                   )}
 
+                  {/* 1. SCHOOL / COLLEGE NAME */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">School / College Name *</label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="e.g. St. Xavier International School"
-                      value={inquirySchoolName}
-                      onChange={(e) => setInquirySchoolName(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-xs font-medium outline-hidden transition-all text-slate-900 bg-white"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3.5">
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Your Full Name *</label>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      School / College Name *
+                    </label>
+                    <div className="relative">
                       <input
                         type="text"
-                        required
-                        placeholder="Dr. Rajesh Kumar"
-                        value={inquiryName}
-                        onChange={(e) => setInquiryName(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-xs font-medium outline-hidden transition-all text-slate-900 bg-white"
+                        placeholder="e.g. St. Xavier International School"
+                        value={inquirySchoolName}
+                        onChange={(e) => handleInquiryChange('schoolName', e.target.value)}
+                        onBlur={() => handleInquiryBlur('schoolName')}
+                        className={`w-full px-4 py-2.5 rounded-xl border text-xs font-medium outline-none transition-all text-slate-900 ${
+                          inquiryTouched.schoolName && inquiryErrors.schoolName
+                            ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:ring-2 focus:ring-rose-400/30 focus:border-rose-500'
+                            : inquiryTouched.schoolName && !inquiryErrors.schoolName && inquirySchoolName.trim()
+                            ? 'border-emerald-500 bg-emerald-50/10 focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-500'
+                            : 'border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white'
+                        }`}
                       />
+                      {inquiryTouched.schoolName && inquiryErrors.schoolName && (
+                        <AlertCircle className="w-4 h-4 text-rose-500 absolute right-3.5 top-3 pointer-events-none" />
+                      )}
+                      {inquiryTouched.schoolName && !inquiryErrors.schoolName && inquirySchoolName.trim() && (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500 absolute right-3.5 top-3 pointer-events-none" />
+                      )}
                     </div>
-                    <div>
-                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Mobile No *</label>
-                      <input
-                        type="tel"
-                        required
-                        placeholder="9876543210"
-                        value={inquiryMobile}
-                        onChange={(e) => setInquiryMobile(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-xs font-medium outline-hidden transition-all text-slate-900 bg-white"
-                      />
-                    </div>
+                    {inquiryTouched.schoolName && inquiryErrors.schoolName && (
+                      <p className="mt-1 text-[11px] font-semibold text-rose-600 flex items-center gap-1 animate-in fade-in">
+                        <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
+                        <span>{inquiryErrors.schoolName}</span>
+                      </p>
+                    )}
                   </div>
 
+                  {/* 2. FULL NAME & MOBILE NO */}
                   <div className="grid grid-cols-2 gap-3.5">
+                    {/* Full Name */}
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Email Address *</label>
-                      <input
-                        type="email"
-                        required
-                        placeholder="principal@school.edu"
-                        value={inquiryEmail}
-                        onChange={(e) => setInquiryEmail(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-xs font-medium outline-hidden transition-all text-slate-900 bg-white"
-                      />
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Your Full Name *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Dr. Rajesh Kumar"
+                          value={inquiryName}
+                          onChange={(e) => handleInquiryChange('name', e.target.value)}
+                          onBlur={() => handleInquiryBlur('name')}
+                          className={`w-full px-4 py-2.5 rounded-xl border text-xs font-medium outline-none transition-all text-slate-900 ${
+                            inquiryTouched.name && inquiryErrors.name
+                              ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:ring-2 focus:ring-rose-400/30 focus:border-rose-500'
+                              : inquiryTouched.name && !inquiryErrors.name && inquiryName.trim()
+                              ? 'border-emerald-500 bg-emerald-50/10 focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-500'
+                              : 'border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white'
+                          }`}
+                        />
+                        {inquiryTouched.name && inquiryErrors.name && (
+                          <AlertCircle className="w-4 h-4 text-rose-500 absolute right-3.5 top-3 pointer-events-none" />
+                        )}
+                        {inquiryTouched.name && !inquiryErrors.name && inquiryName.trim() && (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 absolute right-3.5 top-3 pointer-events-none" />
+                        )}
+                      </div>
+                      {inquiryTouched.name && inquiryErrors.name && (
+                        <p className="mt-1 text-[11px] font-semibold text-rose-600 flex items-center gap-1 animate-in fade-in">
+                          <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
+                          <span>{inquiryErrors.name}</span>
+                        </p>
+                      )}
                     </div>
+
+                    {/* Mobile No */}
                     <div>
-                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Student Strength</label>
-                      <input
-                        type="number"
-                        placeholder="e.g. 800"
-                        value={inquirySchoolStrength}
-                        onChange={(e) => setInquirySchoolStrength(e.target.value)}
-                        className="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-xs font-medium outline-hidden transition-all text-slate-900 bg-white"
-                      />
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Mobile No *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          maxLength={10}
+                          placeholder="9876543210"
+                          value={inquiryMobile}
+                          onChange={(e) => handleInquiryChange('mobile', e.target.value)}
+                          onBlur={() => handleInquiryBlur('mobile')}
+                          className={`w-full px-4 py-2.5 rounded-xl border text-xs font-medium outline-none transition-all text-slate-900 ${
+                            inquiryTouched.mobile && inquiryErrors.mobile
+                              ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:ring-2 focus:ring-rose-400/30 focus:border-rose-500'
+                              : inquiryTouched.mobile && !inquiryErrors.mobile && inquiryMobile.trim()
+                              ? 'border-emerald-500 bg-emerald-50/10 focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-500'
+                              : 'border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white'
+                          }`}
+                        />
+                        {inquiryTouched.mobile && inquiryErrors.mobile && (
+                          <AlertCircle className="w-4 h-4 text-rose-500 absolute right-3.5 top-3 pointer-events-none" />
+                        )}
+                        {inquiryTouched.mobile && !inquiryErrors.mobile && inquiryMobile.trim() && (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 absolute right-3.5 top-3 pointer-events-none" />
+                        )}
+                      </div>
+                      {inquiryTouched.mobile && inquiryErrors.mobile && (
+                        <p className="mt-1 text-[11px] font-semibold text-rose-600 flex items-center gap-1 animate-in fade-in">
+                          <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
+                          <span>{inquiryErrors.mobile}</span>
+                        </p>
+                      )}
                     </div>
                   </div>
 
+                  {/* 3. EMAIL ADDRESS & STUDENT STRENGTH */}
+                  <div className="grid grid-cols-2 gap-3.5">
+                    {/* Email */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Email Address *
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="email"
+                          placeholder="principal@school.edu"
+                          value={inquiryEmail}
+                          onChange={(e) => handleInquiryChange('email', e.target.value)}
+                          onBlur={() => handleInquiryBlur('email')}
+                          className={`w-full px-4 py-2.5 rounded-xl border text-xs font-medium outline-none transition-all text-slate-900 ${
+                            inquiryTouched.email && inquiryErrors.email
+                              ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:ring-2 focus:ring-rose-400/30 focus:border-rose-500'
+                              : inquiryTouched.email && !inquiryErrors.email && inquiryEmail.trim()
+                              ? 'border-emerald-500 bg-emerald-50/10 focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-500'
+                              : 'border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white'
+                          }`}
+                        />
+                        {inquiryTouched.email && inquiryErrors.email && (
+                          <AlertCircle className="w-4 h-4 text-rose-500 absolute right-3.5 top-3 pointer-events-none" />
+                        )}
+                        {inquiryTouched.email && !inquiryErrors.email && inquiryEmail.trim() && (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 absolute right-3.5 top-3 pointer-events-none" />
+                        )}
+                      </div>
+                      {inquiryTouched.email && inquiryErrors.email && (
+                        <p className="mt-1 text-[11px] font-semibold text-rose-600 flex items-center gap-1 animate-in fade-in">
+                          <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
+                          <span>{inquiryErrors.email}</span>
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Student Strength */}
+                    <div>
+                      <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                        Student Strength
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          placeholder="e.g. 800"
+                          value={inquirySchoolStrength}
+                          onChange={(e) => handleInquiryChange('strength', e.target.value)}
+                          onBlur={() => handleInquiryBlur('strength')}
+                          className={`w-full px-4 py-2.5 rounded-xl border text-xs font-medium outline-none transition-all text-slate-900 ${
+                            inquiryTouched.strength && inquiryErrors.strength
+                              ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:ring-2 focus:ring-rose-400/30 focus:border-rose-500'
+                              : inquiryTouched.strength && !inquiryErrors.strength && inquirySchoolStrength.trim()
+                              ? 'border-emerald-500 bg-emerald-50/10 focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-500'
+                              : 'border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white'
+                          }`}
+                        />
+                        {inquiryTouched.strength && inquiryErrors.strength && (
+                          <AlertCircle className="w-4 h-4 text-rose-500 absolute right-3.5 top-3 pointer-events-none" />
+                        )}
+                        {inquiryTouched.strength && !inquiryErrors.strength && inquirySchoolStrength.trim() && (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 absolute right-3.5 top-3 pointer-events-none" />
+                        )}
+                      </div>
+                      {inquiryTouched.strength && inquiryErrors.strength && (
+                        <p className="mt-1 text-[11px] font-semibold text-rose-600 flex items-center gap-1 animate-in fade-in">
+                          <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
+                          <span>{inquiryErrors.strength}</span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 4. REQUIREMENTS / REMARKS */}
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">Requirements / Remarks</label>
-                    <textarea
-                      rows="2"
-                      placeholder="Tell us about your school requirements..."
-                      value={inquiryDescription}
-                      onChange={(e) => setInquiryDescription(e.target.value)}
-                      className="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 text-xs font-medium outline-hidden resize-none transition-all text-slate-900 bg-white"
-                    ></textarea>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Requirements / Remarks
+                    </label>
+                    <div className="relative">
+                      <textarea
+                        rows="2"
+                        placeholder="Tell us about your school requirements..."
+                        value={inquiryDescription}
+                        onChange={(e) => handleInquiryChange('description', e.target.value)}
+                        onBlur={() => handleInquiryBlur('description')}
+                        className={`w-full px-4 py-2.5 rounded-xl border text-xs font-medium outline-none resize-none transition-all text-slate-900 ${
+                          inquiryTouched.description && inquiryErrors.description
+                            ? 'border-rose-400 bg-rose-50/20 text-rose-900 focus:ring-2 focus:ring-rose-400/30 focus:border-rose-500'
+                            : inquiryTouched.description && !inquiryErrors.description && inquiryDescription.trim()
+                            ? 'border-emerald-500 bg-emerald-50/10 focus:ring-2 focus:ring-emerald-400/30 focus:border-emerald-500'
+                            : 'border-slate-300 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 bg-white'
+                        }`}
+                      ></textarea>
+                    </div>
+                    {inquiryTouched.description && inquiryErrors.description && (
+                      <p className="mt-1 text-[11px] font-semibold text-rose-600 flex items-center gap-1 animate-in fade-in">
+                        <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
+                        <span>{inquiryErrors.description}</span>
+                      </p>
+                    )}
                   </div>
 
                   <button
@@ -401,11 +749,17 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── ALL 36 MODULES IN OUR APPLICATION (EXACT SYSTEM GRID MATCHING SCREENSHOT) ── */}
+      {/* ── ALL 36 MODULES IN OUR APPLICATION (WITH FRAMER MOTION ANIMATED HEADINGS) ── */}
       <section id="modules" className="py-16 px-4 sm:px-8 bg-slate-50 border-b border-slate-200">
         <div className="max-w-7xl mx-auto space-y-6">
           
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-4 border-b border-slate-300">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-4 border-b border-slate-300"
+          >
             <div className="space-y-1">
               <span className="text-xs font-black uppercase tracking-widest text-blue-600 bg-blue-100 px-3 py-1 rounded-md">
                 36 ACTUAL SYSTEM APPLICATION MODULES
@@ -417,7 +771,7 @@ export default function LandingPage() {
             <p className="text-xs sm:text-sm text-slate-500 max-w-md font-medium">
               Comprehensive suite of 36 integrated modules available in the ERP application.
             </p>
-          </div>
+          </motion.div>
 
           {/* CATEGORY FILTER TABS */}
           <div className="flex flex-wrap items-center gap-2">
@@ -611,11 +965,17 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── ROLE-BASED BENEFITS SECTION ─────────────────────────────────── */}
+      {/* ── ROLE-BASED BENEFITS SECTION (WITH FRAMER MOTION ANIMATION) ─────────────────────────────────── */}
       <section id="personas" className="py-16 px-4 sm:px-8 bg-slate-50 border-b border-slate-200">
         <div className="max-w-7xl mx-auto space-y-12">
           
-          <div className="text-center max-w-3xl mx-auto space-y-3">
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="text-center max-w-3xl mx-auto space-y-3"
+          >
             <span className="text-xs font-black uppercase tracking-widest text-blue-600 bg-blue-100 px-3.5 py-1 rounded-md">
               DESIGNED FOR EVERY PERSONA
             </span>
@@ -625,7 +985,7 @@ export default function LandingPage() {
             <p className="text-slate-600 text-sm font-medium">
               Tailored experience and role-based permissions for every user in your school ecosystem.
             </p>
-          </div>
+          </motion.div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* Persona 1: Management */}
@@ -811,52 +1171,274 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── FOOTER ───────────────────────────────────────────────────────── */}
-      <footer className="bg-slate-950 text-slate-400 py-8 text-center text-xs border-t border-slate-800">
-        <div className="flex items-center justify-center space-x-2 mb-2">
-          <img src="/track360_logo.png" alt="Track 360 Logo" className="w-6 h-6 rounded-md object-cover" />
-          <span className="text-white font-bold text-sm">Track 360 Operating System</span>
+      {/* ── NIKE STYLE SIGNATURE FOOTER (GREEN BG + PURE WHITE TEXT) ──── */}
+      <footer style={{ backgroundColor: '#024a34', color: '#ffffff' }} className="font-sans border-t border-emerald-700/80 shadow-2xl">
+        
+        {/* Main Footer Links & Columns Grid */}
+        <div className="max-w-7xl mx-auto px-6 py-14 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-10 border-b border-emerald-800/80">
+          
+          {/* Column 1: Featured Primary Links (Bold Uppercase Nike Style - Pure White) */}
+          <div className="space-y-3.5 text-xs font-black uppercase tracking-wider" style={{ color: '#ffffff' }}>
+            <div>
+              <a href="#enquiry" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                FIND A SCHOOL WORKSPACE
+              </a>
+            </div>
+            <div>
+              <a href="#enquiry" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                BECOME A PARTNER INSTITUTION
+              </a>
+            </div>
+            <div>
+              <a href="#features" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                EXPLORE 36+ SYSTEM MODULES
+              </a>
+            </div>
+            <div>
+              <a href="#testimonials" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                CUSTOMER REVIEWS & TESTIMONIALS
+              </a>
+            </div>
+            <div>
+              <Link href="/login" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                SIGN IN TO PORTAL
+              </Link>
+            </div>
+            <div>
+              <a href="#enquiry" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                REQUEST A PERSONALIZED DEMO
+              </a>
+            </div>
+          </div>
+
+          {/* Column 2: GET HELP */}
+          <div className="space-y-3 text-xs">
+            <h4 style={{ color: '#f59e0b' }} className="font-black text-xs uppercase tracking-widest mb-4">
+              GET HELP
+            </h4>
+            <ul className="space-y-2.5 font-bold">
+              <li>
+                <a href="#enquiry" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                  Admission & Onboarding Support
+                </a>
+              </li>
+              <li>
+                <a href="#enquiry" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                  Fee Gateway Integration
+                </a>
+              </li>
+              <li>
+                <a href="#enquiry" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                  GPS & Hardware Support
+                </a>
+              </li>
+              <li>
+                <a href="#enquiry" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                  Payment Options & Pricing
+                </a>
+              </li>
+              <li>
+                <a href="#enquiry" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                  Contact Us (1800-TRACK360)
+                </a>
+              </li>
+              <li>
+                <Link href="/login" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                  Account Recovery & Password Reset
+                </Link>
+              </li>
+            </ul>
+          </div>
+
+          {/* Column 3: ABOUT TRACK 360 */}
+          <div className="space-y-3 text-xs">
+            <h4 style={{ color: '#f59e0b' }} className="font-black text-xs uppercase tracking-widest mb-4">
+              ABOUT TRACK 360
+            </h4>
+            <ul className="space-y-2.5 font-bold">
+              <li>
+                <a href="#overview" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                  About Our AI Engine
+                </a>
+              </li>
+              <li>
+                <a href="#features" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                  System Architecture
+                </a>
+              </li>
+              <li>
+                <a href="#enquiry" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                  Careers & Partner Hiring
+                </a>
+              </li>
+              <li>
+                <a href="#enquiry" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                  Enterprise Investors
+                </a>
+              </li>
+              <li>
+                <a href="#enquiry" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                  Campus Sustainability
+                </a>
+              </li>
+              <li>
+                <a href="#enquiry" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                  Data Privacy & 256-Bit SSL
+                </a>
+              </li>
+            </ul>
+          </div>
+
+          {/* Column 4: ERP MODULE CATALOG */}
+          <div className="space-y-3 text-xs">
+            <h4 style={{ color: '#f59e0b' }} className="font-black text-xs uppercase tracking-widest mb-4">
+              36 ERP MODULES
+            </h4>
+            <ul className="space-y-2.5 font-bold">
+              <li>
+                <a href="#features" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                  Student Directory & Admissions
+                </a>
+              </li>
+              <li>
+                <a href="#features" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                  Fee Management & Receipts
+                </a>
+              </li>
+              <li>
+                <a href="#features" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                  Smart Attendance & GPS Clock
+                </a>
+              </li>
+              <li>
+                <a href="#features" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                  LMS, Timetable & Homework
+                </a>
+              </li>
+              <li>
+                <a href="#features" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                  Staff HRMS & Payroll System
+                </a>
+              </li>
+              <li>
+                <a href="#features" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors block">
+                  AI Risk & Grade Detector
+                </a>
+              </li>
+            </ul>
+          </div>
+
+          {/* Column 5: Social Media & Region Selector */}
+          <div className="space-y-6">
+            
+            {/* Social Media Circular Buttons (High-Contrast White & Gold) */}
+            <div>
+              <h4 style={{ color: '#f59e0b' }} className="font-black text-xs uppercase tracking-widest mb-4">
+                CONNECT WITH US
+              </h4>
+              <div className="flex items-center gap-3 flex-wrap">
+                {/* Twitter / X */}
+                <a 
+                  href="https://twitter.com" 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  className="w-9 h-9 rounded-full bg-emerald-900/90 hover:bg-amber-400 text-white hover:text-slate-950 flex items-center justify-center transition-all shadow-sm border border-emerald-600/80"
+                  aria-label="Twitter"
+                >
+                  <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                  </svg>
+                </a>
+
+                {/* Facebook */}
+                <a 
+                  href="https://facebook.com" 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  className="w-9 h-9 rounded-full bg-emerald-900/90 hover:bg-amber-400 text-white hover:text-slate-950 flex items-center justify-center transition-all shadow-sm border border-emerald-600/80"
+                  aria-label="Facebook"
+                >
+                  <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                  </svg>
+                </a>
+
+                {/* YouTube */}
+                <a 
+                  href="https://youtube.com" 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  className="w-9 h-9 rounded-full bg-emerald-900/90 hover:bg-amber-400 text-white hover:text-slate-950 flex items-center justify-center transition-all shadow-sm border border-emerald-600/80"
+                  aria-label="YouTube"
+                >
+                  <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+                  </svg>
+                </a>
+
+                {/* Instagram */}
+                <a 
+                  href="https://instagram.com" 
+                  target="_blank" 
+                  rel="noreferrer" 
+                  className="w-9 h-9 rounded-full bg-emerald-900/90 hover:bg-amber-400 text-white hover:text-slate-950 flex items-center justify-center transition-all shadow-sm border border-emerald-600/80"
+                  aria-label="Instagram"
+                >
+                  <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+                  </svg>
+                </a>
+              </div>
+            </div>
+
+            {/* Region Selector */}
+            <div className="pt-2">
+              <button 
+                type="button" 
+                style={{ color: '#ffffff' }}
+                className="flex items-center gap-2 text-xs font-bold hover:text-amber-300 transition-colors"
+              >
+                <Globe className="w-4 h-4 text-emerald-200" />
+                <span>India | English (US)</span>
+              </button>
+            </div>
+
+          </div>
+
         </div>
-        <p>© {new Date().getFullYear()} Track 360 Operating System. All 36 System Modules Integrated.</p>
+
+        {/* Bottom Legal & Copyright Bar (Nike Signature Styling) */}
+        <div style={{ color: '#ffffff' }} className="max-w-7xl mx-auto px-6 py-8 flex flex-col md:flex-row items-center justify-between text-xs gap-4">
+          
+          {/* Left Copyright & Location */}
+          <div className="flex items-center gap-4 flex-wrap">
+            <span style={{ color: '#ffffff' }} className="flex items-center gap-1.5 font-bold">
+              <MapPin className="w-4 h-4 text-amber-400 fill-current" />
+              <span>India</span>
+            </span>
+            <span style={{ color: '#ffffff' }} className="font-semibold">© {new Date().getFullYear()} Track 360, Inc. All Rights Reserved</span>
+          </div>
+
+          {/* Right Legal Links */}
+          <div className="flex items-center gap-6 flex-wrap font-bold">
+            <a href="#enquiry" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors">Guides</a>
+            <a href="#enquiry" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors">Terms of Sale</a>
+            <a href="#enquiry" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors">Terms of Use</a>
+            <a href="#enquiry" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors">Track 360 Privacy Policy</a>
+            <a href="#enquiry" style={{ color: '#ffffff' }} className="hover:text-amber-300 transition-colors">Cookie Settings</a>
+          </div>
+
+        </div>
+
       </footer>
+
     </div>
   );
 }
 
 // ─── DYNAMIC TESTIMONIAL SLIDER & SCHOOL ADMIN SUBMISSION MODAL ─────────────
 function TestimonialSliderSection() {
-  const [testimonials, setTestimonials] = useState([
-    {
-      _id: '1',
-      name: 'Dr. Priya Sharma',
-      role: 'Principal',
-      schoolName: 'Delhi Public School',
-      text: 'Moving our entire institution to Track 360 was the best decision we made. Online fee collection reached 95% in the very first month, and parents love the live bus tracking feature!',
-      rating: 5,
-      avatar: 'PS',
-      color: '#2563eb'
-    },
-    {
-      _id: '2',
-      name: 'Mr. Rajesh Kumar',
-      role: 'Administrator',
-      schoolName: 'Greenwood Academy',
-      text: 'The report card generator module saved our teachers hundreds of hours during term exams. What used to take days is now generated in bulk PDF within minutes.',
-      rating: 5,
-      avatar: 'RK',
-      color: '#059669'
-    },
-    {
-      _id: '3',
-      name: 'Mrs. Anitha Reddy',
-      role: 'Director',
-      schoolName: 'Sunrise Group of Schools',
-      text: 'We managed 3 branches with 3 different software earlier. Now everything is consolidated into one dashboard with role permissions and zero server overhead.',
-      rating: 5,
-      avatar: 'AR',
-      color: '#9333ea'
-    }
-  ]);
+  const [testimonials, setTestimonials] = useState([]);
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -876,19 +1458,19 @@ function TestimonialSliderSection() {
     fetch('/api/testimonials')
       .then(res => res.json())
       .then(data => {
-        if (Array.isArray(data) && data.length > 0) {
+        if (Array.isArray(data)) {
           setTestimonials(data);
         }
       })
       .catch(() => {});
   }, []);
 
-  // Auto-play Slider
+  // Smooth Auto-scroll Slider (3.5s interval, pauses on hover)
   useEffect(() => {
     if (isPaused || testimonials.length <= 1) return;
     const interval = setInterval(() => {
       setCurrentIndex(prev => (prev + 1) % testimonials.length);
-    }, 5000);
+    }, 3500);
     return () => clearInterval(interval);
   }, [isPaused, testimonials.length]);
 
@@ -929,105 +1511,140 @@ function TestimonialSliderSection() {
 
   return (
     <section 
-      className="py-16 px-4 sm:px-8 bg-slate-50 border-b border-slate-200 relative overflow-hidden"
+      id="testimonials"
+      className="py-24 px-4 sm:px-8 bg-gradient-to-br from-slate-100 via-emerald-50/25 to-blue-50/30 border-b border-slate-200 relative overflow-hidden"
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      <div className="max-w-7xl mx-auto space-y-10">
+      {/* Decorative Ambient Radial Glow Effects */}
+      <div className="absolute -top-24 -right-24 w-96 h-96 bg-emerald-400/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-24 -left-24 w-96 h-96 bg-blue-400/15 rounded-full blur-3xl pointer-events-none" />
+
+      <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
         
-        {/* Section Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div className="space-y-2">
-            <span className="text-xs font-black uppercase tracking-widest text-emerald-600 bg-emerald-100 px-3.5 py-1 rounded-md">
-              APPROVED SCHOOL REVIEWS
-            </span>
-            <h2 className="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight">
-              Trusted by <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">500+ Institutions</span>
-            </h2>
+        {/* Left Column: Giant Decorative Quote, Title & Interactive Auto-Scroll Controls */}
+        <div className="lg:col-span-4 space-y-6">
+          
+          {/* Giant Styled Quote Icon with Gradient */}
+          <div className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-500 to-blue-600 text-7xl font-serif font-black leading-none select-none tracking-tighter opacity-80">
+            ““
           </div>
+
+          {/* Section Headline */}
+          <div className="space-y-2.5">
+            <h2 className="text-3xl sm:text-4xl font-black text-slate-900 leading-tight tracking-tight">
+              What our <br className="hidden sm:block" /> <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-600 via-teal-600 to-blue-600">customers are saying</span>
+            </h2>
+            <p className="text-xs text-slate-500 font-medium">
+              Hover over cards to pause auto-scrolling. 500+ verified school reviews.
+            </p>
+          </div>
+
+          {/* Minimal Auto-Scroll Controls (Left Arrow, Gradient Progress Line, Right Arrow) */}
+          <div className="flex items-center space-x-4 pt-2">
+            {/* Left Arrow */}
+            <button
+              onClick={prevSlide}
+              aria-label="Previous Review"
+              className="w-10 h-10 rounded-2xl bg-white border border-slate-200 text-slate-600 hover:text-emerald-600 hover:border-emerald-500 shadow-sm flex items-center justify-center transition-all cursor-pointer active:scale-95 hover:shadow-md"
+            >
+              <span className="text-base font-black">←</span>
+            </button>
+
+            {/* Sleek Gradient Progress Line Track */}
+            <div className="w-32 sm:w-40 h-1.5 bg-slate-200/80 rounded-full relative overflow-hidden shadow-inner">
+              <motion.div 
+                className="h-full bg-gradient-to-r from-emerald-500 to-blue-600 rounded-full"
+                animate={{ 
+                  width: `${((currentIndex + 1) / Math.max(1, testimonials.length)) * 100}%` 
+                }}
+                transition={{ duration: 0.4, ease: "easeOut" }}
+              />
+            </div>
+
+            {/* Right Arrow */}
+            <button
+              onClick={nextSlide}
+              aria-label="Next Review"
+              className="w-10 h-10 rounded-2xl bg-white border border-slate-200 text-slate-900 hover:text-blue-600 hover:border-blue-500 shadow-sm flex items-center justify-center transition-all cursor-pointer active:scale-95 hover:shadow-md"
+            >
+              <span className="text-base font-black">→</span>
+            </button>
+          </div>
+
         </div>
 
-        {/* Testimonials Slider Container */}
-        <div className="relative">
-          
-          {/* Main Slider Cards (Shows 3 cards or active slide) */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {testimonials.map((t, idx) => {
-              const isActive = idx === currentIndex;
-              return (
-                <div
-                  key={t._id || idx}
-                  className={`bg-white border rounded-3xl p-6 transition-all duration-500 flex flex-col justify-between ${
-                    isActive 
-                      ? 'border-blue-500 shadow-xl ring-2 ring-blue-500/20 scale-[1.02]' 
-                      : 'border-slate-200/80 shadow-sm opacity-90'
-                  }`}
-                >
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="text-amber-400 font-bold text-sm">
-                        {'★'.repeat(t.rating || 5)}
+        {/* Right Column: Speech-Bubble Cards Single Row Auto-Scroll Slider */}
+        <div className="lg:col-span-8 overflow-hidden">
+          <motion.div
+            key={currentIndex}
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -50 }}
+            transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1.0] }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+          >
+            {(() => {
+              if (!testimonials || testimonials.length === 0) {
+                return (
+                  <div className="bg-white/80 backdrop-blur-md rounded-3xl p-8 border border-slate-200 text-center space-y-2 col-span-full">
+                    <div className="text-lg font-black text-slate-800">No Approved Reviews Yet</div>
+                    <p className="text-xs text-slate-500 font-medium">Approved school reviews from the database will display here automatically.</p>
+                  </div>
+                );
+              }
+              const visibleCount = Math.min(3, testimonials.length);
+              const visibleItems = [];
+              for (let i = 0; i < visibleCount; i++) {
+                const itemIndex = (currentIndex + i) % testimonials.length;
+                visibleItems.push({ ...testimonials[itemIndex], originalIndex: itemIndex });
+              }
+
+              return visibleItems.map((t, idx) => (
+                <div key={t._id || `${t.originalIndex}-${idx}`} className="space-y-4 flex flex-col">
+                  
+                  {/* Speech Bubble Box with Dynamic Auto-Height so Full Text Displays */}
+                  <motion.div 
+                    whileHover={{ y: -5, scale: 1.01 }}
+                    className="relative bg-white/95 backdrop-blur-md rounded-3xl p-6 sm:p-7 shadow-md hover:shadow-2xl transition-all duration-300 border border-slate-200/90 hover:border-emerald-300 flex flex-col justify-between min-h-[200px]"
+                  >
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        {/* 5 Emerald Green Stars */}
+                        <div className="flex items-center space-x-1 text-emerald-500 font-extrabold text-sm">
+                          {'★'.repeat(t.rating || 5)}
+                        </div>
                       </div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                        Approved Review
-                      </span>
+
+                      <p className="text-xs sm:text-sm text-slate-700 font-medium leading-relaxed italic">
+                        "{t.text}"
+                      </p>
                     </div>
 
-                    <p className="text-xs text-slate-700 font-medium leading-relaxed italic">
-                      "{t.text}"
-                    </p>
-                  </div>
+                    {/* Speech Bubble Tail Triangle (Points Down) */}
+                    <div 
+                      className="absolute -bottom-3 left-7 w-0 h-0 border-l-[10px] border-l-transparent border-r-[10px] border-r-transparent border-t-[12px] border-t-white drop-shadow-[0_3px_3px_rgba(0,0,0,0.06)]"
+                    />
+                  </motion.div>
 
-                  <div className="pt-4 mt-4 border-t border-slate-100 flex items-center space-x-3">
+                  {/* Author Avatar & Details below the speech bubble */}
+                  <div className="flex items-center space-x-3.5 pl-3 pt-1">
                     <div
                       style={{ backgroundColor: t.color || '#2563eb' }}
-                      className="w-10 h-10 rounded-full text-white font-bold flex items-center justify-center text-sm shadow-xs shrink-0"
+                      className="w-10 h-10 rounded-full text-white font-black flex items-center justify-center text-sm shadow-md ring-2 ring-emerald-500/20 shrink-0 uppercase"
                     >
-                      {t.avatar || 'PS'}
+                      {t.avatar || (t.name ? t.name.charAt(0) : 'U')}
                     </div>
                     <div>
-                      <div className="text-xs font-bold text-slate-900">{t.name}</div>
-                      <div className="text-[11px] text-slate-500 font-semibold">{t.role} • {t.schoolName}</div>
+                      <div className="text-xs font-black text-slate-900">{t.name}</div>
+                      <div className="text-[11px] text-slate-500 font-extrabold">{t.role} • {t.schoolName}</div>
                     </div>
                   </div>
+
                 </div>
-              );
-            })}
-          </div>
-
-          {/* Navigation Arrows & Controls */}
-          {testimonials.length > 3 && (
-            <div className="flex items-center justify-between mt-6">
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={prevSlide}
-                  className="w-9 h-9 rounded-full bg-white border border-slate-300 text-slate-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 flex items-center justify-center text-sm font-bold shadow-xs transition-all"
-                >
-                  ←
-                </button>
-                <button
-                  onClick={nextSlide}
-                  className="w-9 h-9 rounded-full bg-white border border-slate-300 text-slate-700 hover:bg-blue-600 hover:text-white hover:border-blue-600 flex items-center justify-center text-sm font-bold shadow-xs transition-all"
-                >
-                  →
-                </button>
-              </div>
-
-              {/* Slider Dots */}
-              <div className="flex items-center space-x-1.5">
-                {testimonials.map((_, dotIdx) => (
-                  <button
-                    key={dotIdx}
-                    onClick={() => setCurrentIndex(dotIdx)}
-                    className={`h-2 rounded-full transition-all duration-300 ${
-                      currentIndex === dotIdx ? 'w-6 bg-blue-600' : 'w-2 bg-slate-300 hover:bg-slate-400'
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
+              ));
+            })()}
+          </motion.div>
         </div>
 
       </div>

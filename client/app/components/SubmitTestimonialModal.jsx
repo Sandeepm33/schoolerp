@@ -172,14 +172,21 @@ export default function SubmitTestimonialModal({ isOpen, onClose }) {
               >
                 <option value={5}>⭐⭐⭐⭐⭐ (5 Stars - Outstanding)</option>
                 <option value={4}>⭐⭐⭐⭐ (4 Stars - Very Good)</option>
+                <option value={3}>⭐⭐⭐ (3 Stars - Average)</option>
+                <option value={2}>⭐⭐ (2 Stars - Below Average)</option>
+                <option value={1}>⭐ (1 Star - Poor)</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-slate-300 font-bold mb-1 uppercase tracking-wider text-[10px]">Your Review / Testimonial Quote *</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-slate-300 font-bold uppercase tracking-wider text-[10px]">Your Review / Testimonial Quote *</label>
+                <span className="text-[10px] font-bold text-emerald-400">{text.length}/180 chars max</span>
+              </div>
               <textarea
                 rows={4}
                 required
+                maxLength={180}
                 placeholder="Share how Track 360 improved fee collections, attendance, report cards, or campus operations..."
                 value={text}
                 onChange={e => setText(e.target.value)}

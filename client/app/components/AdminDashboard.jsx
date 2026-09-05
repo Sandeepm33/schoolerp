@@ -12,7 +12,7 @@ import {
   Building2, BookMarked, Calculator, Scroll, MapPin, ShieldCheck,
   HeartHandshake, ClipboardList, Eye, XCircle, CheckCircle, Loader2,
   User, Mail, Phone, Shield, Lock, Camera, Save, Coffee, History,
-  Wallet, CalendarCheck, MessageSquare, UserCheck, UserPlus
+  Wallet, CalendarCheck, MessageSquare, UserCheck, UserPlus, List, LayoutGrid
 } from 'lucide-react';
 import AllServicesPanel from './AllServicesPanel';
 import StudentAttendanceReport from './StudentAttendanceReport';
@@ -874,9 +874,10 @@ Parent Email: ${s.parentEmail} | Password: ${s.parentPassword || '(not set)'}`
   );
 }
 
-// Generic Module Table
+// Generic Module Table (Supports both List View and Grid View)
 function ModuleTable({ title, icon: Icon, color = 'indigo', columns, rows, onAdd, onEdit, onDelete, extraActions, loading, emptyMsg, searchable, onSearch }) {
   const [search, setSearch] = useState('');
+  const [viewMode, setViewMode] = useState('list');
   const iconColor = { indigo: 'bg-indigo-500/20 text-indigo-400', emerald: 'bg-emerald-500/20 text-emerald-400', amber: 'bg-amber-500/20 text-amber-400', rose: 'bg-rose-500/20 text-rose-400', blue: 'bg-blue-500/20 text-blue-400', violet: 'bg-violet-500/20 text-violet-400' };
   return (
     <div className="space-y-4">
@@ -890,7 +891,36 @@ function ModuleTable({ title, icon: Icon, color = 'indigo', columns, rows, onAdd
             <p className="text-[11px] text-slate-500">{rows.length} records</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* View Mode Switcher */}
+          <div className="flex items-center p-1 rounded-xl bg-slate-900 border border-slate-700">
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                viewMode === 'list'
+                  ? 'bg-indigo-600 text-white shadow-sm font-black'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>List View</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                viewMode === 'grid'
+                  ? 'bg-indigo-600 text-white shadow-sm font-black'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Grid View</span>
+            </button>
+          </div>
+
           {searchable && (
             <div className="relative">
               <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -917,6 +947,56 @@ function ModuleTable({ title, icon: Icon, color = 'indigo', columns, rows, onAdd
           </div>
         ) : rows.length === 0 ? (
           <div className="text-center py-16 text-slate-500 text-sm">{emptyMsg || 'No records found. Click "Add New" to get started.'}</div>
+        ) : viewMode === 'grid' ? (
+          <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {rows.map((row, i) => (
+              <div key={row._id || i} className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 hover:border-indigo-500/50 transition-all space-y-3 flex flex-col justify-between shadow-lg">
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <h3 className="font-extrabold text-white text-xs truncate max-w-[180px]">
+                      {columns[0]?.render ? columns[0].render(row[columns[0].key], row) : (row[columns[0]?.key] || 'Record')}
+                    </h3>
+                    {(columns[1]?.badge || String(columns[1]?.key || '').toLowerCase().includes('status')) && (
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${statusColor(row[columns[1]?.key])}`}>
+                        {row[columns[1]?.key] || '—'}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="space-y-1.5 text-xs text-slate-300">
+                    {columns.slice(1).map(c => (
+                      <div key={c.key} className="flex justify-between items-center text-[11px]">
+                        <span className="text-slate-500 font-semibold">{c.label}:</span>
+                        <span className="font-medium text-slate-200 text-right truncate max-w-[180px]">
+                          {c.render ? c.render(row[c.key], row) : (
+                            c.badge ? (
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusColor(row[c.key])}`}>{row[c.key] || '—'}</span>
+                            ) : (String(row[c.key] ?? '—').slice(0, 50))
+                          )}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {(onEdit || onDelete || extraActions) && (
+                  <div className="pt-2 border-t border-slate-800 flex items-center justify-end gap-1 flex-wrap">
+                    {extraActions && extraActions(row)}
+                    {onEdit && (
+                      <button onClick={() => onEdit(row)} className="px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 text-[10px] font-bold border border-indigo-500/30 transition-colors">
+                        Edit
+                      </button>
+                    )}
+                    {onDelete && (
+                      <button onClick={() => onDelete(row)} className="px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-[10px] font-bold border border-rose-500/30 transition-colors">
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
@@ -1347,6 +1427,7 @@ function StudentsTab() {
 
   // Student list
   const [students, setStudents] = React.useState([]);
+  const [studentViewMode, setStudentViewMode] = React.useState('list');
   const [studentLoading, setStudentLoading] = React.useState(false);
   const [nextRollNo, setNextRollNo] = React.useState('—');
 
@@ -1640,6 +1721,35 @@ function StudentsTab() {
               <h2 className="text-sm font-bold text-white">Student Directory</h2>
               <p className="text-[11px] text-slate-500">Select a class to view and enroll students</p>
             </div>
+            
+            {/* View Mode Switcher */}
+            <div className="flex items-center p-1 rounded-xl bg-slate-900 border border-slate-700">
+              <button
+                type="button"
+                onClick={() => setStudentViewMode('list')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                  studentViewMode === 'list'
+                    ? 'bg-indigo-600 text-white shadow-sm font-black'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <List className="w-3.5 h-3.5" />
+                <span>List View</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStudentViewMode('grid')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                  studentViewMode === 'grid'
+                    ? 'bg-indigo-600 text-white shadow-sm font-black'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Grid View</span>
+              </button>
+            </div>
+
             <select className="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 min-w-[140px]"
               value={selectedClass || ''} onChange={e => { setSelectedClass(e.target.value); setSelectedSection(''); }}>
               <option value="">Select Class</option>
@@ -1693,6 +1803,57 @@ function StudentsTab() {
                   <button onClick={openEnroll} className="px-4 py-2 rounded-xl gradient-primary text-white text-xs font-bold mx-auto block hover:scale-105 transition-transform">
                     Enroll First Student
                   </button>
+                </div>
+              ) : studentViewMode === 'grid' ? (
+                <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {students.map(s => (
+                    <div key={s._id} className="bg-slate-900/80 p-4 rounded-2xl border border-slate-800 hover:border-indigo-500/50 transition-all space-y-3 flex flex-col justify-between shadow-lg">
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                          <div className="flex items-center space-x-2">
+                            <span className="w-8 h-8 rounded-xl gradient-primary flex items-center justify-center text-xs font-black text-white uppercase shadow-sm">
+                              {s.firstName ? s.firstName[0].toUpperCase() : 'S'}
+                            </span>
+                            <div>
+                              <h4 className="font-extrabold text-white text-sm">{s.firstName} {s.lastName}</h4>
+                              <span className="text-[11px] font-mono text-indigo-400 font-bold">Roll #{s.rollNo}</span>
+                            </div>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${s.attendancePercentage >= 90 ? BADGE.green : s.attendancePercentage >= 75 ? BADGE.amber : BADGE.red}`}>
+                            {s.attendancePercentage || 0}% Att.
+                          </span>
+                        </div>
+
+                        <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800 space-y-1 text-xs">
+                          <div className="text-slate-300 font-semibold flex items-center justify-between text-[11px]">
+                            <span className="text-slate-500">Section:</span>
+                            <span className="text-white font-bold">{s.sectionId && s.sectionId !== '-' ? `Section ${s.sectionId}` : '—'}</span>
+                          </div>
+                          <div className="text-slate-300 font-semibold flex items-center justify-between text-[11px]">
+                            <span className="text-slate-500">Parent:</span>
+                            <span className="text-slate-200 font-bold">{s.parentName || '—'} ({s.parentPhone || 'No phone'})</span>
+                          </div>
+                          {s.transportRoute && (
+                            <div className="text-indigo-300 text-[10px] font-semibold pt-1 border-t border-slate-800/80">
+                              🚌 Bus: {s.transportRoute} ({s.pickupStop || 'Stop'})
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-800 flex items-center justify-end gap-1">
+                        <button onClick={() => setViewStudentProfileModal(s)} title="View Full 360° Profile" className="px-2.5 py-1 rounded-lg bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 text-[10px] font-bold border border-cyan-500/30 transition-colors flex items-center gap-1 cursor-pointer">
+                          <Eye className="w-3 h-3" /> Profile
+                        </button>
+                        <button onClick={() => setEditStudentModal(s)} title="Edit Student Profile" className="px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 text-[10px] font-bold border border-indigo-500/30 transition-colors flex items-center gap-1 cursor-pointer">
+                          <Edit2 className="w-3 h-3" /> Edit
+                        </button>
+                        <button onClick={() => handleDeleteStudent(s._id)} title="Delete Student" className="p-1 rounded-lg bg-rose-500/20 text-rose-300 hover:bg-rose-500/30 text-[10px] font-bold border border-rose-500/30 transition-colors cursor-pointer">
+                          <Trash2 className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               ) : (
                 <div className="overflow-x-auto">

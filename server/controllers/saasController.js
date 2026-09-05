@@ -605,44 +605,13 @@ const getSaaSStats = async (req, res) => {
 
 const getPublicTestimonials = async (req, res) => {
   try {
-    let testimonials = await Testimonial.find({ status: 'APPROVED' }).sort({ createdAt: -1 });
-    if (testimonials.length === 0) {
-      testimonials = await Testimonial.create([
-        {
-          name: 'Dr. Priya Sharma',
-          role: 'Principal',
-          schoolName: 'Delhi Public School',
-          text: 'Moving our entire institution to Track 360 was the best decision we made. Online fee collection reached 95% in the very first month, and parents love the live bus tracking feature!',
-          rating: 5,
-          avatar: 'PS',
-          color: '#2563eb',
-          status: 'APPROVED',
-          submittedByRole: 'SCHOOL_ADMIN'
-        },
-        {
-          name: 'Mr. Rajesh Kumar',
-          role: 'Administrator',
-          schoolName: 'Greenwood Academy',
-          text: 'The report card generator module saved our teachers hundreds of hours during term exams. What used to take days is now generated in bulk PDF within minutes.',
-          rating: 5,
-          avatar: 'RK',
-          color: '#059669',
-          status: 'APPROVED',
-          submittedByRole: 'SCHOOL_ADMIN'
-        },
-        {
-          name: 'Mrs. Anitha Reddy',
-          role: 'Director',
-          schoolName: 'Sunrise Group of Schools',
-          text: 'We managed 3 branches with 3 different software earlier. Now everything is consolidated into one dashboard with role permissions and zero server overhead.',
-          rating: 5,
-          avatar: 'AR',
-          color: '#9333ea',
-          status: 'APPROVED',
-          submittedByRole: 'SCHOOL_ADMIN'
-        }
-      ]);
-    }
+    // Delete any legacy dummy seeded testimonials if present
+    await Testimonial.deleteMany({
+      name: { $in: ['Dr. Priya Sharma', 'Mr. Rajesh Kumar', 'Mrs. Anitha Reddy'] }
+    }).catch(() => {});
+
+    // Return purely approved user-submitted testimonials from database sorted by displayOrder
+    const testimonials = await Testimonial.find({ status: 'APPROVED' }).sort({ displayOrder: 1, createdAt: -1 });
     res.json(testimonials);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -651,7 +620,7 @@ const getPublicTestimonials = async (req, res) => {
 
 const getAdminTestimonials = async (req, res) => {
   try {
-    const testimonials = await Testimonial.find().sort({ createdAt: -1 });
+    const testimonials = await Testimonial.find().sort({ displayOrder: 1, createdAt: -1 });
     res.json(testimonials);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -660,7 +629,7 @@ const getAdminTestimonials = async (req, res) => {
 
 const submitTestimonial = async (req, res) => {
   try {
-    const { name, role, schoolName, text, rating, avatar, color } = req.body;
+    const { name, role, schoolName, text, rating, avatar, color, displayOrder } = req.body;
     if (!name || !text) {
       return res.status(400).json({ message: 'Name and testimonial text are required.' });
     }
@@ -668,15 +637,20 @@ const submitTestimonial = async (req, res) => {
     const isSuperAdmin = req.user?.role === 'SAAS_SUPER_ADMIN';
     const status = isSuperAdmin ? 'APPROVED' : 'PENDING';
 
+    const trimmedText = (text || '').trim().substring(0, 180);
+
+    const count = await Testimonial.countDocuments();
+
     const newTestimonial = new Testimonial({
       name,
       role: role || 'School Admin',
       schoolName: schoolName || '',
-      text,
+      text: trimmedText,
       rating: rating || 5,
       avatar: avatar || (name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()) || 'TS',
       color: color || '#2563eb',
       status,
+      displayOrder: displayOrder ? Number(displayOrder) : count + 1,
       submittedByRole: req.user?.role || 'SCHOOL_ADMIN'
     });
 
@@ -704,22 +678,26 @@ const submitTestimonial = async (req, res) => {
 const updateTestimonialStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, displayOrder } = req.body;
 
     const testimonial = await Testimonial.findById(id);
     if (!testimonial) return res.status(404).json({ message: 'Testimonial not found' });
 
-    testimonial.status = status;
+    if (status) testimonial.status = status;
+    if (displayOrder !== undefined && displayOrder !== null) {
+      testimonial.displayOrder = Number(displayOrder);
+    }
+
     await testimonial.save();
 
     await AuditLog.create({
       performedByName: req.user?.name || 'SaaS Super Admin',
       action: 'UPDATE_TESTIMONIAL_STATUS',
       targetSchoolName: testimonial.schoolName || 'Landing Page',
-      details: `Changed testimonial status to ${status} for ${testimonial.name}`
+      details: `Updated testimonial status to ${testimonial.status}, Position #${testimonial.displayOrder} for ${testimonial.name}`
     }).catch(() => {});
 
-    res.json({ message: `Testimonial status updated to ${status}`, testimonial });
+    res.json({ message: `Testimonial updated successfully`, testimonial });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }

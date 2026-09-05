@@ -11,7 +11,7 @@ import {
   Loader2, Sparkles, Building, Save, BarChart3, AlertTriangle, Lock,
   Unlock, Search, ChevronDown, X, RotateCcw, AlertCircle, TrendingUp,
   CalendarDays, History, Edit3, CheckCheck, XCircle, Filter, Download,
-  ArrowLeft, Info, Bell
+  ArrowLeft, Info, Bell, List, LayoutGrid
 } from 'lucide-react';
 import { useAuth, API_BASE } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -2137,6 +2137,34 @@ function StudentDirectoryTab({ token, classList }) {
               {dirSearch && (
                 <button onClick={() => setDirSearch('')} className="text-slate-500 hover:text-white text-xs">✕</button>
               )}
+            </div>
+
+            {/* View Mode Switcher */}
+            <div className="flex items-center p-1 rounded-xl bg-slate-900 border border-slate-700">
+              <button
+                type="button"
+                onClick={() => setViewMode('table')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                  viewMode === 'table'
+                    ? 'bg-indigo-600 text-white shadow-sm font-black'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <List className="w-3.5 h-3.5" />
+                <span>List View</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('grid')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                  viewMode === 'grid'
+                    ? 'bg-indigo-600 text-white shadow-sm font-black'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span>Grid View</span>
+              </button>
             </div>
 
             <span className="px-3 py-2 rounded-xl bg-indigo-500/10 text-indigo-300 border border-indigo-500/30 text-xs font-bold">

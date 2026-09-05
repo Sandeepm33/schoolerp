@@ -156,9 +156,12 @@ const TestimonialSchema = new mongoose.Schema({
   avatar: { type: String, default: 'PS' },
   color: { type: String, default: '#2563eb' },
   status: { type: String, enum: ['PENDING', 'APPROVED', 'REJECTED'], default: 'PENDING' },
+  displayOrder: { type: Number, default: 1 },
   submittedByRole: { type: String, default: 'SCHOOL_ADMIN' },
   createdAt: { type: Date, default: Date.now }
 });
+
+delete mongoose.models.Testimonial;
 
 module.exports = {
   SubscriptionPlan: mongoose.models.SubscriptionPlan || mongoose.model('SubscriptionPlan', SubscriptionPlanSchema),
@@ -171,5 +174,5 @@ module.exports = {
   SupportTicket: mongoose.model('SupportTicket', SupportTicketSchema),
   SalesLead: mongoose.model('SalesLead', SalesLeadSchema),
   Notification: mongoose.model('Notification', NotificationSchema),
-  Testimonial: mongoose.models.Testimonial || mongoose.model('Testimonial', TestimonialSchema)
+  Testimonial: mongoose.model('Testimonial', TestimonialSchema)
 };
