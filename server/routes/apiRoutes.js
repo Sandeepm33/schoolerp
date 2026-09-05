@@ -52,6 +52,8 @@ router.get('/saas/feature-flags', authMiddleware, saas.getFeatureFlags);
 router.get('/saas/tickets', authMiddleware, saas.getSupportTickets);
 router.post('/saas/tickets', authMiddleware, saas.createSupportTicket);
 router.post('/saas/plan-upgrade-request', authMiddleware, saas.createPlanUpgradeRequest);
+router.post('/saas/schools/:id/approve-upgrade', authMiddleware, saas.approvePlanUpgradeRequest);
+router.post('/saas/schools/:id/dismiss-upgrade', authMiddleware, saas.dismissPlanUpgradeRequest);
 router.get('/saas/leads', authMiddleware, saas.getSalesLeads);
 router.post('/saas/inquiries', saas.createInquiryLead);
 router.post('/saas/leads', saas.createInquiryLead);

@@ -7,9 +7,10 @@ const SchoolSchema = new mongoose.Schema({
   email: { type: String, required: true },
   phone: { type: String },
   address: { type: String },
-  subscriptionPlan: { type: String, enum: ['ENTERPRISE', 'PRO', 'BASIC'], default: 'ENTERPRISE' },
+  subscriptionPlan: { type: String, default: 'BASIC' },
   status: { type: String, enum: ['ACTIVE', 'SUSPENDED'], default: 'ACTIVE' },
   logo: { type: String, default: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?w=150&auto=format&fit=crop' },
+  pendingUpgradeRequest: { type: Object, default: null },
   createdAt: { type: Date, default: Date.now }
 });
 

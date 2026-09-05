@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Building2, Plus, Users, ShieldCheck, DollarSign,
-  Search, CheckCircle, AlertCircle, Sparkles, X, Key, Globe, Eye,
+  Search, CheckCircle, CheckCircle2, AlertCircle, AlertTriangle, Sparkles, X, Key, Globe, Eye,
   Sliders, Shield, Cpu, HardDrive, Bell, UserCheck, Lock, Activity, RefreshCw, FileText, Zap, ArrowUpRight, ArrowLeft,
   Trash2, Edit3, Send, Hash, Mail, Phone, HelpCircle, Layers, PieChart, Server, Check, Flame, Box,
   MessageSquare, Star, ArrowUp, ArrowDown, LayoutGrid, List
@@ -135,6 +136,12 @@ function SaaSAdminContent(props) {
   const [message, setMessage] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSchool, setEditingSchool] = useState(null);
+  const [selectedUpgradeRequest, setSelectedUpgradeRequest] = useState(null);
+  const [uiAlert, setUiAlert] = useState(null);
+
+  const showAlert = (title, messageText, type = 'success') => {
+    setUiAlert({ title, message: messageText, type });
+  };
 
   // Search Filter State
   const [searchTerm, setSearchTerm] = useState('');
@@ -305,10 +312,10 @@ function SaaSAdminContent(props) {
       const data = await res.json().catch(() => ({}));
 
       if (res.ok) {
-        setMessage({ type: 'success', text: `✅ Saved to MongoDB Atlas! School '${form.name}' created with admin: ${form.adminEmail}` });
+        showAlert('School Onboarded!', `School '${form.name}' created successfully with admin account: ${form.adminEmail}`, 'success');
         await fetchSaaSData();
         setForm({ name: '', code: '', email: '', phone: '', address: '', subscriptionPlan: 'ENTERPRISE', adminName: '', adminEmail: '', adminPassword: 'password123' });
-        setTimeout(() => setIsModalOpen(false), 1500);
+        setIsModalOpen(false);
       } else {
         setMessage({ type: 'error', text: `❌ ${data.message || `Save failed status ${res.status}`}` });
       }
@@ -331,17 +338,17 @@ function SaaSAdminContent(props) {
         body: JSON.stringify(editingSchool)
       });
       if (res.ok) {
-        alert(`✅ Updated school '${editingSchool.name}' in MongoDB Atlas`);
+        showAlert('School Updated', `Updated school '${editingSchool.name}' successfully.`, 'success');
         setEditingSchool(null);
         fetchSaaSData();
       }
     } catch (e) {
-      alert(e.message);
+      showAlert('Error', e.message, 'error');
     }
   };
 
   const handleDeleteSchool = async (schoolId, schoolName) => {
-    if (!confirm(`⚠️ ARE YOU SURE? Permanently delete school '${schoolName}' from MongoDB Atlas?`)) return;
+    if (!confirm(`⚠️ ARE YOU SURE? Permanently delete school '${schoolName}'?`)) return;
 
     let activeToken = token || localStorage.getItem('erp_token') || `demo_token_saas_super_admin`;
     try {
@@ -350,11 +357,11 @@ function SaaSAdminContent(props) {
         headers: { 'Authorization': `Bearer ${activeToken}` }
       });
       if (res.ok) {
-        alert(`🗑️ Deleted school '${schoolName}'`);
+        showAlert('School Deleted', `Deleted school '${schoolName}' successfully.`, 'info');
         fetchSaaSData();
       }
     } catch (e) {
-      alert(e.message);
+      showAlert('Error', e.message, 'error');
     }
   };
 
@@ -370,6 +377,44 @@ function SaaSAdminContent(props) {
     } catch (e) { }
   };
 
+  const handleApproveUpgrade = async (schoolId, targetPlan) => {
+    let activeToken = token || localStorage.getItem('erp_token') || `demo_token_saas_super_admin`;
+    try {
+      const res = await fetch(`${API_BASE}/saas/schools/${schoolId}/approve-upgrade`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${activeToken}` },
+        body: JSON.stringify({ targetPlan })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showAlert('Plan Upgrade Approved!', `Approved plan upgrade to ${targetPlan}! School tenant subscription updated live.`, 'success');
+        setSelectedUpgradeRequest(null);
+        fetchSaaSData();
+      } else {
+        showAlert('Approval Failed', data.message || 'Failed to approve upgrade', 'error');
+      }
+    } catch (e) {
+      showAlert('Error', e.message, 'error');
+    }
+  };
+
+  const handleDismissUpgrade = async (schoolId) => {
+    let activeToken = token || localStorage.getItem('erp_token') || `demo_token_saas_super_admin`;
+    try {
+      const res = await fetch(`${API_BASE}/saas/schools/${schoolId}/dismiss-upgrade`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${activeToken}` }
+      });
+      if (res.ok) {
+        showAlert('Request Dismissed', 'Dismissed plan upgrade request.', 'info');
+        setSelectedUpgradeRequest(null);
+        fetchSaaSData();
+      }
+    } catch (e) {
+      showAlert('Error', e.message, 'error');
+    }
+  };
+
   const handleImpersonate = async (schoolId) => {
     let activeToken = token || localStorage.getItem('erp_token') || `demo_token_saas_super_admin`;
     try {
@@ -379,32 +424,19 @@ function SaaSAdminContent(props) {
         body: JSON.stringify({ schoolId })
       });
 
+      const data = await res.json();
       if (res.ok) {
-        const data = await res.json();
         localStorage.setItem('erp_token', data.token);
         localStorage.setItem('erp_user', JSON.stringify(data.user));
-        alert(`🔓 Impersonating School Admin for ${data.user.schoolName}. Redirecting...`);
-        router.push('/admin/dashboard');
+        showAlert('Switching Account', `Impersonating School Admin for ${data.user.schoolName}. Redirecting...`, 'info');
+        setTimeout(() => {
+          window.location.href = '/admin/dashboard';
+        }, 1200);
       } else {
-        const data = await res.json().catch(() => ({}));
-        alert(data.message || 'Impersonation failed.');
+        showAlert('Impersonation Failed', data.message || 'Impersonation failed.', 'error');
       }
     } catch (e) {
-      alert(e.message);
-    }
-  };
-
-  const handleTogglePlanFeature = async (planCode, featureKey, currentVal) => {
-    let activeToken = token || localStorage.getItem('erp_token') || `demo_token_saas_super_admin`;
-    try {
-      const res = await fetch(`${API_BASE}/saas/plans/toggle-feature`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${activeToken}` },
-        body: JSON.stringify({ planCode, featureKey, enabled: !currentVal })
-      });
-      if (res.ok) fetchSaaSData();
-    } catch (e) {
-      alert(e.message);
+      showAlert('Error', e.message, 'error');
     }
   };
 
@@ -418,44 +450,46 @@ function SaaSAdminContent(props) {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${activeToken}` },
         body: JSON.stringify(planForm)
       });
+      const data = await res.json();
       if (res.ok) {
-        alert(`✅ Subscription Plan '${planForm.name}' saved to MongoDB Atlas!`);
+        showAlert('Subscription Plan Saved', `Subscription Plan '${planForm.name}' saved successfully!`, 'success');
         setIsPlanModalOpen(false);
         fetchSaaSData();
       } else {
-        const data = await res.json().catch(() => ({}));
-        alert(data.message || 'Failed to save subscription plan');
+        showAlert('Error', data.message || 'Failed to save subscription plan', 'error');
       }
     } catch (e) {
-      alert(e.message);
+      showAlert('Error', e.message, 'error');
     } finally {
       setLoading(false);
     }
   };
 
   const handleDeletePlan = async (planId, planName) => {
-    if (!confirm(`⚠️ ARE YOU SURE? Delete subscription plan '${planName}' from MongoDB Atlas?`)) return;
+    if (!confirm(`⚠️ ARE YOU SURE? Delete subscription plan '${planName}'?`)) return;
+
     let activeToken = token || localStorage.getItem('erp_token') || `demo_token_saas_super_admin`;
     try {
       const res = await fetch(`${API_BASE}/saas/plans/${planId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${activeToken}` }
       });
+      const data = await res.json();
       if (res.ok) {
-        alert(`🗑️ Subscription plan '${planName}' deleted`);
+        showAlert('Plan Deleted', `Subscription plan '${planName}' deleted successfully.`, 'info');
         fetchSaaSData();
       } else {
-        const data = await res.json().catch(() => ({}));
-        alert(data.message || 'Failed to delete plan');
+        showAlert('Error', data.message || 'Failed to delete plan', 'error');
       }
     } catch (e) {
-      alert(e.message);
+      showAlert('Error', e.message, 'error');
     }
   };
 
   const handleAddCustomFeatureColumn = async (e) => {
     e.preventDefault();
     if (!customFeatureName.trim()) return;
+
     setLoading(true);
     let activeToken = token || localStorage.getItem('erp_token') || `demo_token_saas_super_admin`;
     try {
@@ -464,36 +498,32 @@ function SaaSAdminContent(props) {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${activeToken}` },
         body: JSON.stringify({ featureKey: customFeatureName.trim(), defaultValue: false })
       });
+      const data = await res.json();
       if (res.ok) {
-        alert(`✨ Added dynamic feature key '${customFeatureName}' to matrix across all plans!`);
-        setIsAddFeatureModalOpen(false);
+        showAlert('Feature Matrix Updated', `Added dynamic feature key '${customFeatureName}' across all subscription plans!`, 'success');
         setCustomFeatureName('');
+        setIsAddFeatureModalOpen(false);
         fetchSaaSData();
       } else {
-        const data = await res.json().catch(() => ({}));
-        alert(data.message || 'Failed to add feature key');
+        showAlert('Error', data.message || 'Failed to add feature key', 'error');
       }
     } catch (e) {
-      alert(e.message);
+      showAlert('Error', e.message, 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleResetPassword = async (userId, userEmail) => {
-    const newPass = prompt(`Enter new password for ${userEmail}:`, 'password123');
-    if (!newPass) return;
-
+  const handleResetUserPassword = async (userId, userEmail) => {
     let activeToken = token || localStorage.getItem('erp_token') || `demo_token_saas_super_admin`;
     try {
       const res = await fetch(`${API_BASE}/saas/users/${userId}/reset-password`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${activeToken}` },
-        body: JSON.stringify({ newPassword: newPass })
+        headers: { 'Authorization': `Bearer ${activeToken}` }
       });
-      if (res.ok) alert(`🔑 Password reset successfully for ${userEmail}`);
+      if (res.ok) showAlert('Password Reset', `Password reset successfully for ${userEmail}. Default: password123`, 'success');
     } catch (e) {
-      alert(e.message);
+      showAlert('Error', e.message, 'error');
     }
   };
 
@@ -507,12 +537,12 @@ function SaaSAdminContent(props) {
         body: JSON.stringify(announcementForm)
       });
       if (res.ok) {
-        alert('📢 Global Announcement Broadcasted!');
+        showAlert('Announcement Broadcasted', 'Global Announcement broadcasted to all campus dashboards!', 'success');
         setAnnouncementForm({ title: '', message: '', targetAudience: 'ALL', priority: 'NORMAL' });
         fetchSaaSData();
       }
     } catch (e) {
-      alert(e.message);
+      showAlert('Error', e.message, 'error');
     }
   };
 
@@ -528,9 +558,12 @@ function SaaSAdminContent(props) {
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${activeToken}` },
         body: JSON.stringify(payload)
       });
-      if (res.ok) fetchSaaSData();
+      if (res.ok) {
+        showAlert('Testimonial Updated', 'Testimonial status updated successfully!', 'success');
+        fetchSaaSData();
+      }
     } catch (e) {
-      alert(e.message);
+      showAlert('Error', e.message, 'error');
     }
   };
 
@@ -542,9 +575,12 @@ function SaaSAdminContent(props) {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${activeToken}` }
       });
-      if (res.ok) fetchSaaSData();
+      if (res.ok) {
+        showAlert('Testimonial Deleted', 'Testimonial deleted successfully!', 'info');
+        fetchSaaSData();
+      }
     } catch (e) {
-      alert(e.message);
+      showAlert('Error', e.message, 'error');
     }
   };
 
@@ -559,16 +595,16 @@ function SaaSAdminContent(props) {
         body: JSON.stringify(testimonialForm)
       });
       if (res.ok) {
-        alert('✅ Testimonial published to Landing Page slider!');
+        showAlert('Testimonial Published', 'Testimonial published to Landing Page slider!', 'success');
         setIsTestimonialModalOpen(false);
         setTestimonialForm({ name: '', role: '', schoolName: '', text: '', rating: 5, avatar: '', color: '#059669', displayOrder: 1 });
         fetchSaaSData();
       } else {
         const data = await res.json().catch(() => ({}));
-        alert(data.message || 'Failed to publish testimonial');
+        showAlert('Error', data.message || 'Failed to publish testimonial', 'error');
       }
     } catch (e) {
-      alert(e.message);
+      showAlert('Error', e.message, 'error');
     } finally {
       setLoading(false);
     }
@@ -675,17 +711,6 @@ function SaaSAdminContent(props) {
           </div>
 
           <div className="flex items-center gap-3 flex-wrap">
-            {activeTab !== 'services' && (
-              <button
-                type="button"
-                onClick={() => switchTab('services')}
-                className="px-4 py-2.5 rounded-2xl bg-white/20 hover:bg-white/30 backdrop-blur-md text-white text-xs font-black shadow-lg flex items-center gap-2 transition-all duration-300 active:scale-95 cursor-pointer border border-white/40"
-              >
-                <ArrowLeft className="w-4 h-4 text-amber-300" />
-                <span>Back to All Services</span>
-              </button>
-            )}
-
             <button
               onClick={() => { setIsModalOpen(true); setMessage(null); }}
               className="px-5 py-2.5 rounded-2xl bg-white text-slate-900 text-xs font-black shadow-xl flex items-center gap-2 hover:scale-105 transition-all duration-300 active:scale-95 cursor-pointer border border-white"
@@ -722,30 +747,23 @@ function SaaSAdminContent(props) {
         </div>
       </div>
 
-      {/* GLOBAL BACK TO ALL SERVICES TOOLBAR STRIP ON ALL SUPERADMIN PAGES */}
+      {/* SINGLE CLEAN BREADCRUMB BAR FOR SUB-MODULES */}
       {activeTab !== 'services' && (
-        <div className="flex items-center justify-between bg-slate-900/90 backdrop-blur-xl border border-slate-700/80 p-3 px-5 rounded-2xl shadow-xl text-white">
-          <div className="flex items-center gap-2 text-xs font-semibold text-slate-300">
+        <div className="flex items-center justify-between bg-white border border-slate-200 p-2.5 px-4 rounded-2xl shadow-sm text-slate-800">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
             <button 
               type="button"
               onClick={() => switchTab('services')} 
-              className="hover:text-amber-400 text-slate-200 font-extrabold transition-all flex items-center gap-1.5 cursor-pointer"
+              className="hover:text-emerald-700 text-slate-700 font-extrabold transition-all flex items-center gap-1.5 cursor-pointer"
             >
-              <ArrowLeft className="w-4 h-4 text-amber-400" />
+              <ArrowLeft className="w-4 h-4 text-emerald-600" />
               <span>All Services</span>
             </button>
-            <span className="text-slate-500">/</span>
-            <span className="text-amber-400 font-extrabold uppercase tracking-wider">{activeTab}</span>
+            <span className="text-slate-400">/</span>
+            <span className="text-emerald-800 font-extrabold uppercase tracking-wider">
+              {tabsList.find(t => t.key === activeTab)?.label || activeTab}
+            </span>
           </div>
-
-          <button
-            type="button"
-            onClick={() => switchTab('services')}
-            className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition-all flex items-center gap-2 shadow-md cursor-pointer active:scale-95"
-          >
-            <Box className="w-4 h-4 text-slate-950" />
-            <span>Back to All Services (36+)</span>
-          </button>
         </div>
       )}
 
@@ -770,7 +788,7 @@ function SaaSAdminContent(props) {
               <div>
                 <h3 className="text-3xl font-black text-white">{schools.length || 1}</h3>
                 <p className="text-[11px] text-indigo-400 font-semibold mt-1 flex items-center gap-1">
-                  <Zap className="w-3 h-3 text-indigo-400" /> Active Tenants in MongoDB
+                  <Zap className="w-3 h-3 text-indigo-400" /> Active Campus Tenants
                 </p>
               </div>
             </div>
@@ -815,7 +833,7 @@ function SaaSAdminContent(props) {
               <div>
                 <h3 className="text-xl font-black text-emerald-400">ONLINE</h3>
                 <p className="text-[11px] text-slate-400 font-semibold mt-1">
-                  100% MongoDB Atlas Operational
+                  100% Cloud Engine Operational
                 </p>
               </div>
             </div>
@@ -861,15 +879,7 @@ function SaaSAdminContent(props) {
                 </button>
               </div>
 
-              <button
-                type="button"
-                onClick={() => switchTab('services')}
-                style={{ backgroundColor: '#fef3c7', color: '#b45309', borderColor: '#fcd34d' }}
-                className="px-3.5 py-2 rounded-xl border text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer hover:bg-amber-200 shadow-xs"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" style={{ color: '#b45309' }} />
-                <span>Back to All Services</span>
-              </button>
+
 
               <div className="relative w-64">
                 <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
@@ -984,6 +994,19 @@ function SaaSAdminContent(props) {
                     >
                       <Trash2 className="w-4 h-4" style={{ color: '#e11d48' }} />
                     </button>
+
+                    {school.pendingUpgradeRequest && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedUpgradeRequest(school)}
+                        style={{ backgroundColor: '#fef3c7', color: '#b45309', borderColor: '#fcd34d' }}
+                        className="px-3 py-2 rounded-xl border text-xs font-black flex items-center gap-1.5 cursor-pointer transition animate-pulse hover:bg-amber-200 shadow-md"
+                        title="Click to view plan upgrade request details & approve"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" style={{ color: '#b45309' }} />
+                        <span>Upgrade Req: {school.pendingUpgradeRequest.targetPlan || 'PRO'}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1068,6 +1091,19 @@ function SaaSAdminContent(props) {
                           >
                             <Trash2 className="w-3.5 h-3.5" style={{ color: '#e11d48' }} />
                           </button>
+
+                          {school.pendingUpgradeRequest && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedUpgradeRequest(school)}
+                              style={{ backgroundColor: '#fef3c7', color: '#b45309', borderColor: '#fcd34d' }}
+                              className="px-3 py-2 rounded-xl border text-xs font-black flex items-center gap-1.5 cursor-pointer transition animate-pulse hover:bg-amber-200 shadow-md ml-1"
+                              title="Click to view plan upgrade request details & approve"
+                            >
+                              <Sparkles className="w-3.5 h-3.5" style={{ color: '#b45309' }} />
+                              <span>Upgrade Req: {school.pendingUpgradeRequest.targetPlan || 'PRO'}</span>
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -2750,7 +2786,7 @@ function SaaSAdminContent(props) {
                 <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-emerald-600" /> Onboard New Tenant School
                 </h3>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">Creates School Tenant & School Admin account in MongoDB Atlas</p>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">Creates School Tenant & School Admin account across system</p>
               </div>
               <button 
                 onClick={() => setIsModalOpen(false)} 
@@ -2854,7 +2890,7 @@ function SaaSAdminContent(props) {
                   className="px-7 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-black text-xs shadow-lg shadow-emerald-600/30 flex items-center gap-2 transition-all transform hover:-translate-y-0.5 cursor-pointer disabled:opacity-50"
                 >
                   <Sparkles className="w-4 h-4 text-white" /> 
-                  <span style={{ color: '#ffffff' }}>{loading ? 'Provisioning...' : 'Save to MongoDB & Onboard School'}</span>
+                  <span style={{ color: '#ffffff' }}>{loading ? 'Provisioning...' : 'Save & Onboard School Tenant'}</span>
                 </button>
               </div>
             </form>
@@ -2997,6 +3033,91 @@ function SaaSAdminContent(props) {
         </div>
       )}
 
+      {/* PENDING PLAN UPGRADE REQUEST DETAILS MODAL FOR SUPER ADMIN */}
+      {selectedUpgradeRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="w-full max-w-lg bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl text-slate-900">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-amber-600" /> Pending Plan Upgrade Request
+                </h3>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">Submitted by tenant school admin live in workspace</p>
+              </div>
+              <button 
+                onClick={() => setSelectedUpgradeRequest(null)} 
+                className="p-2 rounded-full bg-slate-100 text-slate-400 hover:text-slate-900 hover:bg-slate-200 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs text-slate-700">
+              <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-2.5">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-amber-900">Tenant School:</span>
+                  <span className="font-black text-sm text-slate-900">{selectedUpgradeRequest.name} ({selectedUpgradeRequest.code})</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-amber-900">Current Active Plan:</span>
+                  <span className="px-2.5 py-1 rounded-full bg-slate-200 text-slate-800 font-black text-xs">{selectedUpgradeRequest.subscriptionPlan}</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-amber-900">Requested Target Plan:</span>
+                  <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 font-black text-xs">
+                    {selectedUpgradeRequest.pendingUpgradeRequest?.targetPlan || 'PRO'}
+                  </span>
+                </div>
+                {selectedUpgradeRequest.pendingUpgradeRequest?.requestedModule && (
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-amber-900">Requested Module:</span>
+                    <span className="font-black text-indigo-700">{selectedUpgradeRequest.pendingUpgradeRequest.requestedModule}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-amber-900">Requested By Admin:</span>
+                  <span className="font-mono font-bold text-slate-900">{selectedUpgradeRequest.pendingUpgradeRequest?.requestedByEmail || selectedUpgradeRequest.email}</span>
+                </div>
+                {selectedUpgradeRequest.pendingUpgradeRequest?.requestedAt && (
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-amber-900">Request Date:</span>
+                    <span className="font-semibold text-slate-600">{new Date(selectedUpgradeRequest.pendingUpgradeRequest.requestedAt).toLocaleString()}</span>
+                  </div>
+                )}
+                {selectedUpgradeRequest.pendingUpgradeRequest?.notes && (
+                  <div className="pt-1.5 text-[11px] text-slate-600 border-t border-amber-200">
+                    <strong>School Admin Notes:</strong> {selectedUpgradeRequest.pendingUpgradeRequest.notes}
+                  </div>
+                )}
+              </div>
+
+              <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 font-medium">
+                💡 Approving this request will instantly update <strong>{selectedUpgradeRequest.name}</strong>'s subscription plan to <strong>{selectedUpgradeRequest.pendingUpgradeRequest?.targetPlan || 'PRO'}</strong>, unlocking all features live across their campus.
+              </div>
+            </div>
+
+            <div className="pt-3 flex items-center justify-end space-x-3 border-t border-slate-100">
+              <button 
+                type="button" 
+                onClick={() => handleDismissUpgrade(selectedUpgradeRequest._id)} 
+                className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
+              >
+                Dismiss Request
+              </button>
+              <button 
+                type="button" 
+                onClick={() => handleApproveUpgrade(selectedUpgradeRequest._id, selectedUpgradeRequest.pendingUpgradeRequest?.targetPlan || 'PRO')} 
+                style={{ color: '#ffffff', backgroundColor: '#059669' }}
+                className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-extrabold text-xs shadow-lg flex items-center gap-1.5 transition cursor-pointer border-none"
+              >
+                <Check className="w-4 h-4 text-white" />
+                <span style={{ color: '#ffffff' }}>Approve & Switch to {selectedUpgradeRequest.pendingUpgradeRequest?.targetPlan || 'PRO'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* CREATE / EDIT SUBSCRIPTION PLAN MODAL */}
       {isPlanModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm p-4 animate-in fade-in">
@@ -3006,7 +3127,7 @@ function SaaSAdminContent(props) {
                 <h3 className="text-xl font-black text-slate-900 flex items-center gap-2">
                   <Sliders className="w-5 h-5 text-emerald-600" /> {planForm.code ? 'Edit Subscription Plan' : 'Create New Subscription Plan'}
                 </h3>
-                <p className="text-xs text-slate-500 font-medium mt-0.5">Define plan pricing, tenant limits, and module permissions live in MongoDB Atlas</p>
+                <p className="text-xs text-slate-500 font-medium mt-0.5">Define plan pricing, tenant limits, and module permissions live in system</p>
               </div>
               <button 
                 onClick={() => setIsPlanModalOpen(false)} 
@@ -3171,7 +3292,7 @@ function SaaSAdminContent(props) {
                   Cancel
                 </button>
                 <button type="submit" disabled={loading} style={{ color: '#ffffff', backgroundColor: brandColor }} className="px-6 py-2.5 text-white font-extrabold rounded-xl shadow-lg transition-all cursor-pointer border-none">
-                  <span style={{ color: '#ffffff' }}>{loading ? 'Saving Plan...' : 'Save Plan to MongoDB Atlas'}</span>
+                  <span style={{ color: '#ffffff' }}>{loading ? 'Saving Plan...' : 'Save Subscription Plan'}</span>
                 </button>
               </div>
             </form>
@@ -3203,7 +3324,7 @@ function SaaSAdminContent(props) {
                   required 
                   className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-slate-900 font-bold focus:border-amber-500 outline-none transition-all" 
                 />
-                <p className="text-[11px] text-slate-500 font-medium mt-1">This will dynamically append a new feature control column across all subscription plans in MongoDB Atlas.</p>
+                <p className="text-[11px] text-slate-500 font-medium mt-1">This will dynamically append a new feature control column across all subscription plans.</p>
               </div>
 
               <div className="pt-3 flex items-center justify-end space-x-3 border-t border-slate-100">
@@ -3217,6 +3338,60 @@ function SaaSAdminContent(props) {
             </form>
           </div>
         </div>
+      )}
+
+      {/* INNOVATIVE UI ALERT POPUP MODAL */}
+      {uiAlert && typeof window !== 'undefined' && createPortal(
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 9999999,
+          backgroundColor: 'rgba(15, 23, 42, 0.75)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            border: uiAlert.type === 'error' ? '1.5px solid #f43f5e' : (uiAlert.type === 'info' ? '1.5px solid #0ea5e9' : '1.5px solid #10b981'),
+            borderRadius: '24px',
+            width: '100%',
+            maxWidth: '440px',
+            padding: '28px 24px',
+            boxShadow: uiAlert.type === 'error' ? '0 25px 50px -12px rgba(244, 63, 94, 0.25)' : '0 25px 50px -12px rgba(16, 185, 129, 0.25)',
+            textAlign: 'center',
+            color: '#0f172a'
+          }}>
+            <div style={{
+              width: '60px', height: '60px', borderRadius: '50%',
+              background: uiAlert.type === 'error' ? 'linear-gradient(135deg, #f43f5e 0%, #be123c 100%)' : (uiAlert.type === 'info' ? 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)' : 'linear-gradient(135deg, #10b981 0%, #047857 100%)'),
+              color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px',
+              boxShadow: uiAlert.type === 'error' ? '0 10px 20px rgba(244, 63, 94, 0.3)' : '0 10px 20px rgba(16, 185, 129, 0.3)'
+            }}>
+              {uiAlert.type === 'error' ? <AlertTriangle style={{ width: '32px', height: '32px' }} /> : <CheckCircle2 style={{ width: '32px', height: '32px' }} />}
+            </div>
+
+            <h3 style={{ fontSize: '18px', fontWeight: 900, color: '#0f172a', margin: '0 0 8px', letterSpacing: '-0.01em' }}>
+              {uiAlert.title}
+            </h3>
+
+            <p style={{ fontSize: '13px', color: '#475569', margin: '0 0 20px', lineHeight: '1.45', fontWeight: 500 }}>
+              {uiAlert.message}
+            </p>
+
+            <button
+              onClick={() => setUiAlert(null)}
+              style={{
+                width: '100%', padding: '12px', borderRadius: '14px',
+                background: 'linear-gradient(135deg, #02563d 0%, #013827 100%)',
+                color: '#ffffff', fontWeight: 800, fontSize: '13px', border: 'none', cursor: 'pointer',
+                boxShadow: '0 4px 14px rgba(2, 86, 61, 0.3)'
+              }}
+            >
+              OK / Continue
+            </button>
+          </div>
+        </div>,
+        document.body
       )}
 
     </div>

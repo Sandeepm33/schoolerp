@@ -45,7 +45,7 @@ const createSchool = async (req, res) => {
 
     const existingSchool = await School.findOne({ code: cleanCode });
     if (existingSchool) {
-      return res.status(400).json({ message: `School code '${cleanCode}' is already registered in MongoDB. Please use a unique code.` });
+      return res.status(400).json({ message: `School code '${cleanCode}' is already registered. Please use a unique code.` });
     }
 
     const newSchool = new School({
@@ -79,7 +79,7 @@ const createSchool = async (req, res) => {
     }).catch(() => {});
 
     return res.status(201).json({
-      message: `Saved to MongoDB Atlas! School '${newSchool.name}' created with admin: ${cleanEmail}`,
+      message: `School '${newSchool.name}' created successfully with admin: ${cleanEmail}`,
       school: newSchool,
       adminUser: {
         id: newAdmin._id,
@@ -89,7 +89,7 @@ const createSchool = async (req, res) => {
       }
     });
   } catch (error) {
-    return res.status(500).json({ message: error.message || 'Failed to save school tenant in MongoDB' });
+    return res.status(500).json({ message: error.message || 'Failed to save school tenant' });
   }
 };
 
@@ -167,7 +167,7 @@ const deleteSchool = async (req, res) => {
       details: `Permanently deleted school ${school.name} and associated tenant users`
     }).catch(() => {});
 
-    res.json({ message: `School '${school.name}' deleted successfully from MongoDB Atlas` });
+    res.json({ message: `School '${school.name}' deleted successfully` });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -536,7 +536,7 @@ const createSupportTicket = async (req, res) => {
       priority: priority || 'HIGH',
       status: 'OPEN'
     });
-    res.status(201).json({ message: 'Support Ticket created successfully in MongoDB Atlas', ticket });
+    res.status(201).json({ message: 'Support Ticket created successfully', ticket });
   } catch (error) {
     res.status(500).json({ message: error.message });
   }
@@ -544,14 +544,33 @@ const createSupportTicket = async (req, res) => {
 
 const createPlanUpgradeRequest = async (req, res) => {
   try {
-    const { moduleName, currentPlan, schoolName, userEmail } = req.body;
+    const { schoolId, moduleName, currentPlan, targetPlan, schoolName, userEmail, notes } = req.body;
     const cleanSchoolName = schoolName || req.user?.schoolName || 'School Tenant';
     const cleanEmail = userEmail || req.user?.email || 'admin@school.com';
+    const reqTargetPlan = (targetPlan || 'PRO').toUpperCase();
+
+    let school = null;
+    if (schoolId) school = await School.findById(schoolId);
+    if (!school && req.user?.schoolId) school = await School.findById(req.user.schoolId);
+    if (!school) school = await School.findOne({ email: cleanEmail.toLowerCase().trim() });
+    if (!school && cleanSchoolName) school = await School.findOne({ name: new RegExp(`^${cleanSchoolName.trim()}$`, 'i') });
+
+    if (school) {
+      school.pendingUpgradeRequest = {
+        targetPlan: reqTargetPlan,
+        requestedModule: moduleName || 'Full Suite Upgrade',
+        requestedByEmail: cleanEmail,
+        notes: notes || `Requested upgrade to ${reqTargetPlan} plan to access ${moduleName || 'all features'}`,
+        requestedAt: new Date()
+      };
+      school.markModified('pendingUpgradeRequest');
+      await school.save();
+    }
 
     const newTicket = await SupportTicket.create({
-      schoolName: cleanSchoolName,
+      schoolName: school ? school.name : cleanSchoolName,
       userEmail: cleanEmail,
-      subject: `🚀 PLAN UPGRADE REQUEST: Enable "${moduleName || 'Requested'}" Module (${currentPlan || 'BASIC'} Plan)`,
+      subject: `🚀 PLAN UPGRADE REQUEST: Upgrade to "${reqTargetPlan}" Plan (${moduleName ? `Module: ${moduleName}` : 'Full Suite'})`,
       priority: 'URGENT',
       status: 'OPEN',
       assignedAgent: 'Super Admin'
@@ -560,28 +579,61 @@ const createPlanUpgradeRequest = async (req, res) => {
     await AuditLog.create({
       performedByName: req.user?.name || cleanEmail,
       action: 'PLAN_UPGRADE_REQUEST',
-      targetSchoolName: cleanSchoolName,
-      details: `Requested plan upgrade to unlock module "${moduleName || 'Requested'}" under current plan ${currentPlan || 'BASIC'}`
+      targetSchoolName: school ? school.name : cleanSchoolName,
+      details: `Requested plan upgrade to ${reqTargetPlan} (module: ${moduleName || 'N/A'})`
     }).catch(() => {});
 
-    try {
-      const { createNotificationHelper } = require('./notificationController');
-      await createNotificationHelper({
-        schoolId: req.user?.schoolId || null,
-        recipientRole: 'SAAS_SUPER_ADMIN',
-        title: `Plan Upgrade Requested by ${cleanSchoolName}`,
-        message: `${cleanEmail} requested an upgrade to unlock "${moduleName}" (${currentPlan || 'BASIC'}).`,
-        type: 'SYSTEM',
-        priority: 'URGENT'
-      });
-    } catch (e) {}
-
     return res.status(201).json({
-      message: `Plan upgrade request for module '${moduleName}' saved to MongoDB Atlas! Super Admin notified under Support Tickets.`,
-      ticket: newTicket
+      message: `Plan upgrade request to '${reqTargetPlan}' submitted successfully! Super Admin notified.`,
+      ticket: newTicket,
+      school
     });
   } catch (error) {
     return res.status(500).json({ message: error.message || 'Failed to submit plan upgrade request' });
+  }
+};
+
+const approvePlanUpgradeRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { targetPlan } = req.body;
+
+    const school = await School.findById(id);
+    if (!school) return res.status(404).json({ message: 'School not found' });
+
+    const newPlan = (targetPlan || school.pendingUpgradeRequest?.targetPlan || 'PRO').toUpperCase();
+    school.subscriptionPlan = newPlan;
+    school.pendingUpgradeRequest = null;
+    school.markModified('pendingUpgradeRequest');
+    await school.save();
+
+    await AuditLog.create({
+      performedByName: req.user?.name || 'SaaS Super Admin',
+      action: 'APPROVE_PLAN_UPGRADE',
+      targetSchoolName: school.name,
+      details: `Approved plan upgrade for ${school.name} to ${newPlan} plan.`
+    }).catch(() => {});
+
+    return res.json({ message: `✅ Approved & updated ${school.name} subscription plan to ${newPlan}!`, school });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
+  }
+};
+
+const dismissPlanUpgradeRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const school = await School.findById(id);
+    if (!school) return res.status(404).json({ message: 'School not found' });
+
+    school.pendingUpgradeRequest = null;
+    school.markModified('pendingUpgradeRequest');
+    await school.save();
+
+    return res.json({ message: `Dismissed plan upgrade request for ${school.name}`, school });
+  } catch (error) {
+    return res.status(500).json({ message: error.message });
   }
 };
 
@@ -650,7 +702,7 @@ const createInquiryLead = async (req, res) => {
     };
 
     return res.status(201).json({
-      message: 'Inquiry submitted successfully! Dynamic lead created in MongoDB Atlas for SuperAdmin.',
+      message: 'Inquiry submitted successfully! Dynamic lead created for SuperAdmin.',
       lead: leadPayload
     });
   } catch (error) {
@@ -847,7 +899,7 @@ module.exports = {
   getGlobalUsers, resetUserPassword,
   getPlans, createOrUpdatePlan, togglePlanFeature, deletePlan, addCustomFeatureKey,
   getBranches, createBranch,
-  getSecurityEvents, getSaaSInvoices, getFeatureFlags, getSupportTickets, createSupportTicket, createPlanUpgradeRequest, getSalesLeads, createInquiryLead,
+  getSecurityEvents, getSaaSInvoices, getFeatureFlags, getSupportTickets, createSupportTicket, createPlanUpgradeRequest, approvePlanUpgradeRequest, dismissPlanUpgradeRequest, getSalesLeads, createInquiryLead,
   getAnnouncements, createAnnouncement, deleteAnnouncement,
   getAuditLogs, getSaaSStats,
   getPublicTestimonials, getAdminTestimonials, submitTestimonial, updateTestimonialStatus, deleteTestimonial

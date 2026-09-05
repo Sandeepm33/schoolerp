@@ -15,6 +15,7 @@ export default function HeaderBar({ isSidebarCollapsed, onToggleSidebar }) {
   const pathname = usePathname();
   const { user } = useAuth();
   const { currentTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
   const [currentUser, setCurrentUser] = useState(user);
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
@@ -22,6 +23,10 @@ export default function HeaderBar({ isSidebarCollapsed, onToggleSidebar }) {
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [isTestimonialOpen, setIsTestimonialOpen] = useState(false);
   const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     const fetchUnreadCount = async () => {
@@ -99,12 +104,13 @@ export default function HeaderBar({ isSidebarCollapsed, onToggleSidebar }) {
 
   return (
     <header 
+      suppressHydrationWarning
       style={{ backgroundColor: 'var(--accent-primary, #02563d)', borderColor: 'rgba(255, 255, 255, 0.15)', color: '#ffffff' }}
-      className="app-header h-14 sm:h-16 px-2.5 sm:px-4 lg:px-6 flex items-center justify-between sticky top-0 z-40 transition-all duration-300 shadow-md text-white border-b w-full max-w-full overflow-hidden"
+      className="app-header h-14 sm:h-16 px-2 sm:px-4 lg:px-6 flex items-center justify-between sticky top-0 z-40 transition-all duration-300 shadow-md text-white border-b w-full max-w-full overflow-hidden"
     >
       
       {/* LEFT SECTION: SIDEBAR TOGGLE & TITLE */}
-      <div className="flex items-center space-x-1.5 sm:space-x-3 min-w-0 shrink-0">
+      <div className="flex items-center space-x-1.5 sm:space-x-3 min-w-0 shrink" suppressHydrationWarning>
         
         {/* Sidebar Toggle Button */}
         <button
@@ -126,21 +132,22 @@ export default function HeaderBar({ isSidebarCollapsed, onToggleSidebar }) {
           className="w-7 h-7 sm:w-8 sm:h-8 lg:w-9 lg:h-9 rounded-xl object-cover border border-white/30 shadow-md shrink-0 hidden min-[360px]:block" 
         />
 
-        <div className="min-w-0 truncate">
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <h2 style={{ color: '#ffffff' }} className="text-xs sm:text-sm lg:text-base font-black tracking-tight leading-none text-white truncate max-w-[90px] min-[380px]:max-w-[140px] min-[480px]:max-w-[200px] sm:max-w-none">
+        <div className="min-w-0 truncate" suppressHydrationWarning>
+          <div className="flex items-center gap-1.5 sm:gap-2" suppressHydrationWarning>
+            <h2 suppressHydrationWarning style={{ color: '#ffffff' }} className="text-xs sm:text-sm lg:text-base font-black tracking-tight leading-none text-white truncate max-w-[85px] min-[380px]:max-w-[120px] min-[480px]:max-w-[170px] sm:max-w-none">
               {getPageTitle()}
             </h2>
             <span 
+              suppressHydrationWarning
               style={{ backgroundColor: 'rgba(16, 185, 129, 0.25)', borderColor: 'rgba(52, 211, 153, 0.4)', color: '#ffffff' }}
-              className="text-[9px] font-black px-2 py-0.5 rounded-full border uppercase tracking-widest hidden xl:inline-flex items-center gap-1 text-white shrink-0 shadow-xs"
+              className="text-[9px] font-black px-2 py-0.5 rounded-full border uppercase tracking-widest hidden 2xl:inline-flex items-center gap-1 text-white shrink-0 shadow-xs"
               title="Multi-User Live Server Synchronization Active"
             >
               <Zap className="w-2.5 h-2.5 text-amber-300 fill-amber-300 animate-pulse" />
               LIVE SERVER SYNC
             </span>
           </div>
-          <p style={{ color: 'rgba(255, 255, 255, 0.9)' }} className="text-[10px] sm:text-[11px] flex items-center gap-1.5 mt-0.5 font-semibold text-white truncate hidden md:flex">
+          <p style={{ color: 'rgba(255, 255, 255, 0.9)' }} className="text-[10px] sm:text-[11px] flex items-center gap-1.5 mt-0.5 font-semibold text-white truncate hidden lg:flex">
             <span className="relative flex h-2 w-2 shrink-0">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
@@ -151,13 +158,13 @@ export default function HeaderBar({ isSidebarCollapsed, onToggleSidebar }) {
       </div>
 
       {/* RIGHT SECTION: CONTROLS & ACTIONS */}
-      <div className="flex items-center space-x-1 sm:space-x-2 shrink-0 ml-auto">
+      <div className="flex items-center space-x-1 sm:space-x-2 shrink-0 ml-auto" suppressHydrationWarning>
         
         {/* Search Icon Button (<640px) */}
         <button
           onClick={() => setIsSearchOpen(true)}
           style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', borderColor: 'rgba(255, 255, 255, 0.25)', color: '#ffffff' }}
-          className="sm:hidden p-1.5 rounded-full border hover:bg-white/25 active:scale-95 transition-all flex items-center justify-center shadow-xs text-white cursor-pointer"
+          className="sm:hidden p-1.5 rounded-full border hover:bg-white/25 active:scale-95 transition-all flex items-center justify-center shadow-xs text-white cursor-pointer shrink-0"
           title="Search System (Cmd+K)"
         >
           <Search className="w-4 h-4 text-white" />
@@ -167,7 +174,7 @@ export default function HeaderBar({ isSidebarCollapsed, onToggleSidebar }) {
         <button
           onClick={() => setIsSearchOpen(true)}
           style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', borderColor: 'rgba(255, 255, 255, 0.25)', color: '#ffffff' }}
-          className="hidden sm:flex relative items-center w-28 md:w-40 lg:w-52 xl:w-64 border hover:bg-white/25 focus-within:border-white rounded-full pl-7 md:pl-8 pr-2 lg:pr-12 py-1.5 text-xs text-white placeholder-white/70 focus:outline-none transition-all cursor-pointer shadow-xs group text-left"
+          className="hidden sm:flex relative items-center w-28 md:w-36 lg:w-52 xl:w-64 border hover:bg-white/25 focus-within:border-white rounded-full pl-7 md:pl-8 pr-2 lg:pr-12 py-1.5 text-xs text-white placeholder-white/70 focus:outline-none transition-all cursor-pointer shadow-xs group text-left shrink-0"
         >
           <Search style={{ color: '#ffffff' }} className="absolute left-2.5 w-3.5 h-3.5 text-white group-hover:scale-110 transition-transform" />
           <span style={{ color: '#ffffff' }} className="font-medium truncate text-white text-[11px] sm:text-xs">Search...</span>
@@ -183,7 +190,7 @@ export default function HeaderBar({ isSidebarCollapsed, onToggleSidebar }) {
         {currentUser?.role === 'PARENT' && (
           <span 
             style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', borderColor: 'rgba(255, 255, 255, 0.25)', color: '#ffffff' }}
-            className="hidden xl:flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border shadow-xs text-white"
+            className="hidden xl:flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border shadow-xs text-white shrink-0"
           >
             <ShieldCheck style={{ color: '#ffffff' }} className="w-3.5 h-3.5 text-white" />
             <span style={{ color: '#ffffff' }}>0% Fee Access</span>
@@ -194,18 +201,18 @@ export default function HeaderBar({ isSidebarCollapsed, onToggleSidebar }) {
         <button
           onClick={() => setIsTestimonialOpen(true)}
           style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', borderColor: 'rgba(255, 255, 255, 0.25)', color: '#ffffff' }}
-          className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-full border hover:bg-white/25 active:scale-95 transition-all flex items-center gap-1.5 shadow-xs text-white cursor-pointer"
+          className="hidden min-[1100px]:flex px-2.5 py-1.5 rounded-full border hover:bg-white/25 active:scale-95 transition-all items-center gap-1.5 shadow-xs text-white cursor-pointer shrink-0"
           title="Submit School Review for Landing Page"
         >
           <MessageSquare style={{ color: '#6ee7b7' }} className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
-          <span style={{ color: '#ffffff' }} className="hidden lg:inline text-[11px] font-bold text-white whitespace-nowrap">Give Feedback</span>
+          <span style={{ color: '#ffffff' }} className="text-[11px] font-bold text-white whitespace-nowrap">Give Feedback</span>
         </button>
 
         {/* Theme Customizer Button */}
         <button
           onClick={() => setIsThemeModalOpen(true)}
           style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', borderColor: 'rgba(255, 255, 255, 0.25)', color: '#ffffff' }}
-          className="p-1.5 sm:p-2 rounded-full border hover:bg-white/25 hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-xs group relative text-white cursor-pointer"
+          className="hidden min-[480px]:flex p-1.5 sm:p-2 rounded-full border hover:bg-white/25 hover:scale-105 active:scale-95 transition-all items-center justify-center shadow-xs group relative text-white cursor-pointer shrink-0"
           title="Customize Theme & Brand Color"
         >
           <Palette style={{ color: '#ffffff' }} className="w-3.5 h-3.5 text-white group-hover:rotate-45 transition-transform duration-300" />
@@ -215,7 +222,7 @@ export default function HeaderBar({ isSidebarCollapsed, onToggleSidebar }) {
         <button 
           onClick={() => setIsNotificationOpen(prev => !prev)}
           style={{ backgroundColor: 'rgba(255, 255, 255, 0.15)', borderColor: 'rgba(255, 255, 255, 0.25)', color: '#ffffff' }}
-          className="relative p-1.5 sm:p-2 rounded-full border hover:bg-white/25 hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-xs text-white cursor-pointer"
+          className="relative p-1.5 sm:p-2 rounded-full border hover:bg-white/25 hover:scale-105 active:scale-95 transition-all flex items-center justify-center shadow-xs text-white cursor-pointer shrink-0"
           title="Notifications"
         >
           <Bell style={{ color: '#ffffff' }} className="w-3.5 h-3.5 text-white" />
@@ -237,7 +244,7 @@ export default function HeaderBar({ isSidebarCollapsed, onToggleSidebar }) {
         <button
           onClick={() => setIsAIChatOpen(true)}
           style={{ backgroundColor: '#ffffff', color: '#0f172a', borderColor: 'rgba(255, 255, 255, 0.9)' }}
-          className="p-1.5 sm:px-3 sm:py-1.5 rounded-full transition-all shadow-md hover:scale-105 active:scale-95 flex items-center gap-1.5 border cursor-pointer text-slate-900"
+          className="p-1.5 sm:px-3 sm:py-1.5 rounded-full transition-all shadow-md hover:scale-105 active:scale-95 flex items-center gap-1.5 border cursor-pointer text-slate-900 shrink-0"
           title="AI Assistant"
         >
           <Sparkles style={{ color: '#0f172a' }} className="w-3.5 h-3.5 animate-pulse shrink-0" />
@@ -255,7 +262,7 @@ export default function HeaderBar({ isSidebarCollapsed, onToggleSidebar }) {
             alt="User Avatar"
             className="w-6 h-6 sm:w-6.5 sm:h-6.5 rounded-full object-cover ring-2 ring-emerald-600 shadow-xs"
           />
-          <span style={{ color: '#0f172a' }} className="hidden xl:inline text-xs font-black max-w-[90px] truncate">
+          <span suppressHydrationWarning style={{ color: '#0f172a' }} className="hidden xl:inline text-xs font-black max-w-[90px] truncate">
             {currentUser?.name || 'svm admin'}
           </span>
         </a>

@@ -6,7 +6,7 @@ import AppLayoutWrapper from './components/AppLayoutWrapper';
 
 export const metadata = {
   title: 'AI-Powered Multi-Tenant SaaS School ERP',
-  description: 'Complete AI-powered, mobile-first School Operating System with persistent MongoDB engine.',
+  description: 'Complete AI-powered, mobile-first School Operating System with persistent enterprise cloud engine.',
 };
 
 export default function RootLayout({ children }) {

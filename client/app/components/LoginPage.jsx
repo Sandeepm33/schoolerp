@@ -301,7 +301,7 @@ export default function LoginPage() {
     { q: "What core features does this school software include?", a: "Includes Student Lifecycle, Automated Fee Collection, Live Attendance, WhatsApp Notifications, Online Exam Engine, Transport GPS Tracking, and Dedicated Portals." },
     { q: "Is there a dedicated mobile app for parents and teachers?", a: "Yes! Unified cross-platform Android & iOS mobile apps specifically optimized for parents and teachers." },
     { q: "Can we integrate biometric machines or RFID tracking?", a: "Yes, seamlessly connects with Biometric systems & RFID gate access APIs for instant 'Reached Safely' parent alerts." },
-    { q: "How secure is our school data?", a: "Protected by SSL encryption, multi-tenant data isolation, and daily encrypted cloud backups on AWS & MongoDB Atlas." }
+    { q: "How secure is our school data?", a: "Protected by SSL encryption, multi-tenant data isolation, and daily encrypted cloud backups." }
   ];
 
   const demoAccounts = [
@@ -509,7 +509,7 @@ export default function LoginPage() {
               </div>
               <div>
                 <div className="flex text-amber-400 text-xs tracking-wider font-bold mb-0.5">★★★★★</div>
-                <p className="text-xs sm:text-sm text-slate-700 font-bold">36 Functional Modules • Live MongoDB Atlas Engine</p>
+                <p className="text-xs sm:text-sm text-slate-700 font-bold">36 Functional Modules • Live Enterprise Engine</p>
               </div>
             </div>
 
