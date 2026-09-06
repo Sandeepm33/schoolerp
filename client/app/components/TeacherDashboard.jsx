@@ -798,7 +798,7 @@ function TeacherDashboardContent() {
         </div>
 
         {/* Tab Nav */}
-        <div className="flex items-center gap-2 pt-2 border-t border-slate-800 flex-wrap">
+        <div className="flex items-center gap-2 pt-2 border-t border-slate-800 overflow-x-auto no-scrollbar pb-1 flex-nowrap sm:flex-wrap">
           {[
             { id: 'timetable', label: 'My Timetable', icon: Clock },
             { id: 'attendance', label: 'Mark Attendance', icon: CheckSquare },

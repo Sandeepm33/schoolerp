@@ -501,7 +501,7 @@ function ParentDashboardContent() {
         </div>
 
         {/* Tab Nav */}
-        <div className="flex items-center gap-2 pt-3 border-t flex-wrap" style={{ borderColor: 'rgba(255,255,255,0.2)' }}>
+        <div className="flex items-center gap-2 pt-3 border-t overflow-x-auto no-scrollbar pb-1 flex-nowrap sm:flex-wrap" style={{ borderColor: 'rgba(255,255,255,0.2)' }}>
           {[
             { id: 'overview', label: 'Overview', icon: Home },
             { id: 'homework', label: 'Homework', icon: BookOpen },

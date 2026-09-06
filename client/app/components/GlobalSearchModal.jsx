@@ -280,7 +280,7 @@ export default function GlobalSearchModal({ isOpen, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-md flex items-start justify-center pt-20 sm:pt-24 px-4 pb-8 overflow-y-auto animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[99999] bg-slate-950/85 backdrop-blur-md flex items-start justify-center pt-4 sm:pt-24 px-2 sm:px-4 pb-8 overflow-y-auto animate-in fade-in duration-200">
       
       {/* Explicit CSS rule enforcing PURE BOLD JET BLACK text on the search input */}
       <style>{`

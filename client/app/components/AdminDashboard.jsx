@@ -11122,7 +11122,7 @@ function DashboardContent({ initialTab }) {
   const isLockedTab = checkIsTabLocked(tab);
 
   return (
-    <div className="flex-1 min-h-screen bg-[#f4f6f8] p-6 overflow-y-auto">
+    <div className="flex-1 min-h-screen bg-[#f4f6f8] p-3 sm:p-6 overflow-y-auto">
       {showBack && (
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
           <button
