@@ -117,9 +117,9 @@ function ParentDashboardContent() {
   const attendanceRate = mapped?.attendancePercentage !== undefined && mapped?.attendancePercentage !== null
     ? `${mapped.attendancePercentage}%`
     : '0%';
-  const latestExamScore = childMarks.length > 0 && childMarks[0].percentage !== undefined
-    ? `${childMarks[0].percentage}%`
-    : 'N/A';
+  const latestExamScore = cardsList && cardsList.length > 0
+    ? `${cardsList[0].overallPct}%`
+    : (childMarks.length > 0 && childMarks[0].percentage !== undefined ? `${childMarks[0].percentage}%` : 'N/A');
   const busRouteName = transport?.routeName ? transport.routeName : 'Unassigned';
   const cardAssignedStopName = mapped?.pickupStop || (transport?.assignedStudents || []).find(s => String(s.studentId) === String(mapped?._id))?.pickupStop || (transport?.stops && transport.stops[0] ? (typeof transport.stops[0] === 'string' ? transport.stops[0] : transport.stops[0].stopName) : '');
   const cardStopObj = (transport?.stops || []).find(st => (typeof st === 'string' ? st : st.stopName) === cardAssignedStopName) || (typeof transport?.stops?.[0] === 'object' ? transport.stops[0] : null);
