@@ -38,7 +38,8 @@ const login = async (req, res) => {
         role: user.role, 
         email: user.email, 
         name: user.name,
-        schoolId: user.schoolId 
+        schoolId: user.schoolId,
+        mappedStudentId: user.mappedStudentId || null
       },
       process.env.JWT_SECRET || 'super_secret_school_erp_jwt_key_2026_safe',
       { expiresIn: '7d' }

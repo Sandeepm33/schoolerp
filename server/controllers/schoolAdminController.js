@@ -1017,6 +1017,8 @@ const getMarks = async (req, res) => {
   try {
     const { examId, classId, studentId } = req.query;
     const role = String(req.user?.role || req.user?.designation || '').toUpperCase();
+    const userId = req.user?.id;
+    const userEmail = req.user?.email;
     const query = {};
 
     if (examId) query.examId = examId;
@@ -1025,16 +1027,74 @@ const getMarks = async (req, res) => {
 
     // Security & Privacy filter: Parents & Students MUST ONLY see their own / child's published marks
     if (role === 'STUDENT' || role === 'PARENT') {
-      query.isPublished = true;
-      const sId = studentId || req.user?.mappedStudentId || req.user?.studentId || req.user?.linkedStudentId;
-      const sName = req.user?.childName || req.user?.name;
+      query.$or = [{ isPublished: true }, { approvalStatus: 'PUBLISHED' }];
+      let targetStudentId = studentId || req.user?.mappedStudentId || req.user?.studentId || req.user?.linkedStudentId;
+      let targetStudentNames = [];
+
+      if (role === 'PARENT') {
+        let parentUser = null;
+        if (userId) {
+          parentUser = await User.findById(userId).catch(() => null);
+        }
+        let studentRecord = null;
+        if (targetStudentId) {
+          studentRecord = await Student.findById(targetStudentId).catch(() => null);
+        }
+        if (!studentRecord && parentUser?.mappedStudentId) {
+          studentRecord = await Student.findById(parentUser.mappedStudentId).catch(() => null);
+        }
+        if (!studentRecord && (userId || userEmail)) {
+          studentRecord = await Student.findOne({
+            $or: [
+              { parentId: userId },
+              { parentId: String(userId) },
+              { parentEmail: userEmail }
+            ]
+          }).catch(() => null);
+        }
+        if (studentRecord) {
+          targetStudentId = studentRecord._id;
+          const fullName = `${studentRecord.firstName || ''} ${studentRecord.lastName || ''}`.trim();
+          if (fullName) targetStudentNames.push(fullName);
+        }
+      } else if (role === 'STUDENT') {
+        let studentDoc = targetStudentId ? await Student.findById(targetStudentId).catch(() => null) : null;
+        if (!studentDoc && userId) {
+          studentDoc = await Student.findOne({
+            $or: [
+              { studentUserId: userId },
+              { studentUserId: String(userId) },
+              { email: userEmail },
+              { studentEmail: userEmail }
+            ]
+          }).catch(() => null);
+        }
+        if (studentDoc) {
+          targetStudentId = studentDoc._id;
+          const fullName = `${studentDoc.firstName || ''} ${studentDoc.lastName || ''}`.trim();
+          if (fullName) targetStudentNames.push(fullName);
+        } else if (req.user?.name) {
+          targetStudentNames.push(req.user.name);
+        }
+      }
 
       const filters = [];
-      if (sId) filters.push({ studentId: sId });
-      if (sName) filters.push({ studentName: new RegExp(sName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') });
+      if (targetStudentId) {
+        filters.push({ studentId: targetStudentId });
+        filters.push({ studentId: String(targetStudentId) });
+      }
+      targetStudentNames.forEach(name => {
+        if (name) {
+          filters.push({ studentName: new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') });
+        }
+      });
 
       if (filters.length > 0) {
-        query.$or = filters;
+        query.$and = [
+          { $or: [{ isPublished: true }, { approvalStatus: 'PUBLISHED' }] },
+          { $or: filters }
+        ];
+        delete query.$or;
       }
     }
 

@@ -18,6 +18,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useDataSync, notifyGlobalDataChange } from '../context/DataSyncContext';
 import AllServicesPanel from './AllServicesPanel';
 import StudentAttendanceReport from './StudentAttendanceReport';
+import AIResultIntelligence from './AIResultIntelligence';
 
 // ─── STATUS CONFIG ────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
@@ -1881,7 +1882,10 @@ function TeacherDashboardContent() {
 
       {/* ─── MARKS ENTRY & REPORT CARDS TAB ─── */}
       {activeTab === 'marks' && (
-        <TeacherMarksEntryTab token={token} classList={classList} />
+        <div className="space-y-6">
+          <AIResultIntelligence activeRoleProp="TEACHER" />
+          <TeacherMarksEntryTab token={token} classList={classList} />
+        </div>
       )}
 
       {/* ─── STAFF ATTENDANCE TAB ─── */}

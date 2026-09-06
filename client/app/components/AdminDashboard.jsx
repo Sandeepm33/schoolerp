@@ -10,12 +10,13 @@ import {
   AlertTriangle, Stethoscope, Library, Bus, Home, Megaphone, Ticket,
   FileBadge2, BarChart3, Settings, ChevronDown, UserCog, TrendingUp,
   Building2, BookMarked, Calculator, Scroll, MapPin, ShieldCheck,
-  HeartHandshake, ClipboardList, Eye, XCircle, CheckCircle, Loader2,
+  HeartHandshake, ClipboardList, Eye, XCircle, CheckCircle, Loader2, Printer,
   User, Mail, Phone, Shield, Lock, Camera, Save, Coffee, History,
   Wallet, CalendarCheck, MessageSquare, UserCheck, UserPlus, List, LayoutGrid, RotateCcw
 } from 'lucide-react';
 import AllServicesPanel from './AllServicesPanel';
 import StudentAttendanceReport from './StudentAttendanceReport';
+import AIResultIntelligence from './AIResultIntelligence';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useDataSync, notifyGlobalDataChange } from '../context/DataSyncContext';
@@ -8104,6 +8105,7 @@ function MarksTab() {
         subjectName: r.subjectName || 'General',
         marksObtained: r.totalMarksObtained,
         maxMarks: r.totalMaxMarks,
+        passingMarks: r.passingMarks || 35,
         percentage: r.percentage,
         remarks: r.remarks || '',
       });
@@ -8113,6 +8115,7 @@ function MarksTab() {
 
   return (
     <>
+      <AIResultIntelligence />
       {/* ══════════════════════════════════════════════════
            STUDENT / PARENT — CONSOLIDATED REPORT CARD VIEW
           ══════════════════════════════════════════════════ */}
@@ -8127,157 +8130,185 @@ function MarksTab() {
               <p className="text-sm text-slate-500">Your marks will appear here once approved and published by school administration.</p>
             </div>
           ) : (
-            studentReportCards.map((card, cidx) => {
-              const totalObtained = card.subjects.reduce((s, sub) => s + (Number(sub.marksObtained) || 0), 0);
-              const totalMax = card.subjects.reduce((s, sub) => s + (Number(sub.maxMarks) || 0), 0);
-              const overallPct = totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0;
+            <div className="space-y-8">
+              {studentReportCards.map((card, cidx) => {
+                const totalObtained = card.subjects.reduce((s, sub) => s + (Number(sub.marksObtained) || 0), 0);
+                const totalMax = card.subjects.reduce((s, sub) => s + (Number(sub.maxMarks) || 0), 0);
+                const overallPct = totalMax > 0 ? Math.round((totalObtained / totalMax) * 100) : 0;
 
-              const failedSubjects = card.subjects.filter(sub => {
-                const passM = Number(sub.passingMarks) || 35;
-                const obt = sub.marksObtained !== undefined && sub.marksObtained !== null ? Number(sub.marksObtained) : 0;
-                return obt < passM;
-              });
+                const failedSubjects = card.subjects.filter(sub => {
+                  const passM = Number(sub.passingMarks) || 35;
+                  const obt = sub.marksObtained !== undefined && sub.marksObtained !== null ? Number(sub.marksObtained) : 0;
+                  return obt < passM;
+                });
 
-              const failedCount = failedSubjects.length;
-              const overallIsPass = failedCount === 0;
+                const failedCount = failedSubjects.length;
+                const overallIsPass = failedCount === 0;
 
-              const grade = overallIsPass 
-                ? (overallPct >= 90 ? 'A+' : overallPct >= 80 ? 'A' : overallPct >= 70 ? 'B+' : overallPct >= 60 ? 'B' : overallPct >= 50 ? 'C' : 'D')
-                : 'F';
+                const grade = overallIsPass 
+                  ? (overallPct >= 90 ? 'A+' : overallPct >= 80 ? 'A' : overallPct >= 70 ? 'B+' : overallPct >= 60 ? 'B' : overallPct >= 50 ? 'C' : 'D')
+                  : 'F';
 
-              const gradeColor = overallIsPass
-                ? (overallPct >= 80 ? 'text-emerald-400' : overallPct >= 60 ? 'text-amber-400' : 'text-sky-400')
-                : 'text-rose-400';
-
-              return (
-                <div key={cidx} className="rounded-3xl overflow-hidden border border-slate-700/80 bg-slate-900 shadow-2xl">
-                  {/* REPORT CARD HEADER */}
-                  <div className="bg-gradient-to-r from-amber-500/20 via-slate-900 to-slate-950 border-b border-amber-500/20 p-6 flex items-start justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border-2 border-amber-500/40 flex items-center justify-center text-2xl font-black text-amber-400 shadow-lg">
-                        {(card.studentName || 'S')[0].toUpperCase()}
+                return (
+                  <div key={cidx} className="rounded-3xl border border-slate-200 bg-white shadow-xl overflow-hidden space-y-0">
+                    {/* Header Banner - Sandeep Header Style */}
+                    <div className="bg-gradient-to-r from-amber-500/20 via-slate-900 to-slate-950 p-6 border-b border-amber-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border-2 border-amber-500/40 flex items-center justify-center text-2xl font-black text-amber-400 shadow-lg shrink-0">
+                          {(card.studentName || 'S')[0].toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="text-xl font-black text-white tracking-tight">{card.examTitle}</h3>
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              Academic Year 2026–2027
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-300 font-medium mt-1">
+                            Student: <strong className="text-white font-bold">{card.studentName}</strong> • Roll No: <strong className="text-amber-300 font-mono font-bold">{card.rollNo || '—'}</strong> • Class: <strong className="text-indigo-300 font-bold">Class {card.classId}{card.sectionId ? ` (${card.sectionId})` : ''}</strong>
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="text-lg font-black text-white">{card.studentName}</h3>
-                        <p className="text-xs text-slate-400 font-medium mt-0.5">
-                          Roll No: <span className="text-amber-300 font-black">{card.rollNo || '—'}</span>
-                          {' · '}Class <span className="text-white font-black">{card.classId}</span>
-                          {card.sectionId ? <span> ({card.sectionId})</span> : ''}
-                        </p>
-                        <p className="text-xs text-slate-500 font-medium mt-0.5 uppercase tracking-wider">{card.examTitle}</p>
+
+                      {/* Right Buttons */}
+                      <div className="flex items-center gap-2 flex-wrap shrink-0">
+                        <button
+                          onClick={() => {
+                            const aiElem = document.getElementById('ai-result-intelligence-section');
+                            if (aiElem) {
+                              aiElem.scrollIntoView({ behavior: 'smooth' });
+                            }
+                          }}
+                          className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-md transition flex items-center gap-2 cursor-pointer"
+                        >
+                          <Eye className="w-4 h-4 text-white" />
+                          <span className="text-white font-black">Inspect Full Performance Intelligence</span>
+                        </button>
+
+                        <button
+                          onClick={() => window.print()}
+                          className="px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs shadow-md transition flex items-center gap-2 cursor-pointer"
+                        >
+                          <Printer className="w-4 h-4 text-white" />
+                          <span className="text-white font-black">Print Official Report Card</span>
+                        </button>
                       </div>
                     </div>
-                    {/* OVERALL SCORE & RESULT STATUS */}
-                    <div className="text-center">
-                      <div className={`text-4xl font-black ${gradeColor}`}>{grade}</div>
-                      <div className="text-xs text-slate-400 font-bold mt-0.5">{overallPct}% Overall</div>
-                      <div className="text-[11px] text-slate-500 mt-0.5">{totalObtained}/{totalMax} marks</div>
-                      <div className="mt-1.5">
-                        {overallIsPass ? (
-                          <span className="px-3 py-1 rounded-full text-[11px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm">
-                            ✓ PASSED
-                          </span>
-                        ) : (
-                          <span className="px-3 py-1 rounded-full text-[11px] font-black uppercase bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm">
-                            ✕ FAILED ({failedCount} {failedCount === 1 ? 'Subject' : 'Subjects'})
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
 
-                  {/* SUBJECTS TABLE */}
-                  <div className="overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead className="bg-slate-950 text-emerald-400 font-black text-[11px] uppercase tracking-wider border-b border-slate-800">
-                        <tr>
-                          <th className="p-4 text-left">#</th>
-                          <th className="p-4 text-left">Subject</th>
-                          <th className="p-4 text-center">Marks Obtained</th>
-                          <th className="p-4 text-center">Max Marks</th>
-                          <th className="p-4 text-center">Percentage</th>
-                          <th className="p-4 text-center">Grade</th>
-                          <th className="p-4 text-center">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-800">
-                        {card.subjects.map((sub, sidx) => {
-                          const passM = Number(sub.passingMarks) || 35;
-                          const obt = sub.marksObtained !== undefined && sub.marksObtained !== null ? Number(sub.marksObtained) : 0;
-                          const pct = sub.percentage || (sub.maxMarks > 0 ? Math.round((obt / sub.maxMarks) * 100) : 0);
-                          const isPass = obt >= passM;
+                    {/* Card Body - Sandeep White Table Style */}
+                    <div className="p-6 space-y-6 bg-white">
+                      {/* Subject Table */}
+                      <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b border-slate-200 bg-slate-50 text-slate-700 font-extrabold uppercase text-[11px]">
+                              <th className="px-4 py-3.5 text-left w-12">#</th>
+                              <th className="px-4 py-3.5 text-left">Subject Name</th>
+                              <th className="px-4 py-3.5 text-center">Marks Obtained</th>
+                              <th className="px-4 py-3.5 text-center">Max Marks</th>
+                              <th className="px-4 py-3.5 text-center">Pass Marks</th>
+                              <th className="px-4 py-3.5 text-center">Percentage</th>
+                              <th className="px-4 py-3.5 text-center">Grade</th>
+                              <th className="px-4 py-3.5 text-center">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {card.subjects.map((sub, sIdx) => {
+                              const passM = Number(sub.passingMarks) || 35;
+                              const obt = sub.marksObtained !== undefined && sub.marksObtained !== null ? Number(sub.marksObtained) : 0;
+                              const subPct = sub.percentage || (sub.maxMarks > 0 ? Math.round((obt / sub.maxMarks) * 100) : 0);
+                              const isPassed = obt >= passM;
 
-                          const sg = isPass
-                            ? (pct >= 90 ? 'A+' : pct >= 80 ? 'A' : pct >= 70 ? 'B+' : pct >= 60 ? 'B' : pct >= 50 ? 'C' : 'D')
-                            : 'F';
+                              const sg = isPassed
+                                ? (subPct >= 90 ? 'A+' : subPct >= 80 ? 'A' : subPct >= 70 ? 'B+' : subPct >= 60 ? 'B' : subPct >= 50 ? 'C' : 'D')
+                                : 'F';
 
-                          const sgColor = !isPass
-                            ? 'text-rose-400 bg-rose-500/10 border-rose-500/30'
-                            : pct >= 80 ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30'
-                            : pct >= 60 ? 'text-amber-400 bg-amber-500/10 border-amber-500/30'
-                            : 'text-sky-400 bg-sky-500/10 border-sky-500/30';
-
-                          return (
-                            <tr key={sidx} className={`transition ${!isPass ? 'bg-rose-500/5 hover:bg-rose-500/10' : 'bg-slate-900/80 hover:bg-slate-800/80'}`}>
-                              <td className="p-4 font-mono text-slate-500 font-bold">{sidx + 1}</td>
-                              <td className="p-4">
-                                <span className="px-3 py-1 rounded-xl bg-slate-800 text-white font-black text-xs border border-slate-700">
-                                  {sub.subjectName}
+                              return (
+                                <tr
+                                  key={sIdx}
+                                  className={`transition ${
+                                    !isPassed 
+                                      ? 'bg-rose-50/90 hover:bg-rose-100/90 text-rose-950 border-l-4 border-l-rose-500' 
+                                      : 'bg-white hover:bg-slate-50 text-slate-900'
+                                  }`}
+                                >
+                                  <td className={`px-4 py-3.5 font-mono font-bold ${!isPassed ? 'text-rose-400' : 'text-slate-400'}`}>{sIdx + 1}</td>
+                                  <td className={`px-4 py-3.5 font-extrabold ${!isPassed ? 'text-rose-950' : 'text-slate-900'}`}>{sub.subjectName}</td>
+                                  <td className={`px-4 py-3.5 text-center font-mono font-black text-sm ${!isPassed ? 'text-rose-600 font-extrabold' : 'text-emerald-600'}`}>{sub.marksObtained ?? '—'}</td>
+                                  <td className={`px-4 py-3.5 text-center font-mono font-bold ${!isPassed ? 'text-rose-700' : 'text-slate-500'}`}>{sub.maxMarks ?? 100}</td>
+                                  <td className={`px-4 py-3.5 text-center font-mono font-bold ${!isPassed ? 'text-rose-700' : 'text-slate-500'}`}>{passM}</td>
+                                  <td className={`px-4 py-3.5 text-center font-mono font-black ${!isPassed ? 'text-rose-600' : 'text-indigo-600'}`}>{subPct}%</td>
+                                  <td className={`px-4 py-3.5 text-center font-extrabold ${!isPassed ? 'text-rose-700' : 'text-purple-700'}`}>{sg}</td>
+                                  <td className="px-4 py-3.5 text-center">
+                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-black ${isPassed ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-rose-100 text-rose-800 border border-rose-300'}`}>
+                                      {isPassed ? '✓ PASS' : '✕ FAIL'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot className={overallIsPass ? "bg-slate-50 border-t-2 border-slate-200" : "bg-rose-100/90 border-t-2 border-rose-300"}>
+                            <tr>
+                              <td colSpan={2} className={`px-4 py-3.5 font-black uppercase tracking-wider text-xs ${overallIsPass ? 'text-slate-800' : 'text-rose-950'}`}>Total Aggregate</td>
+                              <td className={`px-4 py-3.5 text-center font-black text-base font-mono ${overallIsPass ? 'text-slate-900' : 'text-rose-700'}`}>{totalObtained}</td>
+                              <td className="px-4 py-3.5 text-center font-bold text-slate-500 font-mono">{totalMax}</td>
+                              <td className="px-4 py-3.5 text-center font-bold text-slate-500 font-mono">-</td>
+                              <td className={`px-4 py-3.5 text-center font-black text-base font-mono ${overallIsPass ? 'text-indigo-700' : 'text-rose-700'}`}>{overallPct}%</td>
+                              <td className={`px-4 py-3.5 text-center font-black ${overallIsPass ? 'text-purple-800' : 'text-rose-800'}`}>{grade}</td>
+                              <td className="px-4 py-3.5 text-center">
+                                <span className={`px-3 py-1 rounded-full text-xs font-black ${overallIsPass ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-rose-100 text-rose-800 border border-rose-300'}`}>
+                                  {overallIsPass ? '✓ PASS' : `✕ FAIL (${failedCount})`}
                                 </span>
                               </td>
-                              <td className={`p-4 text-center font-black text-base ${!isPass ? 'text-rose-400' : 'text-white'}`}>
-                                {sub.marksObtained ?? '—'}
-                              </td>
-                              <td className="p-4 text-center font-bold text-slate-400">{sub.maxMarks ?? '—'}</td>
-                              <td className={`p-4 text-center font-black ${!isPass ? 'text-rose-400' : 'text-amber-300'}`}>{pct}%</td>
-                              <td className="p-4 text-center">
-                                <span className={`px-2.5 py-1 rounded-xl text-xs font-black border ${sgColor}`}>{sg}</span>
-                              </td>
-                              <td className="p-4 text-center">
-                                {isPass ? (
-                                  <span className="px-2.5 py-1 rounded-xl text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm">
-                                    ✓ PASS
-                                  </span>
-                                ) : (
-                                  <span className="px-2.5 py-1 rounded-xl text-xs font-black bg-rose-500/20 text-rose-300 border border-rose-500/30 shadow-sm">
-                                    ✕ FAIL
-                                  </span>
-                                )}
-                              </td>
                             </tr>
-                          );
-                        })}
-                      </tbody>
-                      {/* TOTAL ROW */}
-                      <tfoot className="bg-slate-950 border-t-2 border-amber-500/30">
-                        <tr>
-                          <td colSpan={2} className="p-4 font-black text-amber-400 uppercase tracking-wider text-xs">Total</td>
-                          <td className="p-4 text-center font-black text-white text-lg">{totalObtained}</td>
-                          <td className="p-4 text-center font-bold text-slate-400">{totalMax}</td>
-                          <td className="p-4 text-center font-black text-amber-300 text-base">{overallPct}%</td>
-                          <td className="p-4 text-center">
-                            <span className={`px-3 py-1.5 rounded-xl text-sm font-black border ${overallIsPass ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40' : 'bg-rose-500/20 text-rose-300 border-rose-500/40'}`}>
-                              {overallIsPass ? grade : 'F'}
+                          </tfoot>
+                        </table>
+                      </div>
+
+                      {/* Summary KPI Footer Cards */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                          <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">Aggregate Total Marks</span>
+                          <p className="text-2xl font-black text-slate-900 font-mono">{totalObtained} <span className="text-xs text-slate-400 font-bold">/ {totalMax}</span></p>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                          <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">Overall Percentage</span>
+                          <p className="text-2xl font-black text-purple-600 font-mono">{overallPct}%</p>
+                        </div>
+
+                        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
+                          <div>
+                            <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">Overall Evaluation</span>
+                            <span className={`text-base font-black ${overallIsPass ? 'text-emerald-700' : 'text-rose-600'}`}>
+                              {overallIsPass ? '✓ PASSED WITH DISTINCTION' : `✕ FAILED (${failedCount} ${failedCount === 1 ? 'Subject' : 'Subjects'})`}
                             </span>
-                          </td>
-                          <td className="p-4 text-center">
-                            {overallIsPass ? (
-                              <span className="px-3 py-1.5 rounded-xl text-xs font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-sm">
-                                ✓ PASS
-                              </span>
-                            ) : (
-                              <span className="px-3 py-1.5 rounded-xl text-xs font-black bg-rose-500/20 text-rose-300 border border-rose-500/40 shadow-sm">
-                                ✕ FAIL ({failedCount} {failedCount === 1 ? 'Subject' : 'Subjects'})
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      </tfoot>
-                    </table>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Approval Badges */}
+                      <div className="pt-4 border-t border-slate-100 flex items-center justify-between flex-wrap gap-3 text-xs">
+                        <div className="flex items-center gap-3">
+                          <span className="px-3 py-1 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 font-extrabold text-[11px] flex items-center gap-1.5">
+                            <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                            Verified by Principal
+                          </span>
+                          <span className="px-3 py-1 rounded-xl bg-indigo-50 text-indigo-700 border border-indigo-200 font-extrabold text-[11px] flex items-center gap-1.5">
+                            <CheckCircle className="w-3.5 h-3.5 text-indigo-600" />
+                            Approved &amp; Released by Headmaster
+                          </span>
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-mono font-bold">
+                          Official Digital Seal • Track 360 Campus OS
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              );
-            })
+                );
+              })}
+            </div>
           )}
         </div>
       )}
