@@ -687,6 +687,28 @@ const AttendanceSettingSchema = new mongoose.Schema({
   updatedAt: { type: Date, default: Date.now }
 });
 
+// 27. HOLIDAY CALENDAR SCHEMA
+const HolidayCalendarSchema = new mongoose.Schema({
+  schoolId: { type: mongoose.Schema.Types.ObjectId, ref: 'School' },
+  title: { type: String, required: true },
+  startDate: { type: Date, required: true },
+  endDate: { type: Date, required: true },
+  holidayType: { 
+    type: String, 
+    enum: ['NATIONAL', 'FESTIVAL', 'VACATION', 'STAFF_ONLY', 'EMERGENCY', 'RESTRICTED'], 
+    default: 'NATIONAL' 
+  },
+  description: { type: String, default: '' },
+  applicableTo: { type: String, enum: ['ALL', 'STUDENTS_ONLY', 'STAFF_ONLY'], default: 'ALL' },
+  academicYear: { type: String, default: '2026-2027' },
+  createdBy: {
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    name: { type: String, default: 'Administrator' },
+    role: { type: String, default: 'ADMIN' }
+  },
+  isArchived: { type: Boolean, default: false }
+}, { timestamps: true });
+
 if (mongoose.models) {
   delete mongoose.models.StaffHRMS;
   delete mongoose.models.Transport;
@@ -743,4 +765,5 @@ module.exports = {
   AttendanceSession: mongoose.models.AttendanceSession || mongoose.model('AttendanceSession', AttendanceSessionSchema),
   AttendanceCorrection: mongoose.models.AttendanceCorrection || mongoose.model('AttendanceCorrection', AttendanceCorrectionSchema),
   AttendanceSetting: mongoose.models.AttendanceSetting || mongoose.model('AttendanceSetting', AttendanceSettingSchema),
+  HolidayCalendar: mongoose.models.HolidayCalendar || mongoose.model('HolidayCalendar', HolidayCalendarSchema),
 };

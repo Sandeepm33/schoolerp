@@ -277,6 +277,7 @@ export default function LoginPage() {
     { title: 'Asset Inventory', icon: Box, color: '#d97706', tab: 'inventory', cat: 'CAMPUS' },
     { title: 'Announcements & Alerts', icon: Megaphone, color: '#a855f7', tab: 'announcements', cat: 'ADMIN' },
     { title: 'School Calendar', icon: Calendar, color: '#ec4899', tab: 'events', cat: 'ADMIN' },
+    { title: 'Holiday Calendar', icon: Calendar, color: '#f59e0b', tab: 'holidays', cat: 'ADMIN' },
     { title: 'Visitor Gate Passes', icon: MapPin, color: '#f43f5e', tab: 'visitors', cat: 'ADMIN' },
     { title: 'Certificates & TC', icon: FileBadge2, color: '#6366f1', tab: 'certificates', cat: 'ADMIN' },
     { title: 'Campus Helpdesk', icon: Ticket, color: '#f97316', tab: 'helpdesk', cat: 'ADMIN' },

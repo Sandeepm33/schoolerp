@@ -19,10 +19,10 @@ import StudentAttendanceReport from './StudentAttendanceReport';
 import AIResultIntelligence from './AIResultIntelligence';
 import InnovativeStudentOverview from './InnovativeStudentOverview';
 import { useTheme } from '../context/ThemeContext';
-import { useAuth } from '../context/AuthContext';
+import { useAuth, API_BASE } from '../context/AuthContext';
 import { useDataSync, notifyGlobalDataChange } from '../context/DataSyncContext';
 
-const API = process.env.NEXT_PUBLIC_API_BASE;
+const API = process.env.NEXT_PUBLIC_API_BASE || API_BASE;
 const Trash = Trash2;
 
 
@@ -6686,6 +6686,471 @@ const EventsTab = makeSimpleCRUDTab({
   ]
 });
 
+function HolidayCalendarTab() {
+  const { user, token } = useAuth();
+  const [holidays, setHolidays] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editingHoliday, setEditingHoliday] = useState(null);
+  const [seeding, setSeeding] = useState(false);
+  const [filterType, setFilterType] = useState('ALL');
+
+  const [formData, setFormData] = useState({
+    title: '',
+    startDate: '',
+    endDate: '',
+    holidayType: 'NATIONAL',
+    description: '',
+    applicableTo: 'ALL',
+    academicYear: '2026-2027'
+  });
+
+  const isAuthorizedLeader = React.useMemo(() => {
+    const r = String(user?.role || '').toUpperCase();
+    const d = String(user?.designation || '').toUpperCase();
+    return (
+      r.includes('ADMIN') || r.includes('SUPER_ADMIN') || r.includes('SCHOOL_ADMIN') ||
+      r.includes('PRINCIPAL') || r.includes('HEADMASTER') || r.includes('HEAD_MASTER') ||
+      d.includes('PRINCIPAL') || d.includes('HEADMASTER') || d.includes('HEAD MASTER')
+    );
+  }, [user]);
+
+  const fetchHolidays = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch(`${API_BASE}/admin/holidays`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setHolidays(Array.isArray(data) ? data : []);
+      }
+    } catch (e) {
+      console.error('Fetch holidays error', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchHolidays();
+  }, [fetchHolidays]);
+
+  const handleSeedPresets = async () => {
+    try {
+      setSeeding(true);
+      const res = await fetch(`${API_BASE}/admin/holidays/presets`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ academicYear: '2026-2027' })
+      });
+      if (res.ok) {
+        fetchHolidays();
+      }
+    } catch (e) {
+      console.error('Seed presets error', e);
+    } finally {
+      setSeeding(false);
+    }
+  };
+
+  const handleOpenCreateModal = () => {
+    setEditingHoliday(null);
+    setFormData({
+      title: '',
+      startDate: new Date().toISOString().split('T')[0],
+      endDate: new Date().toISOString().split('T')[0],
+      holidayType: 'NATIONAL',
+      description: '',
+      applicableTo: 'ALL',
+      academicYear: '2026-2027'
+    });
+    setShowModal(true);
+  };
+
+  const handleOpenEditModal = (h) => {
+    setEditingHoliday(h);
+    setFormData({
+      title: h.title || '',
+      startDate: h.startDate ? new Date(h.startDate).toISOString().split('T')[0] : '',
+      endDate: h.endDate ? new Date(h.endDate).toISOString().split('T')[0] : '',
+      holidayType: h.holidayType || 'NATIONAL',
+      description: h.description || '',
+      applicableTo: h.applicableTo || 'ALL',
+      academicYear: h.academicYear || '2026-2027'
+    });
+    setShowModal(true);
+  };
+
+  const handleSubmitForm = async (e) => {
+    e.preventDefault();
+    try {
+      const url = editingHoliday ? `${API_BASE}/admin/holidays/${editingHoliday._id}` : `${API_BASE}/admin/holidays`;
+      const method = editingHoliday ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(formData)
+      });
+
+      if (res.ok) {
+        setShowModal(false);
+        fetchHolidays();
+      }
+    } catch (err) {
+      console.error('Save holiday error', err);
+    }
+  };
+
+  const handleDeleteHoliday = async (id) => {
+    if (!window.confirm('Are you sure you want to delete/archive this holiday?')) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/holidays/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        fetchHolidays();
+      }
+    } catch (err) {
+      console.error('Delete holiday error', err);
+    }
+  };
+
+  const filteredHolidays = useMemo(() => {
+    if (filterType === 'ALL') return holidays;
+    return holidays.filter(h => h.holidayType === filterType);
+  }, [holidays, filterType]);
+
+  const kpis = useMemo(() => {
+    const total = holidays.length;
+    const now = new Date();
+    const upcoming = holidays.filter(h => new Date(h.startDate) >= now).length;
+    const national = holidays.filter(h => h.holidayType === 'NATIONAL').length;
+    const festivals = holidays.filter(h => h.holidayType === 'FESTIVAL').length;
+    const vacations = holidays.filter(h => h.holidayType === 'VACATION').length;
+    return { total, upcoming, national, festivals, vacations };
+  }, [holidays]);
+
+  const getTypeBadge = (type) => {
+    switch (type) {
+      case 'NATIONAL':
+        return <span className="px-3 py-0.5 rounded-full text-[11px] font-black bg-rose-100 text-rose-800 border border-rose-300">🇮🇳 National Holiday</span>;
+      case 'FESTIVAL':
+        return <span className="px-3 py-0.5 rounded-full text-[11px] font-black bg-amber-100 text-amber-900 border border-amber-300">🏮 Festival &amp; Cultural</span>;
+      case 'VACATION':
+        return <span className="px-3 py-0.5 rounded-full text-[11px] font-black bg-teal-100 text-teal-900 border border-teal-300">🏖️ Vacation Break</span>;
+      case 'STAFF_ONLY':
+        return <span className="px-3 py-0.5 rounded-full text-[11px] font-black bg-purple-100 text-purple-900 border border-purple-300">👔 Staff Only Workday</span>;
+      case 'EMERGENCY':
+        return <span className="px-3 py-0.5 rounded-full text-[11px] font-black bg-red-100 text-red-900 border border-red-300">☔ Emergency Closure</span>;
+      default:
+        return <span className="px-3 py-0.5 rounded-full text-[11px] font-black bg-slate-100 text-slate-800 border border-slate-300">Restricted Holiday</span>;
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Top Banner Header */}
+      <div className="p-6 sm:p-8 rounded-3xl border border-slate-200 bg-white shadow-sm space-y-4">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600 font-black shadow-sm">
+              <Calendar className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-xl font-black text-slate-900 tracking-tight">Academic Year Holiday Calendar</h2>
+                {isAuthorizedLeader ? (
+                  <span className="px-3 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    ✓ Admin / Leadership Management Mode
+                  </span>
+                ) : (
+                  <span className="px-3 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-300">
+                    🔒 Read-Only View (Admin, Principal &amp; Headmaster Management Only)
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-1 font-medium">Official annual school holidays, festival vacations &amp; non-working dates for Academic Year 2026–2027</p>
+            </div>
+          </div>
+
+          {/* Action Buttons (Only for Admin, Principal, Headmaster) */}
+          {isAuthorizedLeader && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={handleSeedPresets}
+                disabled={seeding}
+                className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-extrabold transition flex items-center gap-2 shadow-xs cursor-pointer disabled:opacity-50"
+              >
+                <Sparkles className="w-4 h-4 text-amber-600" />
+                <span>{seeding ? 'Seeding...' : 'Import Standard Presets'}</span>
+              </button>
+
+              <button
+                onClick={handleOpenCreateModal}
+                className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-md hover:scale-105 transition flex items-center gap-2 cursor-pointer"
+              >
+                <span>+ Add School Holiday</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* KPI Metrics Strip */}
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-3 border-t border-slate-100 text-xs">
+          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 text-center">
+            <span className="text-[10px] uppercase font-bold text-slate-500 block">Total Holidays</span>
+            <span className="font-mono font-black text-xl text-slate-900 mt-0.5 block">{kpis.total}</span>
+          </div>
+          <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200 text-center">
+            <span className="text-[10px] uppercase font-bold text-amber-800 block">Upcoming</span>
+            <span className="font-mono font-black text-xl text-amber-700 mt-0.5 block">{kpis.upcoming}</span>
+          </div>
+          <div className="p-3 rounded-2xl bg-rose-50/70 border border-rose-200 text-center">
+            <span className="text-[10px] uppercase font-bold text-rose-800 block">National Days</span>
+            <span className="font-mono font-black text-xl text-rose-700 mt-0.5 block">{kpis.national}</span>
+          </div>
+          <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200 text-center">
+            <span className="text-[10px] uppercase font-bold text-amber-800 block">Festivals</span>
+            <span className="font-mono font-black text-xl text-amber-700 mt-0.5 block">{kpis.festivals}</span>
+          </div>
+          <div className="p-3 rounded-2xl bg-teal-50/70 border border-teal-200 text-center col-span-2 sm:col-span-1">
+            <span className="text-[10px] uppercase font-bold text-teal-800 block">Vacations</span>
+            <span className="font-mono font-black text-xl text-teal-700 mt-0.5 block">{kpis.vacations}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Filter Bar */}
+      <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-between flex-wrap gap-3 text-xs">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-extrabold text-slate-800 flex items-center gap-1">
+            <Filter className="w-4 h-4 text-amber-600" /> Filter Category:
+          </span>
+          {[
+            { id: 'ALL', label: 'All Types' },
+            { id: 'NATIONAL', label: 'National' },
+            { id: 'FESTIVAL', label: 'Festivals' },
+            { id: 'VACATION', label: 'Vacations' },
+            { id: 'STAFF_ONLY', label: 'Staff Workday' },
+          ].map(f => (
+            <button
+              key={f.id}
+              onClick={() => setFilterType(f.id)}
+              className={`px-3.5 py-1.5 rounded-xl font-extrabold transition cursor-pointer ${
+                filterType === f.id ? 'bg-amber-500 text-slate-950 shadow-sm' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-200'
+              }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+
+        <span className="font-mono text-slate-500 font-bold">
+          Showing {filteredHolidays.length} of {holidays.length} Holidays
+        </span>
+      </div>
+
+      {/* Holidays List / Table Display */}
+      {loading ? (
+        <div className="p-12 text-center text-xs text-slate-500 space-y-2">
+          <div className="w-8 h-8 rounded-full border-2 border-amber-500 border-t-transparent animate-spin mx-auto" />
+          <p>Loading school holiday calendar...</p>
+        </div>
+      ) : filteredHolidays.length === 0 ? (
+        <div className="p-12 text-center text-xs text-slate-500 bg-white rounded-3xl border border-slate-200 shadow-sm space-y-3">
+          <Calendar className="w-12 h-12 text-slate-400 mx-auto" />
+          <p className="font-bold text-slate-900 text-base">No Holidays Found</p>
+          <p className="text-slate-500 max-w-sm mx-auto">Click "Import Standard Presets" above to auto-populate national &amp; festival holiday dates for Academic Year 2026–2027.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {filteredHolidays.map((h) => {
+            const startStr = new Date(h.startDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+            const endStr = new Date(h.endDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+            const isSameDay = new Date(h.startDate).toDateString() === new Date(h.endDate).toDateString();
+            const isFuture = new Date(h.startDate) >= new Date();
+
+            return (
+              <div
+                key={h._id}
+                className={`bg-white p-5 rounded-2xl border transition space-y-3.5 flex flex-col justify-between shadow-xs hover:shadow-md ${
+                  isFuture ? 'border-amber-300 ring-1 ring-amber-400/20' : 'border-slate-200 opacity-85'
+                }`}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    {getTypeBadge(h.holidayType)}
+                    <span className="text-[11px] font-extrabold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">
+                      {h.applicableTo === 'ALL' ? '👥 All School' : h.applicableTo === 'STUDENTS_ONLY' ? '🎓 Students Only' : '👔 Staff Only'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h4 className="font-black text-slate-900 text-lg tracking-tight leading-snug">{h.title}</h4>
+                    {h.description && (
+                      <p className="text-xs text-slate-600 mt-1 font-medium leading-relaxed">{h.description}</p>
+                    )}
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1 font-mono text-xs">
+                    <div className="text-emerald-700 font-extrabold flex items-center gap-1.5">
+                      <Calendar className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>{startStr}</span>
+                      {!isSameDay && <span> → {endStr}</span>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer Controls for Authorized Leaders */}
+                {isAuthorizedLeader && (
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <span className="text-[11px] text-slate-400 font-medium">By: {h.createdBy?.name || 'admin'}</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleOpenEditModal(h)}
+                        className="px-3 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-extrabold text-xs transition cursor-pointer"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteHoliday(h._id)}
+                        className="px-3 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-extrabold text-xs transition cursor-pointer"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* CREATE / EDIT HOLIDAY MODAL */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-800 max-w-lg w-full space-y-5 bg-slate-900 shadow-2xl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-amber-400" />
+                <span>{editingHoliday ? 'Edit School Holiday' : 'Create New School Holiday'}</span>
+              </h3>
+              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-white p-1">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitForm} className="space-y-4 text-xs">
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">Holiday Title / Event Name</label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={e => setFormData({ ...formData, title: e.target.value })}
+                  placeholder="e.g. Independence Day, Diwali Break..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-amber-500 font-medium"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Holiday Type</label>
+                  <select
+                    value={formData.holidayType}
+                    onChange={e => setFormData({ ...formData, holidayType: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-amber-500 font-medium"
+                  >
+                    <option value="NATIONAL">🇲🇮 National Holiday</option>
+                    <option value="FESTIVAL">🪔 Festival & Cultural</option>
+                    <option value="VACATION">🌴 Seasonal Vacation</option>
+                    <option value="STAFF_ONLY">👔 Staff Only Workday</option>
+                    <option value="EMERGENCY">☔ Emergency Closure</option>
+                    <option value="RESTRICTED">Restricted Holiday</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Applicable Audience</label>
+                  <select
+                    value={formData.applicableTo}
+                    onChange={e => setFormData({ ...formData, applicableTo: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-amber-500 font-medium"
+                  >
+                    <option value="ALL">All School (Students & Staff)</option>
+                    <option value="STUDENTS_ONLY">Students Only</option>
+                    <option value="STAFF_ONLY">Staff Only</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">Start Date</label>
+                  <input
+                    type="date"
+                    value={formData.startDate}
+                    onChange={e => setFormData({ ...formData, startDate: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-amber-500 font-mono font-bold"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-slate-300 font-bold mb-1">End Date</label>
+                  <input
+                    type="date"
+                    value={formData.endDate}
+                    onChange={e => setFormData({ ...formData, endDate: e.target.value })}
+                    className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-amber-500 font-mono font-bold"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-slate-300 font-bold mb-1">Description / Guidelines</label>
+                <textarea
+                  value={formData.description}
+                  onChange={e => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="Optional details or circular instructions regarding this holiday..."
+                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-amber-500 h-24"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-800 text-slate-300 font-bold hover:bg-slate-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black shadow-lg shadow-amber-500/20"
+                >
+                  {editingHoliday ? 'Save Holiday Changes' : 'Create School Holiday'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const VisitorsTab = makeSimpleCRUDTab({
   title: 'Visitor Log', icon: MapPin, color: 'amber', endpoint: '/admin/visitors',
   columns: [
@@ -10536,6 +11001,7 @@ function DashboardContent({ initialTab }) {
     discipline: DisciplineTab,
     announcements: AnnouncementsTab,
     events: EventsTab,
+    holidays: HolidayCalendarTab,
     visitors: VisitorsTab,
     helpdesk: HelpdeskTab,
     certificates: CertificatesTab,
@@ -10608,6 +11074,7 @@ function DashboardContent({ initialTab }) {
     'student-fees': 'Student Fees', library: 'Library System', transport: 'Transport & GPS',
     hostel: 'Hostels & Rooms', inventory: 'Asset Inventory', announcements: 'Announcements',
     events: 'School Calendar', visitors: 'Visitor Gate Passes', certificates: 'Certificates & TC',
+    holidays: 'Holiday Calendar',
     helpdesk: 'Campus Helpdesk', 'audit-logs': 'Audit Logs', reports: 'Reports & Analytics',
     users: 'Roles & Permissions', settings: 'School Settings', profile: 'Admin Profile',
   };
@@ -10644,7 +11111,7 @@ function DashboardContent({ initialTab }) {
       if (['BASIC', 'FREE', 'STARTER'].includes(planName)) return true;
     } else {
       if (['BASIC', 'FREE', 'STARTER'].includes(planName)) {
-        const basicAllowed = ['admissions', 'students', 'classes', 'subjects', 'attendance', 'exams', 'marks', 'homework', 'announcements', 'events'];
+        const basicAllowed = ['admissions', 'students', 'classes', 'subjects', 'attendance', 'exams', 'marks', 'homework', 'announcements', 'events', 'holidays'];
         if (!basicAllowed.includes(tabId) && !basicAllowed.includes(camelKey)) {
           return true;
         }

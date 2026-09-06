@@ -51,6 +51,7 @@ const ALL_GRANULAR_MODULES = [
 
   { key: 'announcements', label: 'Announcements & Alerts', category: 'Communication & Admin' },
   { key: 'events', label: 'School Calendar', category: 'Communication & Admin' },
+  { key: 'holidays', label: 'Holiday Calendar & Management', category: 'Communication & Admin' },
   { key: 'visitors', label: 'Visitor Gate Passes', category: 'Communication & Admin' },
   { key: 'certificates', label: 'Certificates & TC', category: 'Communication & Admin' },
   { key: 'helpdesk', label: 'Campus Helpdesk', category: 'Communication & Admin' },

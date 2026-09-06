@@ -16,7 +16,7 @@ const {
   HealthRecord, Discipline,
   Event, Visitor, Announcement,
   FeeCategory, FeeStructure,
-  SchoolAuditLog, StaffAttendance,
+  SchoolAuditLog, StaffAttendance, HolidayCalendar
 } = require('../models/extendedModels');
 
 // ─────────────────────────────────────────────────────────
@@ -46,6 +46,22 @@ const err = (res, message, status = 500) => res.status(status).json({ message })
 const isSchoolAdminReq = (req) => {
   const role = String(req.user?.role || req.user?.designation || '').toUpperCase();
   return role.includes('SCHOOL_ADMIN') || role.includes('PRINCIPAL') || role.includes('HEADMASTER') || role.includes('HEAD_MASTER');
+};
+
+const isLeadershipOrAdmin = (req) => {
+  const role = String(req.user?.role || '').toUpperCase();
+  const desig = String(req.user?.designation || '').toUpperCase();
+  return (
+    role.includes('SCHOOL_ADMIN') ||
+    role.includes('ADMIN') ||
+    role.includes('SUPER_ADMIN') ||
+    role.includes('PRINCIPAL') ||
+    role.includes('HEADMASTER') ||
+    role.includes('HEAD_MASTER') ||
+    desig.includes('PRINCIPAL') ||
+    desig.includes('HEADMASTER') ||
+    desig.includes('HEAD MASTER')
+  );
 };
 
 // ─────────────────────────────────────────────────────────
@@ -2189,6 +2205,150 @@ const getReportsDashboard = async (req, res) => {
 };
 
 // ─────────────────────────────────────────────────────────
+// HOLIDAY CALENDAR MANAGEMENT HANDLERS
+// ─────────────────────────────────────────────────────────
+const getHolidays = async (req, res) => {
+  try {
+    const schoolId = getSchoolId(req);
+    const { academicYear, type } = req.query;
+    const query = { isArchived: false };
+    if (schoolId) query.schoolId = schoolId;
+    if (academicYear) query.academicYear = academicYear;
+    if (type) query.holidayType = type;
+
+    const docs = await HolidayCalendar.find(query).sort({ startDate: 1 });
+    ok(res, docs);
+  } catch (e) { err(res, e.message); }
+};
+
+const createHoliday = async (req, res) => {
+  try {
+    if (!isLeadershipOrAdmin(req)) {
+      return err(res, 'Access denied. Only School Admin, Principal, and Headmaster can create holidays.', 403);
+    }
+    const schoolId = getSchoolId(req);
+    const { title, startDate, endDate, holidayType, description, applicableTo, academicYear } = req.body;
+
+    if (!title || !startDate || !endDate) {
+      return err(res, 'Title, start date, and end date are required.', 400);
+    }
+
+    const doc = await HolidayCalendar.create({
+      schoolId,
+      title: title.trim(),
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+      holidayType: holidayType || 'NATIONAL',
+      description: description || '',
+      applicableTo: applicableTo || 'ALL',
+      academicYear: academicYear || '2026-2027',
+      createdBy: {
+        userId: req.user?.id,
+        name: req.user?.name || 'Administrator',
+        role: req.user?.role || 'ADMIN'
+      }
+    });
+
+    await logAudit(req, 'CREATE', 'HolidayCalendar', doc._id, null, doc);
+    ok(res, doc, 201);
+  } catch (e) { err(res, e.message); }
+};
+
+const updateHoliday = async (req, res) => {
+  try {
+    if (!isLeadershipOrAdmin(req)) {
+      return err(res, 'Access denied. Only School Admin, Principal, and Headmaster can edit holidays.', 403);
+    }
+    const old = await HolidayCalendar.findById(req.params.id);
+    if (!old) return err(res, 'Holiday not found', 404);
+
+    const doc = await HolidayCalendar.findByIdAndUpdate(
+      req.params.id,
+      {
+        ...req.body,
+        startDate: req.body.startDate ? new Date(req.body.startDate) : old.startDate,
+        endDate: req.body.endDate ? new Date(req.body.endDate) : old.endDate,
+      },
+      { new: true }
+    );
+
+    await logAudit(req, 'UPDATE', 'HolidayCalendar', doc._id, old, doc);
+    ok(res, doc);
+  } catch (e) { err(res, e.message); }
+};
+
+const deleteHoliday = async (req, res) => {
+  try {
+    if (!isLeadershipOrAdmin(req)) {
+      return err(res, 'Access denied. Only School Admin, Principal, and Headmaster can delete holidays.', 403);
+    }
+    const doc = await HolidayCalendar.findByIdAndUpdate(req.params.id, { isArchived: true }, { new: true });
+    await logAudit(req, 'DELETE', 'HolidayCalendar', req.params.id, doc, null);
+    ok(res, { message: 'Holiday archived successfully' });
+  } catch (e) { err(res, e.message); }
+};
+
+const seedHolidayPresets = async (req, res) => {
+  try {
+    if (!isLeadershipOrAdmin(req)) {
+      return err(res, 'Access denied. Only School Admin, Principal, and Headmaster can seed holiday presets.', 403);
+    }
+    const schoolId = getSchoolId(req);
+    const year = req.body?.academicYear || '2026-2027';
+
+    const defaultPresets = [
+      { title: 'New Year’s Day', startDate: `${new Date().getFullYear()}-01-01`, endDate: `${new Date().getFullYear()}-01-01`, holidayType: 'NATIONAL', description: 'Beginning of the Gregorian calendar year.', applicableTo: 'ALL' },
+      { title: 'Bhoghi & Sankranti Festival', startDate: `${new Date().getFullYear()}-01-14`, endDate: `${new Date().getFullYear()}-01-16`, holidayType: 'FESTIVAL', description: 'Traditional harvest festival celebrations.', applicableTo: 'ALL' },
+      { title: 'Republic Day', startDate: `${new Date().getFullYear()}-01-26`, endDate: `${new Date().getFullYear()}-01-26`, holidayType: 'NATIONAL', description: 'National Holiday celebrating Constitution of India.', applicableTo: 'ALL' },
+      { title: 'Maha Shivaratri', startDate: `${new Date().getFullYear()}-02-15`, endDate: `${new Date().getFullYear()}-02-15`, holidayType: 'FESTIVAL', description: 'Auspicious festival celebration.', applicableTo: 'ALL' },
+      { title: 'Holi Colors Festival', startDate: `${new Date().getFullYear()}-03-04`, endDate: `${new Date().getFullYear()}-03-04`, holidayType: 'FESTIVAL', description: 'Festival of Colors.', applicableTo: 'ALL' },
+      { title: 'Ugadi / Telugu New Year', startDate: `${new Date().getFullYear()}-03-19`, endDate: `${new Date().getFullYear()}-03-19`, holidayType: 'FESTIVAL', description: 'New Year celebration according to lunar calendar.', applicableTo: 'ALL' },
+      { title: 'Good Friday', startDate: `${new Date().getFullYear()}-04-03`, endDate: `${new Date().getFullYear()}-04-03`, holidayType: 'NATIONAL', description: 'Holy Friday commemoration.', applicableTo: 'ALL' },
+      { title: 'Dr. B.R. Ambedkar Jayanti', startDate: `${new Date().getFullYear()}-04-14`, endDate: `${new Date().getFullYear()}-04-14`, holidayType: 'NATIONAL', description: 'Honoring the architect of Constitution of India.', applicableTo: 'ALL' },
+      { title: 'Summer Vacation Break', startDate: `${new Date().getFullYear()}-05-01`, endDate: `${new Date().getFullYear()}-06-11`, holidayType: 'VACATION', description: 'Annual summer vacation break for all classes.', applicableTo: 'STUDENTS_ONLY' },
+      { title: 'Bakrid / Eid al-Adha', startDate: `${new Date().getFullYear()}-05-27`, endDate: `${new Date().getFullYear()}-05-27`, holidayType: 'FESTIVAL', description: 'Holy festival celebration.', applicableTo: 'ALL' },
+      { title: 'Independence Day', startDate: `${new Date().getFullYear()}-08-15`, endDate: `${new Date().getFullYear()}-08-15`, holidayType: 'NATIONAL', description: 'Celebration of Indian Independence Day with Flag Hoisting.', applicableTo: 'ALL' },
+      { title: 'Vinayaka Chaturthi', startDate: `${new Date().getFullYear()}-09-14`, endDate: `${new Date().getFullYear()}-09-14`, holidayType: 'FESTIVAL', description: 'Ganesh Chaturthi festivities.', applicableTo: 'ALL' },
+      { title: 'Gandhi Jayanti', startDate: `${new Date().getFullYear()}-10-02`, endDate: `${new Date().getFullYear()}-10-02`, holidayType: 'NATIONAL', description: 'National Holiday celebrating Mahatma Gandhi Jayanti.', applicableTo: 'ALL' },
+      { title: 'Bathukamma & Dasara Vacation', startDate: `${new Date().getFullYear()}-10-12`, endDate: `${new Date().getFullYear()}-10-21`, holidayType: 'VACATION', description: 'Annual Dasara & Bathukamma festival vacation.', applicableTo: 'ALL' },
+      { title: 'Diwali Deepavali Festival', startDate: `${new Date().getFullYear()}-11-08`, endDate: `${new Date().getFullYear()}-11-09`, holidayType: 'FESTIVAL', description: 'Festival of Lights celebrations.', applicableTo: 'ALL' },
+      { title: 'Christmas Day', startDate: `${new Date().getFullYear()}-12-25`, endDate: `${new Date().getFullYear()}-12-25`, holidayType: 'NATIONAL', description: 'Christmas celebration.', applicableTo: 'ALL' }
+    ];
+
+    const inserted = [];
+    for (const item of defaultPresets) {
+      const exists = await HolidayCalendar.findOne({
+        schoolId,
+        title: item.title,
+        academicYear: year,
+        isArchived: false
+      });
+      if (!exists) {
+        const doc = await HolidayCalendar.create({
+          schoolId,
+          title: item.title,
+          startDate: new Date(item.startDate),
+          endDate: new Date(item.endDate),
+          holidayType: item.holidayType,
+          description: item.description,
+          applicableTo: item.applicableTo,
+          academicYear: year,
+          createdBy: {
+            userId: req.user?.id,
+            name: req.user?.name || 'System Admin',
+            role: req.user?.role || 'ADMIN'
+          }
+        });
+        inserted.push(doc);
+      }
+    }
+
+    await logAudit(req, 'SEED_PRESETS', 'HolidayCalendar', null, null, { count: inserted.length });
+    ok(res, { message: `Successfully seeded ${inserted.length} standard holiday presets!`, count: inserted.length, holidays: inserted }, 201);
+  } catch (e) { err(res, e.message); }
+};
+
+// ─────────────────────────────────────────────────────────
 // EXPORTS
 // ─────────────────────────────────────────────────────────
 module.exports = {
@@ -2197,6 +2357,7 @@ module.exports = {
   // Classes & Subjects
   getClasses, createClass, createClassesBulk, updateClass, deleteClass,
   getSubjects, createSubject, updateSubject, deleteSubject,
+
   // HR Setup
   getDepartments, createDepartment, updateDepartment, deleteDepartment,
   getDesignations, createDesignation, updateDesignation, deleteDesignation,
@@ -2234,6 +2395,8 @@ module.exports = {
   getAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement,
   getEvents, createEvent, updateEvent, deleteEvent,
   getVisitors, createVisitor, checkoutVisitor, deleteVisitor,
+  // Holiday Calendar
+  getHolidays, createHoliday, updateHoliday, deleteHoliday, seedHolidayPresets,
   // Admin
   getHelpdesk, createHelpdeskTicket, updateHelpdeskTicket, deleteHelpdeskTicket,
   getCertificates, createCertificate, updateCertificate, deleteCertificate,

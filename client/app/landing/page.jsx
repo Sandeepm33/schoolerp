@@ -210,6 +210,7 @@ export default function LandingPage() {
     { title: 'Asset Inventory', icon: Box, color: '#d97706', cat: 'CAMPUS' },
     { title: 'Announcements & Alerts', icon: Megaphone, color: '#a855f7', cat: 'ADMIN' },
     { title: 'School Calendar', icon: Calendar, color: '#ec4899', cat: 'ADMIN' },
+    { title: 'Holiday Calendar', icon: Calendar, color: '#f59e0b', cat: 'ADMIN' },
     { title: 'Visitor Gate Passes', icon: MapPin, color: '#f43f5e', cat: 'ADMIN' },
     { title: 'Certificates & TC', icon: FileBadge2, color: '#6366f1', cat: 'ADMIN' },
     { title: 'Campus Helpdesk', icon: Ticket, color: '#f97316', cat: 'ADMIN' },

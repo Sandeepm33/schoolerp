@@ -86,6 +86,7 @@ const ALL_SERVICES = [
   // COMMUNICATION & ADMIN
   { id: 'announcements',   name: 'Announcements',      category: 'ADMIN',      roles: ['SCHOOL_ADMIN', 'TEACHER', 'PARENT', 'STUDENT'], icon: Megaphone, iconColor: 'text-purple-500' },
   { id: 'events',          name: 'School Calendar',    category: 'ADMIN',      roles: ['SCHOOL_ADMIN', 'TEACHER', 'PARENT', 'STUDENT'], icon: Calendar, iconColor: 'text-pink-500' },
+  { id: 'holidays',        name: 'Holiday Calendar',   category: 'ADMIN',      roles: ['SCHOOL_ADMIN', 'TEACHER', 'PARENT', 'STUDENT'], icon: Calendar, iconColor: 'text-amber-500' },
   { id: 'visitors',        name: 'Visitor Gate Passes',category: 'ADMIN',      roles: ['SCHOOL_ADMIN'], icon: MapPin, iconColor: 'text-rose-500' },
   { id: 'certificates',    name: 'Certificates & TC',  category: 'ADMIN',      roles: ['SCHOOL_ADMIN', 'PARENT', 'STUDENT'], icon: FileBadge2, iconColor: 'text-indigo-500' },
   { id: 'helpdesk',        name: 'Campus Helpdesk',    category: 'ADMIN',      roles: ['SCHOOL_ADMIN', 'TEACHER', 'PARENT', 'STUDENT'], icon: Ticket, iconColor: 'text-orange-500' },
@@ -270,7 +271,7 @@ export default function AllServicesPanel({ role }) {
       if (['BASIC', 'FREE', 'STARTER'].includes(planName)) return true;
     } else {
       if (['BASIC', 'FREE', 'STARTER'].includes(planName)) {
-        const basicAllowed = ['admissions', 'students', 'classes', 'subjects', 'attendance', 'exams', 'marks', 'homework', 'announcements', 'events'];
+        const basicAllowed = ['admissions', 'students', 'classes', 'subjects', 'attendance', 'exams', 'marks', 'homework', 'announcements', 'events', 'holidays'];
         if (!basicAllowed.includes(itemId) && !basicAllowed.includes(camelKey)) {
           return true;
         }
@@ -309,6 +310,12 @@ export default function AllServicesPanel({ role }) {
 
     if (item.target === 'saas') {
       router.push(`/saas-admin?tab=${item.id}`, { scroll: false });
+    } else if (activeRole === 'PARENT' || activeRole === 'STUDENT') {
+      router.push(`/parent?tab=${item.id}`, { scroll: false });
+    } else if (activeRole === 'TEACHER') {
+      router.push(`/teacher?tab=${item.id}`, { scroll: false });
+    } else if (activeRole === 'ACCOUNTANT') {
+      router.push(`/accountant?tab=${item.id}`, { scroll: false });
     } else {
       router.push(`/admin/dashboard?tab=${item.id}`, { scroll: false });
     }

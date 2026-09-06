@@ -376,6 +376,16 @@ router.patch('/admin/visitors/:id/checkout', authMiddleware, admin.checkoutVisit
 router.delete('/admin/visitors/:id', authMiddleware, admin.deleteVisitor);
 
 // ─────────────────────────────────────────────────────────────────────────────
+// 19b. HOLIDAY CALENDAR MANAGEMENT ROUTES
+// ─────────────────────────────────────────────────────────────────────────────
+router.get('/holidays', authMiddleware, admin.getHolidays);
+router.get('/admin/holidays', authMiddleware, admin.getHolidays);
+router.post('/admin/holidays', authMiddleware, admin.createHoliday);
+router.put('/admin/holidays/:id', authMiddleware, admin.updateHoliday);
+router.delete('/admin/holidays/:id', authMiddleware, admin.deleteHoliday);
+router.post('/admin/holidays/presets', authMiddleware, admin.seedHolidayPresets);
+
+// ─────────────────────────────────────────────────────────────────────────────
 // 20. HELPDESK & CERTIFICATES
 // ─────────────────────────────────────────────────────────────────────────────
 // Legacy

@@ -38,6 +38,7 @@ function ParentDashboardContent() {
   const [allRoutes, setAllRoutes] = useState([]);
   const [timetable, setTimetable] = useState({ schedule: [] });
   const [scheduledExams, setScheduledExams] = useState([]);
+  const [schoolHolidays, setSchoolHolidays] = useState([]);
   const [selectedExamTabIdx, setSelectedExamTabIdx] = useState(0);
   const [leaveForm, setLeaveForm] = useState({ startDate: '', reason: '' });
   const [leaveSubmitted, setLeaveSubmitted] = useState(false);
@@ -282,6 +283,16 @@ function ParentDashboardContent() {
           setScheduledExams(Array.isArray(data) ? data : []);
         }
       }
+      if (activeTab === 'holidays' || activeTab === 'overview') {
+        let res = await fetch(`${API_BASE}/holidays`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null);
+        if (!res || !res.ok) {
+          res = await fetch(`${API_BASE}/admin/holidays`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null);
+        }
+        if (res && res.ok) {
+          const data = await res.json().catch(() => []);
+          setSchoolHolidays(Array.isArray(data) ? data : []);
+        }
+      }
     } catch (e) {
       console.warn('Student fetch error');
     }
@@ -496,6 +507,7 @@ function ParentDashboardContent() {
             { id: 'homework', label: 'Homework', icon: BookOpen },
             { id: 'results', label: 'Results', icon: Award },
             { id: 'scheduled-exams', label: 'Scheduled Exams', icon: Calendar },
+            { id: 'holidays', label: 'Holiday Calendar', icon: Calendar },
             { id: 'timetable', label: 'Timetable', icon: Clock },
             { id: 'attendance', label: 'Attendance', icon: Calendar },
             { id: 'analytics', label: 'Analytics & Reports', icon: BarChart3 },
@@ -557,6 +569,7 @@ function ParentDashboardContent() {
           transport={transport}
           timetable={timetable}
           scheduledExams={scheduledExams}
+          schoolHolidays={schoolHolidays}
           onNavigateTab={(tabKey) => router.push(`?tab=${tabKey}`, { scroll: false })}
         />
       )}
@@ -892,6 +905,124 @@ function ParentDashboardContent() {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* HOLIDAY CALENDAR TAB */}
+      {activeTab === 'holidays' && (
+        <div className="p-6 sm:p-8 rounded-3xl border border-slate-200 bg-white shadow-sm space-y-6">
+          <div className="pb-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-amber-600" /> School Academic Holiday Calendar 2026–2027
+              </h3>
+              <p className="text-xs text-slate-500 font-medium">Official list of school holidays, festival breaks &amp; non-working days for {childName}</p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-[11px] font-bold border border-slate-200">
+                🔒 Read-Only Schedule (Managed by Admin, Principal &amp; Headmaster)
+              </span>
+              <button
+                onClick={() => window.print()}
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs shadow-sm transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Print Holiday List</span>
+              </button>
+            </div>
+          </div>
+
+          {schoolHolidays.length === 0 ? (
+            <div className="p-12 text-center text-xs text-slate-500 bg-slate-50 rounded-3xl border border-slate-200 space-y-3">
+              <Calendar className="w-12 h-12 text-slate-400 mx-auto" />
+              <p className="font-bold text-slate-900 text-base">No Holiday Dates Uploaded Yet</p>
+              <p className="text-slate-500 max-w-sm mx-auto">The official academic year holiday calendar will be displayed here once published by school administration.</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {/* Upcoming Holiday Spotlight Banner */}
+              {(() => {
+                const upcoming = schoolHolidays.filter(h => new Date(h.startDate) >= new Date()).sort((a, b) => new Date(a.startDate) - new Date(b.startDate))[0];
+                if (!upcoming) return null;
+                const daysDiff = Math.ceil((new Date(upcoming.startDate) - new Date()) / (1000 * 60 * 60 * 24));
+
+                return (
+                  <div className="p-5 rounded-3xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between flex-wrap gap-4 shadow-xs">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-700 font-black text-xl shrink-0">
+                        🪔
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-900 uppercase">
+                            Next Upcoming Holiday
+                          </span>
+                          <span className="text-xs font-mono font-black text-amber-800">
+                            {daysDiff === 0 ? 'Today!' : daysDiff === 1 ? 'Tomorrow!' : `In ${daysDiff} days`}
+                          </span>
+                        </div>
+                        <h4 className="text-lg font-black text-slate-900 mt-1">{upcoming.title}</h4>
+                        <p className="text-xs text-slate-600 font-medium">
+                          {new Date(upcoming.startDate).toLocaleDateString('en-IN', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      </div>
+                    </div>
+
+                    <span className="px-3.5 py-1.5 rounded-xl bg-amber-500/20 text-amber-900 font-mono font-black text-xs border border-amber-500/30">
+                      {upcoming.holidayType} HOLIDAY
+                    </span>
+                  </div>
+                );
+              })()}
+
+              {/* Full Holiday List Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {schoolHolidays.map((h, hIdx) => {
+                  const startStr = new Date(h.startDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                  const endStr = new Date(h.endDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                  const isSameDay = new Date(h.startDate).toDateString() === new Date(h.endDate).toDateString();
+                  const isFuture = new Date(h.startDate) >= new Date();
+
+                  return (
+                    <div
+                      key={h._id || hIdx}
+                      className={`bg-white p-5 rounded-2xl border transition space-y-3 shadow-xs hover:shadow-md ${
+                        isFuture ? 'border-amber-300 ring-1 ring-amber-400/20' : 'border-slate-200 opacity-80'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                          h.holidayType === 'NATIONAL' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
+                          h.holidayType === 'FESTIVAL' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                          h.holidayType === 'VACATION' ? 'bg-teal-100 text-teal-900 border border-teal-300' :
+                          'bg-indigo-100 text-indigo-900 border border-indigo-300'
+                        }`}>
+                          {h.holidayType}
+                        </span>
+                        <span className="text-[11px] font-extrabold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">
+                          {h.applicableTo === 'ALL' ? '👥 All School' : h.applicableTo === 'STUDENTS_ONLY' ? '🎓 Students Only' : '👔 Staff Only'}
+                        </span>
+                      </div>
+
+                      <div>
+                        <h4 className="font-black text-slate-900 text-lg tracking-tight leading-snug">{h.title}</h4>
+                        {h.description && (
+                          <p className="text-xs text-slate-600 mt-1 font-medium leading-relaxed">{h.description}</p>
+                        )}
+                      </div>
+
+                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 font-mono text-xs text-emerald-700 font-extrabold flex items-center gap-1.5">
+                        <Calendar className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>{startStr}</span>
+                        {!isSameDay && <span> → {endStr}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 

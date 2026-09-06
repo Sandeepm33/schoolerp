@@ -20,6 +20,7 @@ export default function InnovativeStudentOverview({
   transport = null, 
   timetable = null,
   scheduledExams = [],
+  schoolHolidays = [],
   onNavigateTab = () => {} 
 }) {
   const { currentTheme } = useTheme();
@@ -76,6 +77,20 @@ export default function InnovativeStudentOverview({
       leaveCount
     };
   }, [studentAttendanceLogs, periodAttendanceLogs, attendanceRate]);
+
+  // DYNAMIC UPCOMING SCHOOL HOLIDAYS PARSING
+  const upcomingHolidays = useMemo(() => {
+    if (!Array.isArray(schoolHolidays) || schoolHolidays.length === 0) return [];
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    return schoolHolidays
+      .filter(h => {
+        const end = new Date(h.endDate || h.startDate);
+        end.setHours(23, 59, 59, 999);
+        return end >= now;
+      })
+      .sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+  }, [schoolHolidays]);
 
   // 2. DYNAMIC SUBJECT MARKS PARSING FROM ACTUAL DB (cardsList / childMarks)
   const dynamicSubjectScores = useMemo(() => {
@@ -1358,6 +1373,73 @@ export default function InnovativeStudentOverview({
               className="w-full py-2 rounded-xl text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition text-center cursor-pointer"
             >
               {isTransportAssigned ? 'Track Live Bus & Timings' : 'View Transport & Routes'}
+            </button>
+          </div>
+
+          {/* DYNAMIC UPCOMING SCHOOL HOLIDAYS CARD */}
+          <div className="p-5 rounded-3xl border bg-white shadow-xl space-y-3.5 border-amber-200/80">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+              <h3 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                <Calendar className="w-4 h-4 text-amber-600" /> Upcoming School Holidays
+              </h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300">
+                {upcomingHolidays.length} Upcoming
+              </span>
+            </div>
+
+            {upcomingHolidays.length === 0 ? (
+              <div className="p-4 text-center text-xs bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
+                <Calendar className="w-7 h-7 text-slate-400 mx-auto" />
+                <p className="font-bold text-slate-800 text-xs">No Upcoming Holidays</p>
+                <p className="text-slate-500 text-[11px]">All regular classes and school sessions are on schedule.</p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {upcomingHolidays.slice(0, 3).map((h, hIdx) => {
+                  const start = new Date(h.startDate);
+                  const end = new Date(h.endDate || h.startDate);
+                  const isSameDay = start.toDateString() === end.toDateString();
+                  const startStr = start.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' });
+                  const endStr = end.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' });
+                  const today = new Date();
+                  today.setHours(0, 0, 0, 0);
+                  const daysDiff = Math.ceil((start - today) / (1000 * 60 * 60 * 24));
+
+                  return (
+                    <div key={h._id || hIdx} className="p-3 bg-slate-50 hover:bg-amber-50/50 rounded-2xl border border-slate-200/90 space-y-1.5 transition">
+                      <div className="flex items-center justify-between gap-1 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase ${
+                          h.holidayType === 'NATIONAL' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
+                          h.holidayType === 'FESTIVAL' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                          h.holidayType === 'VACATION' ? 'bg-teal-100 text-teal-900 border border-teal-300' :
+                          'bg-indigo-100 text-indigo-900 border border-indigo-300'
+                        }`}>
+                          {h.holidayType || 'HOLIDAY'}
+                        </span>
+
+                        <span className="text-[10px] font-mono font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full">
+                          {daysDiff <= 0 ? 'Today!' : daysDiff === 1 ? 'Tomorrow!' : `In ${daysDiff} days`}
+                        </span>
+                      </div>
+
+                      <h4 className="font-extrabold text-slate-900 text-xs tracking-tight">{h.title}</h4>
+
+                      <div className="text-[11px] font-mono text-emerald-700 font-extrabold flex items-center gap-1">
+                        <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>{startStr}</span>
+                        {!isSameDay && <span> → {endStr}</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <button
+              onClick={() => onNavigateTab('holidays')}
+              className="w-full py-2 rounded-xl text-xs font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition text-center cursor-pointer flex items-center justify-center gap-1"
+            >
+              <span>View Full Holiday Calendar ({schoolHolidays.length})</span> <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
 

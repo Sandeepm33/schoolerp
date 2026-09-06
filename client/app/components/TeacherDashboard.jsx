@@ -1913,6 +1913,11 @@ function TeacherDashboardContent() {
         <TeacherEventsTab token={token} />
       )}
 
+      {/* ─── HOLIDAY CALENDAR TAB ─── */}
+      {activeTab === 'holidays' && (
+        <TeacherHolidayCalendarTab token={token} />
+      )}
+
       {/* ─── HELPDESK TAB ─── */}
       {activeTab === 'helpdesk' && (
         <TeacherHelpdeskTab token={token} user={user} />
@@ -4083,6 +4088,79 @@ function TeacherEventsTab({ token }) {
               <p className="text-[10px] text-indigo-300 font-mono">📍 {ev.venue || 'School Campus'}</p>
             </div>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── HOLIDAY CALENDAR SUB-COMPONENT ─────────────────────────────────────────
+function TeacherHolidayCalendarTab({ token }) {
+  const [holidays, setHolidays] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    fetch(`${API_BASE}/holidays`, { headers: { 'Authorization': `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(d => setHolidays(Array.isArray(d) ? d : []))
+      .catch(() => setHolidays([]))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  return (
+    <div className="p-6 sm:p-8 rounded-3xl border border-slate-200 bg-white shadow-sm space-y-6">
+      <div className="pb-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+            🗓️ Faculty Academic Holiday Calendar 2026–2027
+          </h3>
+          <p className="text-xs text-slate-500 font-medium">Official list of non-working school days, festival breaks &amp; staff-only working dates</p>
+        </div>
+        <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-600 text-[11px] font-bold border border-slate-200">
+          🔒 Read-Only Schedule (Managed by Admin, Principal &amp; Headmaster)
+        </span>
+      </div>
+
+      {loading ? (
+        <Loader2 className="w-6 h-6 text-amber-500 animate-spin mx-auto my-8" />
+      ) : holidays.length === 0 ? (
+        <div className="p-8 text-center text-xs text-slate-500 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+          <Calendar className="w-10 h-10 text-slate-400 mx-auto" />
+          <p className="font-bold text-slate-900 text-base">No Holiday Dates Uploaded</p>
+          <p className="text-slate-500">The official holiday calendar will be displayed here once published by school leadership.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {holidays.map((h, i) => {
+            const startStr = new Date(h.startDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+            const endStr = new Date(h.endDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+            const isSameDay = new Date(h.startDate).toDateString() === new Date(h.endDate).toDateString();
+            const isFuture = new Date(h.startDate) >= new Date();
+
+            return (
+              <div key={i} className={`bg-white p-5 rounded-2xl border space-y-3 shadow-xs hover:shadow-md transition ${isFuture ? 'border-amber-300 ring-1 ring-amber-400/20' : 'border-slate-200 opacity-80'}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                    h.holidayType === 'NATIONAL' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
+                    h.holidayType === 'FESTIVAL' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                    h.holidayType === 'VACATION' ? 'bg-teal-100 text-teal-900 border border-teal-300' :
+                    'bg-indigo-100 text-indigo-900 border border-indigo-300'
+                  }`}>
+                    {h.holidayType}
+                  </span>
+                  <span className="text-[11px] font-extrabold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">
+                    {h.applicableTo === 'ALL' ? '👥 All School' : h.applicableTo === 'STUDENTS_ONLY' ? '🎓 Students Only' : '👔 Staff Only'}
+                  </span>
+                </div>
+                <h4 className="text-lg font-black text-slate-900 tracking-tight leading-snug">{h.title}</h4>
+                {h.description && <p className="text-xs text-slate-600 font-medium leading-relaxed">{h.description}</p>}
+                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-emerald-700 font-extrabold flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>{startStr}{!isSameDay && ` → ${endStr}`}</span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
