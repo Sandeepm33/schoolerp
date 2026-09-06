@@ -502,8 +502,8 @@ export default function InnovativeStudentOverview({
               subject: s.subjectName || s.subject || 'General',
               date: s.examDate ? new Date(s.examDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' }) : 'Scheduled Soon',
               time: s.startTime && s.endTime ? `${s.startTime} - ${s.endTime}` : (s.startTime || '09:30 AM - 11:30 AM'),
-              maxMarks: s.maxMarks || 50,
-              passMarks: s.passingMarks || s.passMarks || 18,
+              maxMarks: s.maxMarks ?? s.totalMarks ?? ex.totalMarks ?? 50,
+              passMarks: s.passingMarks ?? s.passMarks ?? 18,
               roomNo: s.roomNo || s.hallNo || 'Hall 101'
             }))
           : [

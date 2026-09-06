@@ -4269,7 +4269,13 @@ function ExamsTab() {
         endDate: form.endDate,
         totalMarks: Number(form.totalMarks),
         passingMarks: Number(form.passingMarks),
-        subjectSchedules: form.subjectSchedules,
+        subjectSchedules: form.subjectSchedules.map(s => ({
+          ...s,
+          maxMarks: Number(s.totalMarks || s.maxMarks || form.totalMarks || 100),
+          totalMarks: Number(s.totalMarks || s.maxMarks || form.totalMarks || 100),
+          passMarks: Number(s.passingMarks || s.passMarks || form.passingMarks || 35),
+          passingMarks: Number(s.passingMarks || s.passMarks || form.passingMarks || 35)
+        })),
         subjects: form.subjectSchedules.map(s => s.subjectName).filter(Boolean)
       };
 
@@ -6693,6 +6699,7 @@ function HolidayCalendarTab() {
   const [showModal, setShowModal] = useState(false);
   const [editingHoliday, setEditingHoliday] = useState(null);
   const [seeding, setSeeding] = useState(false);
+  const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'list'
   const [filterType, setFilterType] = useState('ALL');
 
   const [formData, setFormData] = useState({
@@ -6929,7 +6936,7 @@ function HolidayCalendarTab() {
         </div>
       </div>
 
-      {/* Filter Bar */}
+      {/* Filter Bar & View Toggle */}
       <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-between flex-wrap gap-3 text-xs">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-extrabold text-slate-800 flex items-center gap-1">
@@ -6954,9 +6961,35 @@ function HolidayCalendarTab() {
           ))}
         </div>
 
-        <span className="font-mono text-slate-500 font-bold">
-          Showing {filteredHolidays.length} of {holidays.length} Holidays
-        </span>
+        <div className="flex items-center gap-3">
+          {/* Grid / List View Toggle Switcher */}
+          <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 gap-1">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 text-xs font-bold transition cursor-pointer ${
+                viewMode === 'grid' ? 'bg-white text-slate-900 shadow-xs font-black' : 'text-slate-500 hover:text-slate-800'
+              }`}
+              title="Grid Card View"
+            >
+              <LayoutGrid className="w-3.5 h-3.5 text-amber-600" />
+              <span>Grid View</span>
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 text-xs font-bold transition cursor-pointer ${
+                viewMode === 'list' ? 'bg-white text-slate-900 shadow-xs font-black' : 'text-slate-500 hover:text-slate-800'
+              }`}
+              title="Structured List View"
+            >
+              <List className="w-3.5 h-3.5 text-indigo-600" />
+              <span>List View</span>
+            </button>
+          </div>
+
+          <span className="font-mono text-slate-500 font-bold hidden sm:inline">
+            Showing {filteredHolidays.length} of {holidays.length} Holidays
+          </span>
+        </div>
       </div>
 
       {/* Holidays List / Table Display */}
@@ -6971,7 +7004,7 @@ function HolidayCalendarTab() {
           <p className="font-bold text-slate-900 text-base">No Holidays Found</p>
           <p className="text-slate-500 max-w-sm mx-auto">Click "Import Standard Presets" above to auto-populate national &amp; festival holiday dates for Academic Year 2026–2027.</p>
         </div>
-      ) : (
+      ) : viewMode === 'grid' ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filteredHolidays.map((h) => {
             const startStr = new Date(h.startDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
@@ -7033,6 +7066,85 @@ function HolidayCalendarTab() {
               </div>
             );
           })}
+        </div>
+      ) : (
+        /* STRUCTURED LIST / TABLE VIEW */
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-black uppercase text-slate-500 tracking-wider">
+                <tr>
+                  <th className="py-3.5 px-4">#</th>
+                  <th className="py-3.5 px-4">Holiday Event Name</th>
+                  <th className="py-3.5 px-4">Category</th>
+                  <th className="py-3.5 px-4">Applicable To</th>
+                  <th className="py-3.5 px-4">Date Range / Duration</th>
+                  <th className="py-3.5 px-4">Status</th>
+                  {isAuthorizedLeader && <th className="py-3.5 px-4 text-right">Actions</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium">
+                {filteredHolidays.map((h, idx) => {
+                  const startStr = new Date(h.startDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                  const endStr = new Date(h.endDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                  const isSameDay = new Date(h.startDate).toDateString() === new Date(h.endDate).toDateString();
+                  const isFuture = new Date(h.startDate) >= new Date();
+
+                  return (
+                    <tr key={h._id || idx} className="hover:bg-slate-50/80 transition">
+                      <td className="py-3.5 px-4 font-mono text-slate-400 font-bold">{idx + 1}</td>
+                      <td className="py-3.5 px-4">
+                        <div className="font-extrabold text-slate-900 text-sm">{h.title}</div>
+                        {h.description && <div className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{h.description}</div>}
+                      </td>
+                      <td className="py-3.5 px-4">{getTypeBadge(h.holidayType)}</td>
+                      <td className="py-3.5 px-4">
+                        <span className="text-[11px] font-extrabold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                          {h.applicableTo === 'ALL' ? '👥 All School' : h.applicableTo === 'STUDENTS_ONLY' ? '🎓 Students Only' : '👔 Staff Only'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 font-mono font-extrabold text-emerald-700">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>{startStr}</span>
+                          {!isSameDay && <span> → {endStr}</span>}
+                        </div>
+                      </td>
+                      <td className="py-3.5 px-4">
+                        {isFuture ? (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            ● Upcoming
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-500 border border-slate-200">
+                            Past
+                          </span>
+                        )}
+                      </td>
+                      {isAuthorizedLeader && (
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleOpenEditModal(h)}
+                              className="px-3 py-1 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-extrabold text-xs transition cursor-pointer"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteHoliday(h._id)}
+                              className="px-3 py-1 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-extrabold text-xs transition cursor-pointer"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
@@ -8548,20 +8660,20 @@ function MarksTab() {
                 return (
                   <div key={cidx} className="rounded-3xl border border-slate-200 bg-white shadow-xl overflow-hidden space-y-0">
                     {/* Header Banner - Sandeep Header Style */}
-                    <div className="bg-gradient-to-r from-amber-500/20 via-slate-900 to-slate-950 p-6 border-b border-amber-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="bg-slate-50 p-6 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                       <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border-2 border-amber-500/40 flex items-center justify-center text-2xl font-black text-amber-400 shadow-lg shrink-0">
+                        <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-2xl font-black text-amber-700 shadow-xs shrink-0">
                           {(card.studentName || 'S')[0].toUpperCase()}
                         </div>
                         <div>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <h3 className="text-xl font-black text-white tracking-tight">{card.examTitle}</h3>
-                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            <h3 className="text-xl font-black text-slate-900 tracking-tight">{card.examTitle}</h3>
+                            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
                               Academic Year 2026–2027
                             </span>
                           </div>
-                          <p className="text-xs text-slate-300 font-medium mt-1">
-                            Student: <strong className="text-white font-bold">{card.studentName}</strong> • Roll No: <strong className="text-amber-300 font-mono font-bold">{card.rollNo || '—'}</strong> • Class: <strong className="text-indigo-300 font-bold">Class {card.classId}{card.sectionId ? ` (${card.sectionId})` : ''}</strong>
+                          <p className="text-xs text-slate-600 font-medium mt-1">
+                            Student: <strong className="text-slate-900 font-bold">{card.studentName}</strong> • Roll No: <strong className="text-amber-800 font-mono font-bold">{card.rollNo || '—'}</strong> • Class: <strong className="text-indigo-900 font-bold">Class {card.classId}{card.sectionId ? ` (${card.sectionId})` : ''}</strong>
                           </p>
                         </div>
                       </div>

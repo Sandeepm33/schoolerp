@@ -7,7 +7,7 @@ import {
   Truck, Bell, CheckCircle, FileText, ChevronRight, ShieldAlert,
   Send, MapPin, Check, Sparkles, AlertCircle, LogOut, Menu, X,
   GraduationCap, Search, ShieldCheck, UserCheck, Phone, Mail, Building,
-  BarChart3, ChevronLeft, Printer
+  BarChart3, ChevronLeft, Printer, Filter, LayoutGrid, List
 } from 'lucide-react';
 import { useAuth, API_BASE } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -39,6 +39,8 @@ function ParentDashboardContent() {
   const [timetable, setTimetable] = useState({ schedule: [] });
   const [scheduledExams, setScheduledExams] = useState([]);
   const [schoolHolidays, setSchoolHolidays] = useState([]);
+  const [holidayViewMode, setHolidayViewMode] = useState('grid'); // 'grid' | 'list'
+  const [holidayFilterType, setHolidayFilterType] = useState('ALL');
   const [selectedExamTabIdx, setSelectedExamTabIdx] = useState(0);
   const [leaveForm, setLeaveForm] = useState({ startDate: '', reason: '' });
   const [leaveSubmitted, setLeaveSubmitted] = useState(false);
@@ -376,8 +378,8 @@ function ParentDashboardContent() {
               subject: s.subjectName || s.subject || 'General',
               date: s.examDate ? new Date(s.examDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' }) : 'Scheduled Soon',
               time: s.startTime && s.endTime ? `${s.startTime} - ${s.endTime}` : (s.startTime || '09:30 AM - 11:30 AM'),
-              maxMarks: s.maxMarks || 50,
-              passMarks: s.passingMarks || s.passMarks || 18,
+              maxMarks: s.maxMarks ?? s.totalMarks ?? ex.totalMarks ?? 50,
+              passMarks: s.passingMarks ?? s.passMarks ?? 18,
               roomNo: s.roomNo || s.hallNo || 'Hall 101'
             }))
           : [
@@ -576,22 +578,22 @@ function ParentDashboardContent() {
 
       {/* HOMEWORK TAB */}
       {activeTab === 'homework' && (
-        <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-800 space-y-5">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+        <div className="p-6 sm:p-8 rounded-3xl border border-slate-200 bg-white shadow-sm space-y-5">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-3">
             <div>
-              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-indigo-400" /> Assigned Homework & Course Materials
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <BookOpen className="w-5 h-5 text-indigo-600" /> Assigned Homework &amp; Course Materials
               </h3>
-              <p className="text-xs text-slate-400">LMS Assignments uploaded by your subject faculty for {formattedClassStr}</p>
+              <p className="text-xs text-slate-500 font-medium">LMS Assignments uploaded by your subject faculty for {formattedClassStr}</p>
             </div>
-            <span className="text-xs text-slate-400 font-mono font-bold">Total: {homework.length} Assignments</span>
+            <span className="text-xs text-slate-600 font-mono font-bold">Total: {homework.length} Assignments</span>
           </div>
 
           {homework.length === 0 ? (
-            <div className="p-8 text-center text-xs text-slate-400 bg-slate-900/50 rounded-2xl border border-slate-800 space-y-2">
-              <BookOpen className="w-10 h-10 text-slate-600 mx-auto" />
-              <p className="font-bold text-slate-300 text-sm">No Homework Assigned</p>
-              <p>Check back later for LMS tasks and assignments.</p>
+            <div className="p-8 text-center text-xs text-slate-500 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+              <BookOpen className="w-10 h-10 text-slate-400 mx-auto" />
+              <p className="font-bold text-slate-900 text-sm">No Homework Assigned</p>
+              <p className="text-slate-500">Check back later for LMS tasks and assignments.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -718,17 +720,17 @@ function ParentDashboardContent() {
         <div className="space-y-6">
           <AIResultIntelligence activeRoleProp="PARENT" embeddedInParent={true} />
           
-          <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-800 space-y-6">
-            <div className="pb-3 border-b border-slate-800 flex items-center justify-between flex-wrap gap-3">
+          <div className="p-6 sm:p-8 rounded-3xl border border-slate-200 bg-white shadow-sm space-y-6">
+            <div className="pb-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
               <div>
-                <h3 className="text-base font-extrabold text-white flex items-center gap-2">
-                  <Award className="w-5 h-5 text-purple-400" /> Official Student Academic Report Cards
+                <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                  <Award className="w-5 h-5 text-purple-600" /> Official Student Academic Report Cards
                 </h3>
-                <p className="text-xs text-slate-400">Multi-subject performance evaluations approved and released by Principal &amp; Headmaster</p>
+                <p className="text-xs text-slate-500 font-medium">Multi-subject performance evaluations approved and released by Principal &amp; Headmaster</p>
               </div>
               {cardsList.length > 0 && (
-                <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30 flex items-center gap-1.5">
-                  <CheckCircle className="w-3.5 h-3.5 text-emerald-400" /> Verified Approved Results
+                <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-300 flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Verified Approved Results
                 </span>
               )}
             </div>
@@ -752,20 +754,20 @@ function ParentDashboardContent() {
                   return (
                     <div key={cIdx} className="rounded-3xl border border-slate-200 bg-white shadow-xl overflow-hidden space-y-0">
                       {/* Header Banner - Sandeep Header Style */}
-                      <div className="bg-gradient-to-r from-amber-500/20 via-slate-900 to-slate-950 p-6 border-b border-amber-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                      <div className="bg-slate-50 p-6 border-b border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                         <div className="flex items-center gap-4">
-                          <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border-2 border-amber-500/40 flex items-center justify-center text-2xl font-black text-amber-400 shadow-lg shrink-0">
+                          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-2xl font-black text-amber-700 shadow-xs shrink-0">
                             {(rc.studentName || 'S')[0].toUpperCase()}
                           </div>
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="text-xl font-black text-white tracking-tight">{rc.examTitle}</h3>
-                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                              <h3 className="text-xl font-black text-slate-900 tracking-tight">{rc.examTitle}</h3>
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-900 border border-amber-300">
                                 Academic Year 2026–2027
                               </span>
                             </div>
-                            <p className="text-xs text-slate-300 font-medium mt-1">
-                              Student: <strong className="text-white font-bold">{rc.studentName}</strong> • Roll No: <strong className="text-amber-300 font-mono font-bold">{rc.rollNo}</strong> • Class: <strong className="text-indigo-300 font-bold">Class {rc.classId} ({rc.sectionId})</strong>
+                            <p className="text-xs text-slate-600 font-medium mt-1">
+                              Student: <strong className="text-slate-900 font-bold">{rc.studentName}</strong> • Roll No: <strong className="text-amber-800 font-mono font-bold">{rc.rollNo}</strong> • Class: <strong className="text-indigo-900 font-bold">Class {rc.classId} ({rc.sectionId})</strong>
                             </p>
                           </div>
                         </div>
@@ -976,51 +978,192 @@ function ParentDashboardContent() {
                 );
               })()}
 
-              {/* Full Holiday List Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {schoolHolidays.map((h, hIdx) => {
-                  const startStr = new Date(h.startDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-                  const endStr = new Date(h.endDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-                  const isSameDay = new Date(h.startDate).toDateString() === new Date(h.endDate).toDateString();
-                  const isFuture = new Date(h.startDate) >= new Date();
-
-                  return (
-                    <div
-                      key={h._id || hIdx}
-                      className={`bg-white p-5 rounded-2xl border transition space-y-3 shadow-xs hover:shadow-md ${
-                        isFuture ? 'border-amber-300 ring-1 ring-amber-400/20' : 'border-slate-200 opacity-80'
+              {/* Filter Bar & View Toggle */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs flex items-center justify-between flex-wrap gap-3 text-xs">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-extrabold text-slate-800 flex items-center gap-1">
+                    <Filter className="w-4 h-4 text-amber-600" /> Filter Category:
+                  </span>
+                  {[
+                    { id: 'ALL', label: 'All Types' },
+                    { id: 'NATIONAL', label: 'National' },
+                    { id: 'FESTIVAL', label: 'Festivals' },
+                    { id: 'VACATION', label: 'Vacations' },
+                    { id: 'STAFF_ONLY', label: 'Staff Workday' },
+                  ].map(f => (
+                    <button
+                      key={f.id}
+                      onClick={() => setHolidayFilterType(f.id)}
+                      className={`px-3.5 py-1.5 rounded-xl font-extrabold transition cursor-pointer ${
+                        holidayFilterType === f.id ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
                       }`}
                     >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                          h.holidayType === 'NATIONAL' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
-                          h.holidayType === 'FESTIVAL' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
-                          h.holidayType === 'VACATION' ? 'bg-teal-100 text-teal-900 border border-teal-300' :
-                          'bg-indigo-100 text-indigo-900 border border-indigo-300'
-                        }`}>
-                          {h.holidayType}
-                        </span>
-                        <span className="text-[11px] font-extrabold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">
-                          {h.applicableTo === 'ALL' ? '👥 All School' : h.applicableTo === 'STUDENTS_ONLY' ? '🎓 Students Only' : '👔 Staff Only'}
-                        </span>
-                      </div>
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
 
-                      <div>
-                        <h4 className="font-black text-slate-900 text-lg tracking-tight leading-snug">{h.title}</h4>
-                        {h.description && (
-                          <p className="text-xs text-slate-600 mt-1 font-medium leading-relaxed">{h.description}</p>
-                        )}
-                      </div>
+                <div className="flex items-center gap-3">
+                  {/* Grid / List View Toggle Switcher */}
+                  <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200 gap-1 shadow-xs">
+                    <button
+                      onClick={() => setHolidayViewMode('grid')}
+                      className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 text-xs font-bold transition cursor-pointer ${
+                        holidayViewMode === 'grid' ? 'bg-amber-500 text-slate-950 font-black shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                      title="Grid Card View"
+                    >
+                      <LayoutGrid className="w-3.5 h-3.5" />
+                      <span>Grid View</span>
+                    </button>
+                    <button
+                      onClick={() => setHolidayViewMode('list')}
+                      className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 text-xs font-bold transition cursor-pointer ${
+                        holidayViewMode === 'list' ? 'bg-amber-500 text-slate-950 font-black shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                      }`}
+                      title="Structured List View"
+                    >
+                      <List className="w-3.5 h-3.5" />
+                      <span>List View</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
 
-                      <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 font-mono text-xs text-emerald-700 font-extrabold flex items-center gap-1.5">
-                        <Calendar className="w-4 h-4 text-emerald-600 shrink-0" />
-                        <span>{startStr}</span>
-                        {!isSameDay && <span> → {endStr}</span>}
-                      </div>
+              {/* Holiday Content Display (Grid or List) */}
+              {(() => {
+                const filtered = holidayFilterType === 'ALL'
+                  ? schoolHolidays
+                  : schoolHolidays.filter(h => h.holidayType === holidayFilterType);
+
+                if (filtered.length === 0) {
+                  return (
+                    <div className="p-8 text-center text-xs text-slate-500 bg-slate-50 rounded-2xl border border-slate-200">
+                      <p className="font-bold text-slate-700 text-sm">No holidays found for "{holidayFilterType}" category.</p>
                     </div>
                   );
-                })}
-              </div>
+                }
+
+                if (holidayViewMode === 'grid') {
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {filtered.map((h, hIdx) => {
+                        const startStr = new Date(h.startDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                        const endStr = new Date(h.endDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                        const isSameDay = new Date(h.startDate).toDateString() === new Date(h.endDate).toDateString();
+                        const isFuture = new Date(h.startDate) >= new Date();
+
+                        return (
+                          <div
+                            key={h._id || hIdx}
+                            className={`bg-white p-5 rounded-2xl border transition space-y-3 shadow-xs hover:shadow-md ${
+                              isFuture ? 'border-amber-300 ring-1 ring-amber-400/20' : 'border-slate-200 opacity-80'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                h.holidayType === 'NATIONAL' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
+                                h.holidayType === 'FESTIVAL' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                                h.holidayType === 'VACATION' ? 'bg-teal-100 text-teal-900 border border-teal-300' :
+                                'bg-indigo-100 text-indigo-900 border border-indigo-300'
+                              }`}>
+                                {h.holidayType}
+                              </span>
+                              <span className="text-[11px] font-extrabold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">
+                                {h.applicableTo === 'ALL' ? '👥 All School' : h.applicableTo === 'STUDENTS_ONLY' ? '🎓 Students Only' : '👔 Staff Only'}
+                              </span>
+                            </div>
+
+                            <div>
+                              <h4 className="font-black text-slate-900 text-lg tracking-tight leading-snug">{h.title}</h4>
+                              {h.description && (
+                                <p className="text-xs text-slate-600 mt-1 font-medium leading-relaxed">{h.description}</p>
+                              )}
+                            </div>
+
+                            <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 font-mono text-xs text-emerald-700 font-extrabold flex items-center gap-1.5">
+                              <Calendar className="w-4 h-4 text-emerald-600 shrink-0" />
+                              <span>{startStr}</span>
+                              {!isSameDay && <span> → {endStr}</span>}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                }
+
+                /* Structured Table List View */
+                return (
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-black uppercase text-slate-500 tracking-wider">
+                          <tr>
+                            <th className="py-3.5 px-4">#</th>
+                            <th className="py-3.5 px-4">Holiday Title</th>
+                            <th className="py-3.5 px-4">Category</th>
+                            <th className="py-3.5 px-4">Applicable To</th>
+                            <th className="py-3.5 px-4">Date Range</th>
+                            <th className="py-3.5 px-4">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100 font-medium">
+                          {filtered.map((h, idx) => {
+                            const startStr = new Date(h.startDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                            const endStr = new Date(h.endDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                            const isSameDay = new Date(h.startDate).toDateString() === new Date(h.endDate).toDateString();
+                            const isFuture = new Date(h.startDate) >= new Date();
+
+                            return (
+                              <tr key={h._id || idx} className="hover:bg-slate-50/80 transition">
+                                <td className="py-3.5 px-4 font-mono text-slate-400 font-bold">{idx + 1}</td>
+                                <td className="py-3.5 px-4">
+                                  <div className="font-extrabold text-slate-900 text-sm">{h.title}</div>
+                                  {h.description && <div className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{h.description}</div>}
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                    h.holidayType === 'NATIONAL' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
+                                    h.holidayType === 'FESTIVAL' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                                    h.holidayType === 'VACATION' ? 'bg-teal-100 text-teal-900 border border-teal-300' :
+                                    'bg-indigo-100 text-indigo-900 border border-indigo-300'
+                                  }`}>
+                                    {h.holidayType}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  <span className="text-[11px] font-extrabold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                                    {h.applicableTo === 'ALL' ? '👥 All School' : h.applicableTo === 'STUDENTS_ONLY' ? '🎓 Students Only' : '👔 Staff Only'}
+                                  </span>
+                                </td>
+                                <td className="py-3.5 px-4 font-mono font-extrabold text-emerald-700">
+                                  <div className="flex items-center gap-1.5">
+                                    <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    <span>{startStr}</span>
+                                    {!isSameDay && <span> → {endStr}</span>}
+                                  </div>
+                                </td>
+                                <td className="py-3.5 px-4">
+                                  {isFuture ? (
+                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                      ● Upcoming
+                                    </span>
+                                  ) : (
+                                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-500 border border-slate-200">
+                                      Past
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>
@@ -1028,20 +1171,20 @@ function ParentDashboardContent() {
 
       {/* SCHEDULED EXAMS & DATE SHEETS TAB */}
       {activeTab === 'scheduled-exams' && (
-        <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-800 space-y-6">
+        <div className="p-6 sm:p-8 rounded-3xl border border-slate-200 bg-white shadow-sm space-y-6">
           {/* Header */}
-          <div className="pb-3 border-b border-slate-800 flex items-center justify-between flex-wrap gap-3">
+          <div className="pb-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
             <div>
-              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
-                <Calendar className="w-5 h-5 text-amber-400" /> Scheduled Upcoming Exams &amp; Date Sheets
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-amber-600" /> Scheduled Upcoming Exams &amp; Date Sheets
               </h3>
-              <p className="text-xs text-slate-400">Official timetables, date sheets &amp; room allocations for {childName} ({formattedClassStr})</p>
+              <p className="text-xs text-slate-500 font-medium">Official timetables, date sheets &amp; room allocations for {childName} ({formattedClassStr})</p>
             </div>
 
             <div className="flex items-center gap-2">
               <button
                 onClick={() => window.print()}
-                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer"
               >
                 <Printer className="w-4 h-4" />
                 <span>Print Exam Timetable</span>
@@ -1050,23 +1193,23 @@ function ParentDashboardContent() {
           </div>
 
           {/* Multi-Exam Tab Selector Bar */}
-          <div className="flex items-center gap-2 p-1.5 bg-slate-900/90 rounded-2xl border border-slate-800 flex-wrap">
-            <span className="text-xs font-extrabold text-amber-400 px-3 uppercase tracking-wider flex items-center gap-1">
-              <Award className="w-3.5 h-3.5" /> Select Exam:
+          <div className="flex items-center gap-2 p-1.5 bg-slate-50 rounded-2xl border border-slate-200 flex-wrap text-xs">
+            <span className="font-extrabold text-slate-800 px-3 uppercase tracking-wider flex items-center gap-1">
+              <Award className="w-4 h-4 text-amber-600" /> Select Exam:
             </span>
             {parsedExamsList.map((ex, idx) => (
               <button
                 key={ex.id || idx}
                 onClick={() => setSelectedExamTabIdx(idx)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                className={`px-4 py-2 rounded-xl font-bold transition-all cursor-pointer flex items-center gap-2 ${
                   selectedExamTabIdx === idx
-                    ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/20'
-                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
+                    ? 'bg-amber-500 text-slate-950 font-black shadow-xs'
+                    : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
                 }`}
               >
                 <span>{ex.title}</span>
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
-                  selectedExamTabIdx === idx ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-900 text-amber-300'
+                  selectedExamTabIdx === idx ? 'bg-slate-950/15 text-slate-950' : 'bg-slate-100 text-slate-600 border border-slate-200'
                 }`}>
                   {ex.schedules.length} Subjects
                 </span>
@@ -1081,67 +1224,67 @@ function ParentDashboardContent() {
             return (
               <div className="space-y-6">
                 {/* Exam Banner Card */}
-                <div className="p-6 rounded-3xl bg-gradient-to-br from-amber-500/10 via-slate-900 to-slate-950 border border-amber-500/30 space-y-4">
+                <div className="p-6 rounded-3xl bg-slate-50 border border-slate-200 space-y-4 shadow-xs">
                   <div className="flex items-center justify-between flex-wrap gap-3">
                     <div>
                       <div className="flex items-center gap-2.5 flex-wrap">
-                        <span className="px-3 py-1 rounded-xl text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase">
+                        <span className="px-3 py-1 rounded-xl text-xs font-black bg-amber-100 text-amber-900 border border-amber-300 uppercase">
                           {activeExam.examType}
                         </span>
-                        <h4 className="text-xl font-black text-white">{activeExam.title}</h4>
+                        <h4 className="text-xl font-black text-slate-900">{activeExam.title}</h4>
                       </div>
-                      <p className="text-xs text-slate-400 mt-1">
-                        Class: <strong className="text-white">{formattedClassStr}</strong> • Roll No: <strong className="text-emerald-400 font-mono">{childRollNo}</strong>
+                      <p className="text-xs text-slate-600 mt-1 font-medium">
+                        Class: <strong className="text-slate-900">{formattedClassStr}</strong> • Roll No: <strong className="text-emerald-700 font-mono">{childRollNo}</strong>
                       </p>
                     </div>
 
-                    <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800 text-right">
-                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Commencement Date</span>
-                      <span className="font-mono font-black text-amber-300 text-sm flex items-center gap-1.5 mt-0.5 justify-end">
-                        <Calendar className="w-4 h-4 text-amber-400" /> {activeExam.startDate}
+                    <div className="p-3 rounded-2xl bg-white border border-slate-200 text-right shadow-xs">
+                      <span className="text-[10px] text-slate-500 uppercase font-bold block">Commencement Date</span>
+                      <span className="font-mono font-black text-amber-700 text-sm flex items-center gap-1.5 mt-0.5 justify-end">
+                        <Calendar className="w-4 h-4 text-amber-600" /> {activeExam.startDate}
                       </span>
                     </div>
                   </div>
 
                   {/* Subject Date Sheet Grid */}
                   <div className="space-y-3">
-                    <h5 className="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center justify-between">
+                    <h5 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 flex items-center justify-between">
                       <span>Subject Examination Timetable &amp; Room Allocations</span>
-                      <span className="text-amber-400 font-mono text-[11px]">{activeExam.schedules.length} Papers Total</span>
+                      <span className="text-emerald-700 font-mono text-[11px] font-bold">{activeExam.schedules.length} Papers Total</span>
                     </h5>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {activeExam.schedules.map((sub, sIdx) => (
                         <div 
                           key={sIdx}
-                          className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-900/60 hover:border-amber-500/40 transition space-y-3 shadow-lg"
+                          className="bg-white p-5 rounded-2xl border border-slate-200 hover:border-amber-400 transition space-y-3 shadow-xs hover:shadow-md"
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <span className="px-3 py-1 rounded-xl text-xs font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                            <span className="px-3 py-1 rounded-xl text-xs font-black bg-indigo-100 text-indigo-900 border border-indigo-200">
                               {sub.subject}
                             </span>
-                            <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                            <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
                               📍 {sub.roomNo}
                             </span>
                           </div>
 
                           <div className="space-y-1 pt-1">
-                            <div className="text-sm font-black text-white flex items-center gap-2">
-                              <Calendar className="w-4 h-4 text-amber-400 shrink-0" />
+                            <div className="text-sm font-black text-slate-900 flex items-center gap-2">
+                              <Calendar className="w-4 h-4 text-amber-600 shrink-0" />
                               <span>{sub.date}</span>
                             </div>
-                            <div className="text-xs text-slate-300 font-mono font-semibold flex items-center gap-2 pt-0.5">
-                              <Clock className="w-4 h-4 text-cyan-400 shrink-0" />
+                            <div className="text-xs text-slate-600 font-mono font-bold flex items-center gap-2 pt-0.5">
+                              <Clock className="w-4 h-4 text-cyan-600 shrink-0" />
                               <span>{sub.time}</span>
                             </div>
                           </div>
 
-                          <div className="pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
-                            <div className="text-slate-400">
-                              Max: <strong className="text-white font-bold">{sub.maxMarks}</strong>
+                          <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs font-mono">
+                            <div className="text-slate-600 font-medium">
+                              Max: <strong className="text-slate-900 font-black">{sub.maxMarks}</strong>
                             </div>
-                            <div className="text-emerald-400 font-bold">
-                              Passing: <strong>{sub.passMarks}</strong>
+                            <div className="text-emerald-700 font-black">
+                              Passing: <strong className="text-emerald-800">{sub.passMarks}</strong>
                             </div>
                           </div>
                         </div>
@@ -1150,11 +1293,11 @@ function ParentDashboardContent() {
                   </div>
 
                   {/* General Examination Instructions Card */}
-                  <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2 text-xs">
-                    <h6 className="font-extrabold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <ShieldAlert className="w-4 h-4 text-amber-400" /> Exam Rules &amp; Parent Instructions
+                  <div className="p-4 rounded-2xl bg-white border border-slate-200 space-y-2 text-xs shadow-xs">
+                    <h6 className="font-black text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <ShieldAlert className="w-4 h-4 text-amber-600" /> Exam Rules &amp; Parent Instructions
                     </h6>
-                    <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-slate-300 list-disc list-inside text-[11px] leading-relaxed">
+                    <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-slate-700 list-disc list-inside text-[11px] leading-relaxed font-medium">
                       <li>Students must be present in the designated exam hall 15 minutes before exam commencement.</li>
                       <li>Official school identity card &amp; hall ticket are strictly mandatory for room entry.</li>
                       <li>Borrowing stationary or using electronic devices during examination is strictly prohibited.</li>
@@ -1171,26 +1314,26 @@ function ParentDashboardContent() {
 
       {/* TIMETABLE TAB */}
       {activeTab === 'timetable' && (
-        <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-800 space-y-5">
-          <div className="pb-3 border-b border-slate-800 flex items-center justify-between">
+        <div className="p-6 sm:p-8 rounded-3xl border border-slate-200 bg-white shadow-sm space-y-5">
+          <div className="pb-3 border-b border-slate-100 flex items-center justify-between flex-wrap gap-3">
             <div>
-              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
-                <Clock className="w-5 h-5 text-cyan-400" /> Weekly Academic Class Timetable
+              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-cyan-600" /> Weekly Academic Class Timetable
               </h3>
-              <p className="text-xs text-slate-400">Class schedule for {formattedClassStr}</p>
+              <p className="text-xs text-slate-500 font-medium">Class schedule for {formattedClassStr}</p>
             </div>
             {timetable.schedule && timetable.schedule.length > 0 && (
-              <span className="px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30">
+              <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold border border-emerald-300">
                 ✓ Verified Live Schedule
               </span>
             )}
           </div>
 
           {(!timetable.schedule || timetable.schedule.length === 0) ? (
-            <div className="p-8 text-center text-xs text-slate-400 bg-slate-900/50 rounded-2xl border border-slate-800 space-y-2">
-              <Clock className="w-10 h-10 text-slate-600 mx-auto" />
-              <p className="font-bold text-slate-300 text-sm">Timetable Not Published</p>
-              <p>Your class schedule will appear here once published by school administration.</p>
+            <div className="p-8 text-center text-xs text-slate-500 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+              <Clock className="w-10 h-10 text-slate-400 mx-auto" />
+              <p className="font-bold text-slate-900 text-sm">Timetable Not Published</p>
+              <p className="text-slate-500">Your class schedule will appear here once published by school administration.</p>
             </div>
           ) : (
             <div className="space-y-6">
@@ -1747,45 +1890,45 @@ function ParentDashboardContent() {
           {/* DAILY ATTENDANCE LOG TABLE */}
           {attTabMode === 'daily' && (
             <div className="space-y-3 pt-2">
-              <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center justify-between">
+              <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center justify-between">
                 <span>🌅 Daily Roll Call Calendar</span>
-                <span className="text-emerald-400 font-mono text-[11px]">
+                <span className="text-emerald-700 font-mono text-[11px] font-bold">
                   {studentAttendanceLogs.filter(log => !selectedFilterDate || String(log.date).startsWith(selectedFilterDate)).length} Days Shown
                 </span>
               </h4>
 
               {studentAttendanceLogs.filter(log => !selectedFilterDate || String(log.date).startsWith(selectedFilterDate)).length > 0 ? (
-                <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
+                <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
                   <div className="overflow-x-auto">
                     <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-900 text-[10px] text-slate-400 uppercase font-black border-b border-slate-800">
+                      <thead className="bg-slate-50 text-[10px] text-slate-700 uppercase font-black border-b border-slate-200">
                         <tr>
                           <th className="p-3.5">Date</th>
                           <th className="p-3.5">Attendance Status</th>
-                          <th className="p-3.5">Class & Section</th>
+                          <th className="p-3.5">Class &amp; Section</th>
                           <th className="p-3.5 text-right">Faculty Sign-off</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-slate-800/60">
+                      <tbody className="divide-y divide-slate-100">
                         {studentAttendanceLogs
                           .filter(log => !selectedFilterDate || String(log.date).startsWith(selectedFilterDate))
                           .map(log => (
-                          <tr key={log._id} className="hover:bg-slate-900/40 transition">
-                            <td className="p-3.5 font-mono text-slate-200 font-semibold">
+                          <tr key={log._id} className="hover:bg-slate-50 transition">
+                            <td className="p-3.5 font-mono text-slate-700 font-semibold">
                               {new Date(log.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                             </td>
                             <td className="p-3.5">
                               <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${
-                                log.status === 'PRESENT' ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' :
-                                log.status === 'ABSENT' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' :
-                                log.status === 'LATE' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' :
-                                'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
+                                log.status === 'PRESENT' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' :
+                                log.status === 'ABSENT' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
+                                log.status === 'LATE' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                                'bg-indigo-100 text-indigo-900 border border-indigo-300'
                               }`}>
                                 {log.status === 'PRESENT' ? '🟢 Present' : log.status === 'ABSENT' ? '🔴 Absent' : log.status === 'LATE' ? '🟡 Late' : '🔵 Leave'}
                               </span>
                             </td>
-                            <td className="p-3.5 text-indigo-300 font-bold">Class {log.classId} — {log.sectionId}</td>
-                            <td className="p-3.5 text-right font-mono text-slate-400">{log.markedBy || 'Class Teacher'}</td>
+                            <td className="p-3.5 text-indigo-900 font-bold">Class {log.classId} — {log.sectionId}</td>
+                            <td className="p-3.5 text-right font-mono text-slate-600 font-medium">{log.markedBy || 'Class Teacher'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1793,9 +1936,9 @@ function ParentDashboardContent() {
                   </div>
                 </div>
               ) : (
-                <div className="p-8 text-center text-xs text-slate-400 bg-slate-950/60 rounded-2xl border border-slate-800 space-y-1">
-                  <Calendar className="w-8 h-8 text-slate-600 mx-auto" />
-                  <p className="font-bold text-slate-300">
+                <div className="p-8 text-center text-xs text-slate-500 bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
+                  <Calendar className="w-8 h-8 text-slate-400 mx-auto" />
+                  <p className="font-bold text-slate-900">
                     {selectedFilterDate ? `No daily attendance logs found for ${selectedFilterDate}.` : 'No daily attendance logs recorded for this student yet.'}
                   </p>
                   <p>Select another date or click "All Dates" to view attendance logs.</p>
@@ -1810,14 +1953,14 @@ function ParentDashboardContent() {
       {/* ANALYTICS & REPORTS TAB - Monthly Calendar + 12-Month Yearly View */}
       {activeTab === 'analytics' && (
         <div className="space-y-6">
-          <div className="glass-panel p-5 rounded-3xl border border-slate-800">
+          <div className="p-5 rounded-3xl border border-slate-200 bg-white shadow-sm">
             <div className="flex items-center gap-3 mb-1">
-              <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
-                <BarChart3 className="w-5 h-5 text-indigo-400" />
+              <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center">
+                <BarChart3 className="w-5 h-5 text-indigo-600" />
               </div>
               <div>
-                <h3 className="text-base font-extrabold text-white">Attendance Analytics & Reports</h3>
-                <p className="text-xs text-slate-400">Monthly calendar view and 12-month yearly breakdown for {childName}</p>
+                <h3 className="text-base font-extrabold text-slate-900">Attendance Analytics & Reports</h3>
+                <p className="text-xs text-slate-500 font-medium">Monthly calendar view and 12-month yearly breakdown for {childName}</p>
               </div>
             </div>
           </div>
@@ -1832,45 +1975,45 @@ function ParentDashboardContent() {
 
       {/* LEAVE TAB */}
       {activeTab === 'leave' && (
-        <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-800 space-y-5 max-w-2xl mx-auto">
-          <div className="pb-3 border-b border-slate-800">
-            <h3 className="text-base font-extrabold text-white flex items-center gap-2">
-              <FileText className="w-5 h-5 text-rose-400" /> Submit Sick / Leave Application
+        <div className="p-6 sm:p-8 rounded-3xl border border-slate-200 bg-white shadow-sm space-y-5 max-w-2xl mx-auto">
+          <div className="pb-3 border-b border-slate-100">
+            <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-rose-500" /> Submit Sick / Leave Application
             </h3>
-            <p className="text-xs text-slate-400">Send an official leave request directly to your class teacher</p>
+            <p className="text-xs text-slate-500 font-medium">Send an official leave request directly to your class teacher</p>
           </div>
 
           {leaveSubmitted && (
-            <div className="p-4 rounded-2xl bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-xs font-bold flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-emerald-400" />
+            <div className="p-4 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-emerald-500" />
               <span>Leave Application submitted to Class Teacher & School Administration!</span>
             </div>
           )}
 
           <form onSubmit={handleApplyLeave} className="space-y-4 text-xs">
             <div>
-              <label className="block text-slate-300 font-bold mb-1.5">Leave Start Date</label>
+              <label className="block text-slate-700 font-bold mb-1.5">Leave Start Date</label>
               <input
                 type="date"
                 value={leaveForm.startDate}
                 onChange={e => setLeaveForm({ ...leaveForm, startDate: e.target.value })}
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:outline-none focus:border-indigo-500"
                 required
               />
             </div>
             <div>
-              <label className="block text-slate-300 font-bold mb-1.5">Reason for Absence</label>
+              <label className="block text-slate-700 font-bold mb-1.5">Reason for Absence</label>
               <textarea
                 value={leaveForm.reason}
                 onChange={e => setLeaveForm({ ...leaveForm, reason: e.target.value })}
                 placeholder="State your reason for leave (medical, family event, etc.)..."
-                className="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-indigo-500 h-28"
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:outline-none focus:border-indigo-500 h-28"
                 required
               />
             </div>
             <button
               type="submit"
-              className="w-full py-3 rounded-xl gradient-primary text-white font-extrabold text-xs shadow-lg shadow-indigo-500/20 hover:scale-[1.01] transition-all flex items-center justify-center gap-2"
+              className="w-full py-3 rounded-xl bg-indigo-600 text-white font-extrabold text-xs shadow-md hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
             >
               <Send className="w-4 h-4" />
               <span>Submit Leave Request</span>
@@ -1882,7 +2025,7 @@ function ParentDashboardContent() {
 
       {/* ALL SERVICES TAB */}
       {activeTab === 'services' && (
-        <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-800">
+        <div className="p-6 sm:p-8 rounded-3xl border border-slate-200 bg-white shadow-sm">
           <AllServicesPanel role={isParentRole ? 'PARENT' : 'STUDENT'} />
         </div>
       )}

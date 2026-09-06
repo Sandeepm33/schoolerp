@@ -3626,17 +3626,17 @@ function TeacherMarksEntryTab({ token, classList = [] }) {
   return (
     <div className="space-y-5">
       {/* HERO LAUNCHER CARD */}
-      <div className="glass-panel p-6 rounded-3xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-slate-900 to-slate-950 shadow-xl flex items-center justify-between flex-wrap gap-4">
+      <div className="p-6 rounded-3xl border border-slate-200 bg-white shadow-sm flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-4">
-          <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shadow-lg">
+          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-600 shadow-xs">
             <Award className="w-7 h-7" />
           </div>
           <div>
-            <h3 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
-              Full-Screen Dynamic Class & Section Grade Matrix
+            <h3 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+              Full-Screen Dynamic Class &amp; Section Grade Matrix
             </h3>
-            <p className="text-xs text-slate-300 font-medium">
-              Auto-populate enrolled students as per selected Class and Section for dynamic evaluation & batch marks submission.
+            <p className="text-xs text-slate-500 font-medium">
+              Auto-populate enrolled students as per selected Class and Section for dynamic evaluation &amp; batch marks submission.
             </p>
           </div>
         </div>
@@ -4098,6 +4098,8 @@ function TeacherEventsTab({ token }) {
 function TeacherHolidayCalendarTab({ token }) {
   const [holidays, setHolidays] = React.useState([]);
   const [loading, setLoading] = React.useState(true);
+  const [viewMode, setViewMode] = React.useState('grid'); // 'grid' | 'list'
+  const [filterType, setFilterType] = React.useState('ALL');
 
   React.useEffect(() => {
     fetch(`${API_BASE}/holidays`, { headers: { 'Authorization': `Bearer ${token}` } })
@@ -4130,37 +4132,181 @@ function TeacherHolidayCalendarTab({ token }) {
           <p className="text-slate-500">The official holiday calendar will be displayed here once published by school leadership.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {holidays.map((h, i) => {
-            const startStr = new Date(h.startDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-            const endStr = new Date(h.endDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-            const isSameDay = new Date(h.startDate).toDateString() === new Date(h.endDate).toDateString();
-            const isFuture = new Date(h.startDate) >= new Date();
+        <div className="space-y-6">
+          {/* Filter Bar & View Toggle Switcher */}
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 shadow-xs flex items-center justify-between flex-wrap gap-3 text-xs">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-extrabold text-slate-800 flex items-center gap-1">
+                Filter Category:
+              </span>
+              {[
+                { id: 'ALL', label: 'All Types' },
+                { id: 'NATIONAL', label: 'National' },
+                { id: 'FESTIVAL', label: 'Festivals' },
+                { id: 'VACATION', label: 'Vacations' },
+                { id: 'STAFF_ONLY', label: 'Staff Workday' },
+              ].map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setFilterType(f.id)}
+                  className={`px-3.5 py-1.5 rounded-xl font-extrabold transition cursor-pointer ${
+                    filterType === f.id ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
 
-            return (
-              <div key={i} className={`bg-white p-5 rounded-2xl border space-y-3 shadow-xs hover:shadow-md transition ${isFuture ? 'border-amber-300 ring-1 ring-amber-400/20' : 'border-slate-200 opacity-80'}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
-                    h.holidayType === 'NATIONAL' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
-                    h.holidayType === 'FESTIVAL' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
-                    h.holidayType === 'VACATION' ? 'bg-teal-100 text-teal-900 border border-teal-300' :
-                    'bg-indigo-100 text-indigo-900 border border-indigo-300'
-                  }`}>
-                    {h.holidayType}
-                  </span>
-                  <span className="text-[11px] font-extrabold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">
-                    {h.applicableTo === 'ALL' ? '👥 All School' : h.applicableTo === 'STUDENTS_ONLY' ? '🎓 Students Only' : '👔 Staff Only'}
-                  </span>
+            <div className="flex items-center gap-3">
+              {/* Grid / List View Toggle Switcher */}
+              <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200 gap-1 shadow-xs">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 text-xs font-bold transition cursor-pointer ${
+                    viewMode === 'grid' ? 'bg-amber-500 text-slate-950 font-black shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                  title="Grid Card View"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <span>Grid View</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 text-xs font-bold transition cursor-pointer ${
+                    viewMode === 'list' ? 'bg-amber-500 text-slate-950 font-black shadow-xs' : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                  title="Structured List View"
+                >
+                  <List className="w-3.5 h-3.5" />
+                  <span>List View</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Holiday Content Display */}
+          {(() => {
+            const filtered = filterType === 'ALL'
+              ? holidays
+              : holidays.filter(h => h.holidayType === filterType);
+
+            if (filtered.length === 0) {
+              return (
+                <div className="p-8 text-center text-xs text-slate-500 bg-slate-50 rounded-2xl border border-slate-200">
+                  <p className="font-bold text-slate-700 text-sm">No holidays found for "{filterType}" category.</p>
                 </div>
-                <h4 className="text-lg font-black text-slate-900 tracking-tight leading-snug">{h.title}</h4>
-                {h.description && <p className="text-xs text-slate-600 font-medium leading-relaxed">{h.description}</p>}
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-emerald-700 font-extrabold flex items-center gap-1.5">
-                  <Calendar className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>{startStr}{!isSameDay && ` → ${endStr}`}</span>
+              );
+            }
+
+            if (viewMode === 'grid') {
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {filtered.map((h, i) => {
+                    const startStr = new Date(h.startDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                    const endStr = new Date(h.endDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                    const isSameDay = new Date(h.startDate).toDateString() === new Date(h.endDate).toDateString();
+                    const isFuture = new Date(h.startDate) >= new Date();
+
+                    return (
+                      <div key={i} className={`bg-white p-5 rounded-2xl border space-y-3 shadow-xs hover:shadow-md transition ${isFuture ? 'border-amber-300 ring-1 ring-amber-400/20' : 'border-slate-200 opacity-80'}`}>
+                        <div className="flex items-center justify-between gap-2">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                            h.holidayType === 'NATIONAL' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
+                            h.holidayType === 'FESTIVAL' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                            h.holidayType === 'VACATION' ? 'bg-teal-100 text-teal-900 border border-teal-300' :
+                            'bg-indigo-100 text-indigo-900 border border-indigo-300'
+                          }`}>
+                            {h.holidayType}
+                          </span>
+                          <span className="text-[11px] font-extrabold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-md border border-slate-200">
+                            {h.applicableTo === 'ALL' ? '👥 All School' : h.applicableTo === 'STUDENTS_ONLY' ? '🎓 Students Only' : '👔 Staff Only'}
+                          </span>
+                        </div>
+                        <h4 className="text-lg font-black text-slate-900 tracking-tight leading-snug">{h.title}</h4>
+                        {h.description && <p className="text-xs text-slate-600 font-medium leading-relaxed">{h.description}</p>}
+                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-mono text-emerald-700 font-extrabold flex items-center gap-1.5">
+                          <Calendar className="w-4 h-4 text-emerald-600 shrink-0" />
+                          <span>{startStr}{!isSameDay && ` → ${endStr}`}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            }
+
+            /* Structured List View */
+            return (
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-black uppercase text-slate-500 tracking-wider">
+                      <tr>
+                        <th className="py-3.5 px-4">#</th>
+                        <th className="py-3.5 px-4">Holiday Title</th>
+                        <th className="py-3.5 px-4">Category</th>
+                        <th className="py-3.5 px-4">Applicable To</th>
+                        <th className="py-3.5 px-4">Date Range</th>
+                        <th className="py-3.5 px-4">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-medium">
+                      {filtered.map((h, idx) => {
+                        const startStr = new Date(h.startDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                        const endStr = new Date(h.endDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+                        const isSameDay = new Date(h.startDate).toDateString() === new Date(h.endDate).toDateString();
+                        const isFuture = new Date(h.startDate) >= new Date();
+
+                        return (
+                          <tr key={h._id || idx} className="hover:bg-slate-50/80 transition">
+                            <td className="py-3.5 px-4 font-mono text-slate-400 font-bold">{idx + 1}</td>
+                            <td className="py-3.5 px-4">
+                              <div className="font-extrabold text-slate-900 text-sm">{h.title}</div>
+                              {h.description && <div className="text-[11px] text-slate-500 mt-0.5 line-clamp-1">{h.description}</div>}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                                h.holidayType === 'NATIONAL' ? 'bg-rose-100 text-rose-800 border border-rose-300' :
+                                h.holidayType === 'FESTIVAL' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                                h.holidayType === 'VACATION' ? 'bg-teal-100 text-teal-900 border border-teal-300' :
+                                'bg-indigo-100 text-indigo-900 border border-indigo-300'
+                              }`}>
+                                {h.holidayType}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span className="text-[11px] font-extrabold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                                {h.applicableTo === 'ALL' ? '👥 All School' : h.applicableTo === 'STUDENTS_ONLY' ? '🎓 Students Only' : '👔 Staff Only'}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 font-mono font-extrabold text-emerald-700">
+                              <div className="flex items-center gap-1.5">
+                                <Calendar className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                <span>{startStr}</span>
+                                {!isSameDay && <span> → {endStr}</span>}
+                              </div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              {isFuture ? (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                  ● Upcoming
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-slate-100 text-slate-500 border border-slate-200">
+                                  Past
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             );
-          })}
+          })()}
         </div>
       )}
     </div>
