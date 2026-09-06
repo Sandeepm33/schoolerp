@@ -69,8 +69,7 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
         marksEndpoint = `${API_BASE}/admin/marks`;
       }
       if (isParent || isStudent) {
-        const stId = user?.mappedStudentId || user?.studentId || user?._id;
-        if (stId) marksEndpoint = `${API_BASE}/marks?studentId=${encodeURIComponent(stId)}`;
+        marksEndpoint = `${API_BASE}/marks`;
       }
 
       const [marksRes, studentsRes, classesRes, examsRes] = await Promise.all([
@@ -280,6 +279,26 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
 
     return list;
   }, [marksData, studentsData]);
+
+  // Target Logged-In Student Profile for Parent/Student View
+  const loggedInStId = user?.mappedStudentId || user?.studentId || user?._id;
+  const myStudentProfile = useMemo(() => {
+    if (!processedStudentRecords || processedStudentRecords.length === 0) return null;
+    if (loggedInStId) {
+      const match = processedStudentRecords.find(st => 
+        String(st.studentId) === String(loggedInStId) ||
+        String(st._id) === String(loggedInStId)
+      );
+      if (match) return match;
+    }
+    if (user?.name) {
+      const nameMatch = processedStudentRecords.find(st =>
+        st.studentName.toLowerCase() === String(user.name).trim().toLowerCase()
+      );
+      if (nameMatch) return nameMatch;
+    }
+    return processedStudentRecords[0] || null;
+  }, [processedStudentRecords, loggedInStId, user]);
 
   // Apply Smart Filter Bar to Roster
   const filteredRoster = useMemo(() => {
@@ -613,7 +632,7 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
 
           {isParentOrStudentView && processedStudentRecords.length > 0 && (
             <button
-              onClick={() => setSelectedStudentProfile(processedStudentRecords[0])}
+              onClick={() => setSelectedStudentProfile(myStudentProfile || processedStudentRecords[0])}
               className="px-4 py-2 rounded-xl text-xs font-black bg-rose-600 hover:bg-rose-700 text-white shadow-lg transition flex items-center gap-1.5 cursor-pointer ml-auto sm:ml-0"
             >
               <Eye className="w-4 h-4" /> Inspect Full Performance Intelligence
@@ -886,7 +905,7 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
             {isParentOrStudentView && processedStudentRecords.length > 0 && (
               <div className="pt-3 border-t border-white/20 flex justify-end">
                 <button
-                  onClick={() => setSelectedStudentProfile(processedStudentRecords[0])}
+                  onClick={() => setSelectedStudentProfile(myStudentProfile || processedStudentRecords[0])}
                   className="w-full sm:w-auto px-6 py-3 rounded-2xl text-xs font-black bg-rose-600 hover:bg-rose-700 text-white shadow-xl transition flex items-center justify-center gap-2 cursor-pointer border border-white/30"
                 >
                   <Eye className="w-4 h-4" /> Inspect Full Performance Intelligence
@@ -1184,7 +1203,7 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
                         </div>
 
                         <button
-                          onClick={() => setSelectedStudentProfile(processedStudentRecords[0])}
+                          onClick={() => setSelectedStudentProfile(myStudentProfile || processedStudentRecords[0])}
                           className="w-full py-2.5 rounded-xl text-xs font-extrabold bg-rose-600 hover:bg-rose-700 text-white shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer mt-2"
                         >
                           <Eye className="w-4 h-4" /> Inspect Full Performance Intelligence
@@ -1211,7 +1230,7 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
                     }
                   </p>
                   <button
-                    onClick={() => setSelectedStudentProfile(processedStudentRecords[0])}
+                    onClick={() => setSelectedStudentProfile(myStudentProfile || processedStudentRecords[0])}
                     className="px-5 py-2.5 rounded-xl text-xs font-extrabold bg-rose-600 hover:bg-rose-700 text-white shadow-md transition flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
                   >
                     <Eye className="w-4 h-4" /> Inspect Full Performance Intelligence

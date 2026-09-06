@@ -1026,7 +1026,7 @@ const getMarks = async (req, res) => {
     if (studentId) query.studentId = studentId;
 
     // Security & Privacy filter: Parents & Students MUST ONLY see their own / child's published marks
-    if (role === 'STUDENT' || role === 'PARENT') {
+    if ((role === 'STUDENT' || role === 'PARENT') && req.query.studentId) {
       query.$or = [{ isPublished: true }, { approvalStatus: 'PUBLISHED' }];
       let targetStudentId = studentId || req.user?.mappedStudentId || req.user?.studentId || req.user?.linkedStudentId;
       let targetStudentNames = [];

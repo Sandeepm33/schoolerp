@@ -144,7 +144,7 @@ const getStudentMarks = async (req, res) => {
 
     let query = { $or: [{ isPublished: true }, { approvalStatus: 'PUBLISHED' }] };
 
-    if (role === 'STUDENT' || role === 'PARENT') {
+    if ((role === 'STUDENT' || role === 'PARENT') && req.query.studentId) {
       const { User, Student } = require('../models/coreModels');
       let targetStudentId = studentId || req.user?.mappedStudentId || req.user?.studentId || req.user?.linkedStudentId;
       let targetStudentNames = [];
