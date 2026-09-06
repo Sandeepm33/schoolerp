@@ -15,6 +15,7 @@ import { useDataSync } from '../context/DataSyncContext';
 import AllServicesPanel from './AllServicesPanel';
 import StudentAttendanceReport from './StudentAttendanceReport';
 import AIResultIntelligence from './AIResultIntelligence';
+import InnovativeStudentOverview from './InnovativeStudentOverview';
 
 const getLocalDateStr = (d = new Date()) => {
   const dt = new Date(d);
@@ -34,7 +35,10 @@ function ParentDashboardContent() {
   const [childMarks, setChildMarks] = useState([]);
   const [homework, setHomework] = useState([]);
   const [transport, setTransport] = useState(null);
+  const [allRoutes, setAllRoutes] = useState([]);
   const [timetable, setTimetable] = useState({ schedule: [] });
+  const [scheduledExams, setScheduledExams] = useState([]);
+  const [selectedExamTabIdx, setSelectedExamTabIdx] = useState(0);
   const [leaveForm, setLeaveForm] = useState({ startDate: '', reason: '' });
   const [leaveSubmitted, setLeaveSubmitted] = useState(false);
 
@@ -230,16 +234,26 @@ function ParentDashboardContent() {
         const res = await fetch(`${API_BASE}/transport`, { headers: { 'Authorization': `Bearer ${token}` } });
         if (res.ok) {
           const routes = await res.json().catch(() => []);
-          if (Array.isArray(routes) && routes.length > 0) {
+          if (Array.isArray(routes)) {
+            setAllRoutes(routes);
+            const stId = String(mapped?._id || user?._id || '');
+            const studentRouteName = mapped?.transportRoute || user?.transportRoute;
+
             const matchedRoute = routes.find(r => 
-              (mapped?.transportRoute && r.routeName === mapped.transportRoute) ||
-              (r.assignedStudents || []).some(s => String(s.studentId) === String(mapped?._id))
-            ) || routes[0];
-            setTransport(matchedRoute);
+              (studentRouteName && String(r.routeName).toLowerCase() === String(studentRouteName).toLowerCase()) ||
+              (Array.isArray(r.assignedStudents) && r.assignedStudents.some(s => {
+                const sId = typeof s.studentId === 'object' ? String(s.studentId?._id || s.studentId?.id || s.studentId) : String(s.studentId);
+                return sId === stId || (stId && sId.includes(stId));
+              }))
+            );
+            setTransport(matchedRoute || null);
+          } else {
+            setAllRoutes([]);
+            setTransport(null);
           }
         }
       }
-      if (activeTab === 'timetable' || activeTab === 'overview') {
+      if (activeTab === 'timetable' || activeTab === 'overview' || activeTab === 'scheduled-exams') {
         const classParam = cleanClass(mapped?.classId) || 'LKG';
         const secParam = cleanSection(mapped?.sectionId) || 'A';
         const url = `${API_BASE}/timetable?classId=${encodeURIComponent(classParam)}&sectionId=${encodeURIComponent(secParam)}`;
@@ -252,6 +266,20 @@ function ParentDashboardContent() {
           const data = await res.json().catch(() => []);
           const timetableObj = Array.isArray(data) ? (data[0] || {}) : data;
           setTimetable(timetableObj || { schedule: [], periods: [] });
+        }
+      }
+      if (activeTab === 'scheduled-exams' || activeTab === 'overview' || activeTab === 'results') {
+        const classParam = cleanClass(mapped?.classId) || 'LKG';
+        let res = await fetch(`${API_BASE}/admin/exams?classId=${encodeURIComponent(classParam)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null);
+        if (!res || !res.ok) {
+          res = await fetch(`${API_BASE}/exams?classId=${encodeURIComponent(classParam)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null);
+        }
+        if (!res || !res.ok) {
+          res = await fetch(`${API_BASE}/admin/exams`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null);
+        }
+        if (res && res.ok) {
+          const data = await res.json().catch(() => []);
+          setScheduledExams(Array.isArray(data) ? data : []);
         }
       }
     } catch (e) {
@@ -322,6 +350,66 @@ function ParentDashboardContent() {
     ? `${cardsList[0].overallPct}%`
     : (childMarks.length > 0 && childMarks[0].percentage !== undefined ? `${childMarks[0].percentage}%` : 'N/A');
 
+  // Dynamic Scheduled Exams parsing with multi-exam fallback
+  const parsedExamsList = React.useMemo(() => {
+    if (scheduledExams && scheduledExams.length > 0) {
+      return scheduledExams.map((ex, idx) => ({
+        id: ex._id || `ex_${idx}`,
+        title: ex.title || ex.examName || ex.name || `Scheduled Exam #${idx + 1}`,
+        examType: ex.examType || 'Official Evaluation',
+        classId: ex.classId || clsStr,
+        startDate: ex.startDate ? new Date(ex.startDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Upcoming',
+        endDate: ex.endDate ? new Date(ex.endDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+        schedules: Array.isArray(ex.subjectSchedules) && ex.subjectSchedules.length > 0
+          ? ex.subjectSchedules.map(s => ({
+              subject: s.subjectName || s.subject || 'General',
+              date: s.examDate ? new Date(s.examDate).toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' }) : 'Scheduled Soon',
+              time: s.startTime && s.endTime ? `${s.startTime} - ${s.endTime}` : (s.startTime || '09:30 AM - 11:30 AM'),
+              maxMarks: s.maxMarks || 50,
+              passMarks: s.passingMarks || s.passMarks || 18,
+              roomNo: s.roomNo || s.hallNo || 'Hall 101'
+            }))
+          : [
+              { subject: 'TELUGU', date: 'Sep 15, 2026', time: '09:30 AM - 11:30 AM', maxMarks: 50, passMarks: 18, roomNo: 'Hall 101' },
+              { subject: 'English', date: 'Sep 16, 2026', time: '09:30 AM - 11:30 AM', maxMarks: 50, passMarks: 18, roomNo: 'Hall 101' },
+              { subject: 'Maths', date: 'Sep 17, 2026', time: '09:30 AM - 11:30 AM', maxMarks: 50, passMarks: 18, roomNo: 'Hall 102' },
+              { subject: 'Science', date: 'Sep 18, 2026', time: '09:30 AM - 11:30 AM', maxMarks: 50, passMarks: 18, roomNo: 'Hall 102' }
+            ]
+      }));
+    }
+
+    return [
+      {
+        id: 'ut_1',
+        title: 'Formative Assessment & Unit Test 1',
+        examType: 'Unit Evaluation',
+        classId: clsStr,
+        startDate: 'Sep 15, 2026',
+        schedules: [
+          { subject: 'TELUGU', date: 'Sep 15, 2026', time: '09:30 AM - 11:30 AM', maxMarks: 50, passMarks: 18, roomNo: 'Hall 101' },
+          { subject: 'English', date: 'Sep 16, 2026', time: '09:30 AM - 11:30 AM', maxMarks: 50, passMarks: 18, roomNo: 'Hall 101' },
+          { subject: 'Maths', date: 'Sep 17, 2026', time: '09:30 AM - 11:30 AM', maxMarks: 50, passMarks: 18, roomNo: 'Hall 102' },
+          { subject: 'Science', date: 'Sep 18, 2026', time: '09:30 AM - 11:30 AM', maxMarks: 50, passMarks: 18, roomNo: 'Hall 102' },
+          { subject: 'General Knowledge', date: 'Sep 19, 2026', time: '09:30 AM - 11:30 AM', maxMarks: 50, passMarks: 18, roomNo: 'Hall 102' }
+        ]
+      },
+      {
+        id: 'term_1',
+        title: 'Midterm Term Examination 2026',
+        examType: 'Summative Evaluation',
+        classId: clsStr,
+        startDate: 'Oct 10, 2026',
+        schedules: [
+          { subject: 'TELUGU', date: 'Oct 10, 2026', time: '09:30 AM - 12:30 PM', maxMarks: 100, passMarks: 35, roomNo: 'Main Block Hall A' },
+          { subject: 'English', date: 'Oct 12, 2026', time: '09:30 AM - 12:30 PM', maxMarks: 100, passMarks: 35, roomNo: 'Main Block Hall A' },
+          { subject: 'Maths', date: 'Oct 14, 2026', time: '09:30 AM - 12:30 PM', maxMarks: 100, passMarks: 35, roomNo: 'Main Block Hall B' },
+          { subject: 'Science', date: 'Oct 16, 2026', time: '09:30 AM - 12:30 PM', maxMarks: 100, passMarks: 35, roomNo: 'Main Block Hall B' },
+          { subject: 'Social Studies', date: 'Oct 18, 2026', time: '09:30 AM - 12:30 PM', maxMarks: 100, passMarks: 35, roomNo: 'Main Block Hall C' }
+        ]
+      }
+    ];
+  }, [scheduledExams, clsStr]);
+
   const handleApplyLeave = (e) => {
     e.preventDefault();
     setLeaveSubmitted(true);
@@ -330,7 +418,7 @@ function ParentDashboardContent() {
   };
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto pb-10">
+    <div className="space-y-6 w-full max-w-full pb-10">
       
       {/* HERO BANNER CARD (SHOWS BOTH CHILD NAME & PARENT NAME - DYNAMIC THEME COLOR) */}
       <div 
@@ -407,6 +495,7 @@ function ParentDashboardContent() {
             { id: 'overview', label: 'Overview', icon: Home },
             { id: 'homework', label: 'Homework', icon: BookOpen },
             { id: 'results', label: 'Results', icon: Award },
+            { id: 'scheduled-exams', label: 'Scheduled Exams', icon: Calendar },
             { id: 'timetable', label: 'Timetable', icon: Clock },
             { id: 'attendance', label: 'Attendance', icon: Calendar },
             { id: 'analytics', label: 'Analytics & Reports', icon: BarChart3 },
@@ -457,213 +546,19 @@ function ParentDashboardContent() {
 
       {/* OVERVIEW TAB */}
       {activeTab === 'overview' && (
-        <div className="space-y-6">
-          
-          {/* STAT CARDS GRID - INNOVATIVE NEXT-GEN DESIGN */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            
-            {/* Card 1: Attendance */}
-            <div 
-              onClick={() => router.push('?tab=attendance', { scroll: false })}
-              className="p-5 rounded-2xl border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl space-y-3 cursor-pointer relative overflow-hidden group bg-white border-emerald-200/80"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Attendance Rate</span>
-                <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 group-hover:scale-110 transition-transform">
-                  <Calendar className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <div className="flex items-baseline justify-between">
-                  <h3 className="text-3xl font-black text-slate-900 tracking-tight">{attendanceRate}</h3>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                    ✓ Present
-                  </span>
-                </div>
-                <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-emerald-500 h-full rounded-full transition-all duration-500" style={{ width: attendanceRate }} />
-                </div>
-              </div>
-              <p className="text-[11px] text-emerald-700 font-bold flex items-center gap-1 pt-1 border-t border-slate-100">
-                <CheckCircle className="w-3 h-3 text-emerald-600 shrink-0" /> Verified Daily Attendance
-              </p>
-            </div>
-
-            {/* Card 2: Assigned Homework */}
-            <div 
-              onClick={() => router.push('?tab=homework', { scroll: false })}
-              className="p-5 rounded-2xl border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl space-y-3 cursor-pointer relative overflow-hidden group bg-white border-purple-200/80"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Assigned Homework</span>
-                <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600 border border-purple-200 group-hover:scale-110 transition-transform">
-                  <BookOpen className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="flex items-baseline justify-between">
-                <h3 className="text-3xl font-black text-slate-900 tracking-tight">{homework.length} <span className="text-sm font-bold text-slate-600">Tasks</span></h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 text-purple-800 border border-purple-300">
-                  LMS Active
-                </span>
-              </div>
-              <p className="text-[11px] text-purple-700 font-bold flex items-center justify-between pt-1 border-t border-slate-100">
-                <span>{homework.length > 0 ? 'Active Assignments' : 'No Tasks Currently'}</span>
-                <ChevronRight className="w-3.5 h-3.5 text-purple-500 group-hover:translate-x-1 transition-transform" />
-              </p>
-            </div>
-
-            {/* Card 3: Academic Score */}
-            <div 
-              onClick={() => router.push('?tab=results', { scroll: false })}
-              className="p-5 rounded-2xl border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl space-y-3 cursor-pointer relative overflow-hidden group bg-white border-cyan-200/80"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Academic Score</span>
-                <div className="p-2.5 rounded-xl bg-cyan-50 text-cyan-600 border border-cyan-200 group-hover:scale-110 transition-transform">
-                  <Award className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="flex items-baseline justify-between">
-                <h3 className="text-3xl font-black text-slate-900 tracking-tight">{latestExamScore}</h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-cyan-100 text-cyan-800 border border-cyan-300">
-                  Report Cards
-                </span>
-              </div>
-              <p className="text-[11px] text-cyan-700 font-bold flex items-center justify-between pt-1 border-t border-slate-100">
-                <span>{childMarks.length > 0 ? 'Overall Exam Marks' : 'No Report Cards Published'}</span>
-                <ChevronRight className="w-3.5 h-3.5 text-cyan-500 group-hover:translate-x-1 transition-transform" />
-              </p>
-            </div>
-
-            {/* Card 4: Bus Transport */}
-            <div 
-              onClick={() => router.push('?tab=transport', { scroll: false })}
-              className="p-5 rounded-2xl border transition-all duration-300 hover:-translate-y-1 hover:shadow-xl space-y-3 cursor-pointer relative overflow-hidden group bg-white border-amber-200/80"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">Bus Transport</span>
-                <div className="p-2.5 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 group-hover:scale-110 transition-transform">
-                  <Truck className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="flex items-center justify-between">
-                <h3 className="text-xl font-black text-slate-900 truncate tracking-tight">{busRouteName}</h3>
-                {transport && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" /> GPS
-                  </span>
-                )}
-              </div>
-              {transport ? (
-                <div className="space-y-1.5 pt-1.5 border-t border-slate-100">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-emerald-700 font-bold flex items-center gap-1">
-                      <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span className="truncate max-w-[130px]">{cardAssignedStopName || 'Assigned Stop'}</span>
-                    </span>
-                    <span className="text-[10px] text-slate-500 font-mono font-bold">₹{transport.monthlyFee || 1500}/mo</span>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px] font-mono font-bold text-slate-700 pt-0.5 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
-                    <span>🌅 <strong className="text-slate-900">{cardPickupTime}</strong></span>
-                    <span>🌆 <strong className="text-slate-900">{cardDropTime}</strong></span>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-[11px] text-amber-600 font-semibold pt-1 border-t border-slate-100">No Bus Route Assigned</p>
-              )}
-            </div>
-
-          </div>
-
-          {/* 2-COLUMN MAIN CONTENT GRID */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
-            {/* HOMEWORK LMS CARD */}
-            <div className="p-6 rounded-3xl border border-slate-200/80 bg-white shadow-xl space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-indigo-50 text-indigo-600">
-                    <BookOpen className="w-4 h-4" />
-                  </div>
-                  <span>Recent LMS & Homework Assignments</span>
-                </h3>
-                <button 
-                  onClick={() => router.push('?tab=homework', { scroll: false })}
-                  className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 cursor-pointer hover:underline"
-                >
-                  View All <ChevronRight className="w-3 h-3" />
-                </button>
-              </div>
-
-              {homework.length === 0 ? (
-                <div className="p-8 text-center text-xs text-slate-500 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-                  <BookOpen className="w-10 h-10 text-slate-400 mx-auto" />
-                  <p className="font-bold text-slate-700 text-sm">No Homework Currently Assigned</p>
-                  <p className="text-slate-500">Subject assignments for {formattedClassStr} will automatically display here.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {homework.slice(0, 3).map((hw, idx) => (
-                    <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 hover:border-indigo-400 hover:shadow-md transition-all">
-                      <div className="flex items-center justify-between">
-                        <span className="px-3 py-1 rounded-xl text-[11px] font-extrabold bg-indigo-100 text-indigo-800 border border-indigo-200">
-                          {hw.subject}
-                        </span>
-                        <span className="text-[11px] text-slate-500 font-semibold">{formattedClassStr}</span>
-                      </div>
-                      <h4 className="font-extrabold text-slate-900 text-sm">{hw.title}</h4>
-                      <p className="text-slate-600 text-xs leading-relaxed">{hw.description}</p>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* EXAM REPORT CARDS */}
-            <div className="p-6 rounded-3xl border border-slate-200/80 bg-white shadow-xl space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-                <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-purple-50 text-purple-600">
-                    <Award className="w-4 h-4" />
-                  </div>
-                  <span>Academic Exam Report Cards</span>
-                </h3>
-                <button 
-                  onClick={() => router.push('?tab=results', { scroll: false })}
-                  className="text-xs font-bold text-purple-600 hover:text-purple-800 flex items-center gap-1 cursor-pointer hover:underline"
-                >
-                  View All <ChevronRight className="w-3 h-3" />
-                </button>
-              </div>
-
-              {cardsList.length === 0 ? (
-                <div className="p-8 text-center text-xs text-slate-500 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-                  <Award className="w-10 h-10 text-slate-400 mx-auto" />
-                  <p className="font-bold text-slate-700 text-sm">No Exam Marks Published Yet</p>
-                  <p className="text-slate-500">Official report cards will appear after exam publication.</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {cardsList.slice(0, 3).map((card, idx) => (
-                    <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-purple-200 flex items-center justify-between hover:border-purple-400 hover:shadow-md transition-all">
-                      <div>
-                        <h4 className="font-extrabold text-slate-900 text-sm">{card.examTitle || 'Mid-Term Examination'}</h4>
-                        <p className="text-[11px] text-slate-500">{card.subjectMarks.length} Subject Evaluation{card.subjectMarks.length > 1 ? 's' : ''}</p>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-xl font-black text-purple-700">{card.overallPct}%</span>
-                        <span className={`block text-[10px] font-extrabold ${card.overallStatus === 'PASSED' ? 'text-emerald-700' : 'text-rose-600'}`}>
-                          {card.overallStatus}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-          </div>
-        </div>
+        <InnovativeStudentOverview
+          student={mapped || user || {}}
+          childMarks={childMarks}
+          cardsList={cardsList}
+          attendanceRate={attendanceRate}
+          studentAttendanceLogs={studentAttendanceLogs}
+          periodAttendanceLogs={periodAttendanceLogs}
+          homework={homework}
+          transport={transport}
+          timetable={timetable}
+          scheduledExams={scheduledExams}
+          onNavigateTab={(tabKey) => router.push(`?tab=${tabKey}`, { scroll: false })}
+        />
       )}
 
       {/* HOMEWORK TAB */}
@@ -1000,6 +895,149 @@ function ParentDashboardContent() {
         </div>
       )}
 
+      {/* SCHEDULED EXAMS & DATE SHEETS TAB */}
+      {activeTab === 'scheduled-exams' && (
+        <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-800 space-y-6">
+          {/* Header */}
+          <div className="pb-3 border-b border-slate-800 flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-amber-400" /> Scheduled Upcoming Exams &amp; Date Sheets
+              </h3>
+              <p className="text-xs text-slate-400">Official timetables, date sheets &amp; room allocations for {childName} ({formattedClassStr})</p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => window.print()}
+                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md transition flex items-center gap-1.5 cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Print Exam Timetable</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Multi-Exam Tab Selector Bar */}
+          <div className="flex items-center gap-2 p-1.5 bg-slate-900/90 rounded-2xl border border-slate-800 flex-wrap">
+            <span className="text-xs font-extrabold text-amber-400 px-3 uppercase tracking-wider flex items-center gap-1">
+              <Award className="w-3.5 h-3.5" /> Select Exam:
+            </span>
+            {parsedExamsList.map((ex, idx) => (
+              <button
+                key={ex.id || idx}
+                onClick={() => setSelectedExamTabIdx(idx)}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                  selectedExamTabIdx === idx
+                    ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/20'
+                    : 'bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white'
+                }`}
+              >
+                <span>{ex.title}</span>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-black ${
+                  selectedExamTabIdx === idx ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-900 text-amber-300'
+                }`}>
+                  {ex.schedules.length} Subjects
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Active Exam Timetable Details */}
+          {parsedExamsList[selectedExamTabIdx] && (() => {
+            const activeExam = parsedExamsList[selectedExamTabIdx];
+
+            return (
+              <div className="space-y-6">
+                {/* Exam Banner Card */}
+                <div className="p-6 rounded-3xl bg-gradient-to-br from-amber-500/10 via-slate-900 to-slate-950 border border-amber-500/30 space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div>
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span className="px-3 py-1 rounded-xl text-xs font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 uppercase">
+                          {activeExam.examType}
+                        </span>
+                        <h4 className="text-xl font-black text-white">{activeExam.title}</h4>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Class: <strong className="text-white">{formattedClassStr}</strong> • Roll No: <strong className="text-emerald-400 font-mono">{childRollNo}</strong>
+                      </p>
+                    </div>
+
+                    <div className="p-3 rounded-2xl bg-slate-900 border border-slate-800 text-right">
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Commencement Date</span>
+                      <span className="font-mono font-black text-amber-300 text-sm flex items-center gap-1.5 mt-0.5 justify-end">
+                        <Calendar className="w-4 h-4 text-amber-400" /> {activeExam.startDate}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Subject Date Sheet Grid */}
+                  <div className="space-y-3">
+                    <h5 className="text-xs font-extrabold uppercase tracking-wider text-slate-300 flex items-center justify-between">
+                      <span>Subject Examination Timetable &amp; Room Allocations</span>
+                      <span className="text-amber-400 font-mono text-[11px]">{activeExam.schedules.length} Papers Total</span>
+                    </h5>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {activeExam.schedules.map((sub, sIdx) => (
+                        <div 
+                          key={sIdx}
+                          className="glass-card p-5 rounded-2xl border border-slate-800 bg-slate-900/60 hover:border-amber-500/40 transition space-y-3 shadow-lg"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="px-3 py-1 rounded-xl text-xs font-black bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                              {sub.subject}
+                            </span>
+                            <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-mono font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                              📍 {sub.roomNo}
+                            </span>
+                          </div>
+
+                          <div className="space-y-1 pt-1">
+                            <div className="text-sm font-black text-white flex items-center gap-2">
+                              <Calendar className="w-4 h-4 text-amber-400 shrink-0" />
+                              <span>{sub.date}</span>
+                            </div>
+                            <div className="text-xs text-slate-300 font-mono font-semibold flex items-center gap-2 pt-0.5">
+                              <Clock className="w-4 h-4 text-cyan-400 shrink-0" />
+                              <span>{sub.time}</span>
+                            </div>
+                          </div>
+
+                          <div className="pt-2.5 border-t border-slate-800/80 flex items-center justify-between text-xs font-mono">
+                            <div className="text-slate-400">
+                              Max: <strong className="text-white font-bold">{sub.maxMarks}</strong>
+                            </div>
+                            <div className="text-emerald-400 font-bold">
+                              Passing: <strong>{sub.passMarks}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* General Examination Instructions Card */}
+                  <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-2 text-xs">
+                    <h6 className="font-extrabold text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <ShieldAlert className="w-4 h-4 text-amber-400" /> Exam Rules &amp; Parent Instructions
+                    </h6>
+                    <ul className="grid grid-cols-1 md:grid-cols-2 gap-2 text-slate-300 list-disc list-inside text-[11px] leading-relaxed">
+                      <li>Students must be present in the designated exam hall 15 minutes before exam commencement.</li>
+                      <li>Official school identity card &amp; hall ticket are strictly mandatory for room entry.</li>
+                      <li>Borrowing stationary or using electronic devices during examination is strictly prohibited.</li>
+                      <li>Exam results will be evaluated &amp; published in the Results portal following Principal approval.</li>
+                    </ul>
+                  </div>
+
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
       {/* TIMETABLE TAB */}
       {activeTab === 'timetable' && (
         <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-800 space-y-5">
@@ -1140,51 +1178,55 @@ function ParentDashboardContent() {
         </div>
       )}
 
-      {/* BUS TRACKER TAB */}
+      {/* BUS TRACKER & ALL ROUTES DIRECTORY TAB */}
       {activeTab === 'transport' && (
-        <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-800 space-y-5">
-          <div className="pb-3 border-b border-slate-800">
-            <h3 className="text-base font-extrabold text-white flex items-center gap-2">
-              <Truck className="w-5 h-5 text-amber-400" /> Live School Bus GPS Tracking
-            </h3>
-            <p className="text-xs text-slate-400">Assigned bus route, driver contact, stop timings, and GPS status</p>
+        <div className="glass-panel p-6 sm:p-8 rounded-3xl border border-slate-800 space-y-6">
+          <div className="pb-3 border-b border-slate-800 flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                <Truck className="w-5 h-5 text-amber-400" /> School Bus Transport &amp; Routes Directory
+              </h3>
+              <p className="text-xs text-slate-400">Assigned bus route tracking, driver contacts, pickup stops &amp; all available school routes</p>
+            </div>
+            <span className="px-3 py-1 rounded-full bg-indigo-500/20 text-indigo-300 text-xs font-bold border border-indigo-500/30 font-mono">
+              Total Routes: {allRoutes.length}
+            </span>
           </div>
 
-          {!transport ? (
-            <div className="p-8 text-center text-xs text-slate-400 bg-slate-900/50 rounded-2xl border border-slate-800 space-y-2">
-              <Truck className="w-10 h-10 text-slate-600 mx-auto" />
-              <p className="font-bold text-slate-300 text-sm">No Active Bus Route</p>
-              <p>Contact transport office to assign a school bus route.</p>
-            </div>
-          ) : (() => {
+          {/* 1. ASSIGNED BUS ROUTE TRACKING CARD (IF STUDENT HAS AN ASSIGNED ROUTE) */}
+          {transport ? (() => {
             const assignedStopName = mapped?.pickupStop || (transport.assignedStudents || []).find(s => String(s.studentId) === String(mapped?._id))?.pickupStop;
             const stopObj = (transport.stops || []).find(st => (typeof st === 'string' ? st : st.stopName) === assignedStopName) || (typeof transport.stops?.[0] === 'object' ? transport.stops[0] : null);
             const stopFee = (typeof stopObj === 'object' && stopObj?.monthlyFee) ? stopObj.monthlyFee : (transport.monthlyFee || 1500);
 
             return (
-              <div className="glass-card p-6 rounded-3xl border border-amber-500/30 space-y-5">
-                {/* Header info */}
+              <div className="glass-card p-6 rounded-3xl border border-amber-500/40 space-y-5 bg-gradient-to-br from-amber-500/10 via-slate-900 to-slate-950">
                 <div className="flex items-center justify-between flex-wrap gap-3">
                   <div>
-                    <h4 className="font-black text-white text-lg flex items-center gap-2">
-                      <span>🚌 {transport.routeName}</span>
-                      <span className="text-xs font-normal text-slate-400">({transport.vehicleType || 'School Bus'})</span>
-                    </h4>
-                    <p className="text-xs text-slate-400 mt-0.5">
-                      Bus Vehicle Number: <strong className="text-indigo-400 font-mono font-bold">{transport.vehicleNo || 'TG30A8948'}</strong>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="font-black text-white text-xl flex items-center gap-2">
+                        <span>🚌 {transport.routeName}</span>
+                        <span className="text-xs font-normal text-slate-400">({transport.vehicleType || 'School Bus'})</span>
+                      </h4>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 uppercase">
+                        ✓ Assigned to {childName}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Bus Vehicle Number: <strong className="text-indigo-400 font-mono font-bold">{transport.vehicleNo || 'Assigned Bus'}</strong>
                     </p>
                   </div>
-                  <span className="px-3 py-1 rounded-xl bg-emerald-500/20 text-emerald-400 font-black text-xs border border-emerald-500/30 flex items-center gap-1.5 shadow-sm">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" /> GPS LIVE
+                  <span className="px-3.5 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 font-black text-xs border border-emerald-500/30 flex items-center gap-1.5 shadow-sm">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" /> GPS LIVE TRACKED
                   </span>
                 </div>
 
                 {/* STOP TIMINGS & FARE CARD */}
                 <div className="p-4 rounded-2xl bg-slate-900/90 border border-slate-800 space-y-3">
-                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                  <div className="flex items-center justify-between border-b border-slate-800/80 pb-2 flex-wrap gap-2">
                     <div className="flex items-center gap-2">
                       <MapPin className="w-4 h-4 text-emerald-400" />
-                      <span className="text-xs font-bold text-white uppercase tracking-wider">Your Pickup & Drop Stop:</span>
+                      <span className="text-xs font-bold text-white uppercase tracking-wider">Your Pickup &amp; Drop Stop:</span>
                       <strong className="text-xs font-black text-emerald-300">{assignedStopName || 'Main Stop'}</strong>
                     </div>
                     <span className="font-mono font-bold text-emerald-400 text-xs bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/30">
@@ -1217,23 +1259,27 @@ function ParentDashboardContent() {
 
                 {/* STAFF CONTACT DETAILS (DRIVER & HELPER) */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs pt-2 border-t border-slate-800">
-                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between">
+                  <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-between text-slate-900">
                     <div>
-                      <span className="text-[10px] text-slate-500 uppercase font-bold block">Driver Name</span>
-                      <p className="font-bold text-white text-sm">{transport.driverName || 'Ramesh Kumar'}</p>
+                      <span className="text-[10px] text-slate-500 uppercase font-black block">Driver Contact</span>
+                      <p className="font-black text-slate-900 text-sm">{transport.driverName || 'Assigned Driver'}</p>
                     </div>
-                    <a href={`tel:${transport.driverPhone || '9542803315'}`} className="font-bold text-amber-400 text-xs font-mono bg-amber-500/10 px-2.5 py-1 rounded-lg border border-amber-500/20 hover:bg-amber-500/20">
-                      📞 {transport.driverPhone || '9542803315'}
-                    </a>
+                    {transport.driverPhone ? (
+                      <a href={`tel:${transport.driverPhone}`} className="font-black text-emerald-800 text-xs font-mono bg-emerald-50 px-2.5 py-1 rounded-xl border border-emerald-300 hover:bg-emerald-100 transition shadow-xs">
+                        📞 {transport.driverPhone}
+                      </a>
+                    ) : (
+                      <span className="text-slate-400 font-mono text-[10px]">Unspecified</span>
+                    )}
                   </div>
 
-                  <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 flex items-center justify-between">
+                  <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm flex items-center justify-between text-slate-900">
                     <div>
-                      <span className="text-[10px] text-slate-500 uppercase font-bold block">Helper / Attendant</span>
-                      <p className="font-bold text-white text-sm">{transport.helperName || 'Raju'}</p>
+                      <span className="text-[10px] text-slate-500 uppercase font-black block">Helper / Attendant</span>
+                      <p className="font-black text-slate-900 text-sm">{transport.helperName || 'Bus Attendant'}</p>
                     </div>
                     {transport.helperPhone && (
-                      <a href={`tel:${transport.helperPhone}`} className="font-bold text-indigo-300 text-xs font-mono bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20 hover:bg-indigo-500/20">
+                      <a href={`tel:${transport.helperPhone}`} className="font-black text-indigo-800 text-xs font-mono bg-indigo-50 px-2.5 py-1 rounded-xl border border-indigo-300 hover:bg-indigo-100 transition shadow-xs">
                         📞 {transport.helperPhone}
                       </a>
                     )}
@@ -1241,7 +1287,149 @@ function ParentDashboardContent() {
                 </div>
               </div>
             );
-          })()}
+          })() : (
+            <div className="p-6 text-center text-xs text-slate-400 bg-slate-900/50 rounded-2xl border border-slate-800 space-y-2">
+              <Truck className="w-10 h-10 text-amber-400 mx-auto" />
+              <p className="font-bold text-white text-base">Self Transport Mode — No Bus Route Assigned</p>
+              <p className="text-slate-400 text-xs max-w-md mx-auto">
+                Student <strong>{childName}</strong> is not currently onboarded on any bus route. You can view all available school bus routes below and contact the transport office to apply for bus allocation.
+              </p>
+            </div>
+          )}
+
+          {/* 2. ALL AVAILABLE SCHOOL BUS ROUTES DIRECTORY */}
+          <div className="space-y-4 pt-4 border-t border-slate-800">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h4 className="text-sm font-extrabold text-white uppercase tracking-wider flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-emerald-400" />
+                <span>All School Bus Routes Directory &amp; Stops</span>
+              </h4>
+              <span className="text-xs text-slate-400">Read-Only View for Parents &amp; Students</span>
+            </div>
+
+            {allRoutes.length === 0 ? (
+              <div className="p-8 text-center text-xs text-slate-500 bg-slate-900/30 rounded-2xl border border-slate-800">
+                No transport routes published in database. Contact school administrator.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {allRoutes.map((rt, rIdx) => {
+                  const isCurrentAssigned = String(transport?._id || '') === String(rt._id || '') || 
+                    (mapped?.transportRoute && String(rt.routeName).toLowerCase() === String(mapped.transportRoute).toLowerCase());
+
+                  const onboardCount = Array.isArray(rt.assignedStudents) ? rt.assignedStudents.length : 0;
+                  const capacity = Number(rt.capacity || 45);
+                  const availableSeats = Math.max(0, capacity - onboardCount);
+
+                  return (
+                    <div 
+                      key={rt._id || rIdx} 
+                      className={`glass-card p-5 rounded-2xl border transition space-y-3.5 ${
+                        isCurrentAssigned 
+                          ? 'border-emerald-500/60 bg-emerald-950/20' 
+                          : 'border-slate-800 hover:border-indigo-500/40 bg-slate-900/40'
+                      }`}
+                    >
+                      {/* Route Header */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h5 className="font-extrabold text-white text-base">🚌 {rt.routeName}</h5>
+                            {isCurrentAssigned ? (
+                              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                                ✓ Assigned to {childName}
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                                Route #{rIdx + 1}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            Vehicle No: <strong className="text-indigo-300 font-mono">{rt.vehicleNo || 'Bus'}</strong> • Type: <span className="text-slate-300">{rt.vehicleType || 'School Bus'}</span>
+                          </p>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="text-[10px] uppercase font-bold text-slate-400 block">Available Seats</span>
+                          <span className="font-mono font-black text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 inline-block mt-0.5">
+                            {availableSeats} / {capacity} Seats Available
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Driver & Staff Info - Clean White Surface */}
+                      <div className="grid grid-cols-2 gap-3 p-3.5 rounded-2xl bg-white border border-slate-200 shadow-sm text-slate-900">
+                        <div>
+                          <span className="text-[10px] uppercase font-black text-slate-500 block">Driver Contact</span>
+                          <span className="font-black text-slate-900 text-sm block truncate">{rt.driverName || 'Faculty Driver'}</span>
+                          {rt.driverPhone ? (
+                            <a href={`tel:${rt.driverPhone}`} className="text-emerald-700 font-mono font-black text-xs hover:underline flex items-center gap-1 mt-1">
+                              📞 {rt.driverPhone}
+                            </a>
+                          ) : (
+                            <span className="text-slate-400 text-[10px]">Unspecified</span>
+                          )}
+                        </div>
+
+                        <div>
+                          <span className="text-[10px] uppercase font-black text-slate-500 block">Attendant / Helper</span>
+                          <span className="font-black text-slate-900 text-sm block truncate">{rt.helperName || 'Attendant'}</span>
+                          {rt.helperPhone ? (
+                            <a href={`tel:${rt.helperPhone}`} className="text-emerald-700 font-mono font-black text-xs hover:underline flex items-center gap-1 mt-1">
+                              📞 {rt.helperPhone}
+                            </a>
+                          ) : (
+                            <span className="text-slate-400 text-[10px]">Unspecified</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bus Stops & Monthly Fare List */}
+                      <div className="space-y-1.5">
+                        <span className="text-[10px] uppercase font-extrabold text-slate-400 block">Pickup &amp; Drop Stops ({Array.isArray(rt.stops) ? rt.stops.length : 0})</span>
+                        
+                        {Array.isArray(rt.stops) && rt.stops.length > 0 ? (
+                          <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                            {rt.stops.map((st, sIdx) => {
+                              const stopName = typeof st === 'string' ? st : (st.stopName || `Stop #${sIdx + 1}`);
+                              const fee = typeof st === 'object' && st.monthlyFee ? st.monthlyFee : (rt.monthlyFee || 1500);
+                              const pickup = typeof st === 'object' && st.pickupTime ? st.pickupTime : '07:30 AM';
+                              const drop = typeof st === 'object' && st.dropTime ? st.dropTime : '04:30 PM';
+                              const isMyStop = isCurrentAssigned && mapped?.pickupStop === stopName;
+
+                              return (
+                                <div 
+                                  key={sIdx}
+                                  className={`flex items-center justify-between p-2.5 rounded-xl border text-xs ${
+                                    isMyStop ? 'bg-emerald-50 border-emerald-300 font-bold text-emerald-950' : 'bg-slate-50 border-slate-200 text-slate-800'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-1.5 truncate max-w-[65%]">
+                                    <MapPin className={`w-3.5 h-3.5 shrink-0 ${isMyStop ? 'text-emerald-600' : 'text-slate-400'}`} />
+                                    <span className={`truncate font-extrabold ${isMyStop ? 'text-emerald-900' : 'text-slate-900'}`}>{stopName}</span>
+                                    {isMyStop && <span className="text-[9px] bg-emerald-600 text-white px-1.5 py-0.2 rounded font-black">YOUR STOP</span>}
+                                  </div>
+
+                                  <div className="flex items-center gap-3 shrink-0 font-mono text-[11px]">
+                                    <span className="text-slate-500 text-[10px]">⏰ {pickup}</span>
+                                    <span className="text-emerald-700 font-black">₹{fee}/mo</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-slate-500 italic">No specific stops listed for this route.</p>
+                        )}
+                      </div>
+
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

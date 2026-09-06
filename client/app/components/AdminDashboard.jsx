@@ -17,6 +17,7 @@ import {
 import AllServicesPanel from './AllServicesPanel';
 import StudentAttendanceReport from './StudentAttendanceReport';
 import AIResultIntelligence from './AIResultIntelligence';
+import InnovativeStudentOverview from './InnovativeStudentOverview';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { useDataSync, notifyGlobalDataChange } from '../context/DataSyncContext';
@@ -5373,7 +5374,7 @@ function InnovativeStudentProfileModal({ student, isOpen, onClose, onEdit }) {
   return (
     <div className="fixed inset-0 bg-slate-950/90 backdrop-blur-md z-[99999] flex items-start justify-center p-4 pt-20 sm:pt-24 pb-12 overflow-y-auto">
       <div 
-        className="rounded-3xl w-full max-w-3xl overflow-hidden shadow-2xl space-y-0 my-0 border animate-in fade-in zoom-in-95 duration-200"
+        className="rounded-3xl w-full max-w-6xl overflow-hidden shadow-2xl space-y-0 my-0 border animate-in fade-in zoom-in-95 duration-200"
         style={{ backgroundColor: '#0f172a', borderColor: 'rgba(255,255,255,0.2)', color: '#ffffff' }}
       >
         
@@ -5475,81 +5476,11 @@ function InnovativeStudentProfileModal({ student, isOpen, onClose, onEdit }) {
           
           {/* TAB 1: OVERVIEW 360° */}
           {activeTab === 'overview' && (
-            <div className="space-y-5">
-              {/* METRICS GRID */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-4 rounded-2xl border space-y-1" style={{ backgroundColor: '#1e293b', borderColor: 'rgba(52,211,153,0.4)' }}>
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider block" style={{ color: '#94a3b8' }}>Attendance Rate</span>
-                  <p className="text-2xl font-black" style={{ color: '#34d399' }}>{student.attendancePercentage || 100}%</p>
-                  <span className="text-[10px] font-semibold block" style={{ color: '#6ee7b7' }}>Verified Present</span>
-                </div>
-
-                <div className="p-4 rounded-2xl border space-y-1" style={{ backgroundColor: '#1e293b', borderColor: 'rgba(56,189,248,0.4)' }}>
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider block" style={{ color: '#94a3b8' }}>Assigned Bus Route</span>
-                  <p className="text-sm font-black truncate" style={{ color: cyanColor || '#38bdf8' }}>{student.transportRoute || 'No Transport'}</p>
-                  <span className="text-[10px] font-semibold block" style={{ color: '#cbd5e1' }}>Stop: {assignedStopName || 'Walk-in'}</span>
-                </div>
-
-                <div className="p-4 rounded-2xl border space-y-1" style={{ backgroundColor: '#1e293b', borderColor: 'rgba(251,191,36,0.4)' }}>
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider block" style={{ color: '#94a3b8' }}>Parent Contact</span>
-                  <p className="text-xs font-mono font-black" style={{ color: '#fcd34d' }}>{student.parentPhone || '—'}</p>
-                  <span className="text-[10px] font-semibold block" style={{ color: '#fef08a' }}>{student.parentName || 'Guardian'}</span>
-                </div>
-
-                <div className="p-4 rounded-2xl border space-y-1" style={{ backgroundColor: '#1e293b', borderColor: 'rgba(192,132,252,0.4)' }}>
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider block" style={{ color: '#94a3b8' }}>Class & Sec</span>
-                  <p className="text-sm font-black" style={{ color: '#c084fc' }}>{student.classId} — {student.sectionId || 'A'}</p>
-                  <span className="text-[10px] font-semibold block" style={{ color: '#e9d5ff' }}>Roll: {student.rollNo || 'LKGA01'}</span>
-                </div>
-              </div>
-
-              {/* DETAILED STUDENT INFO TABLE */}
-              <div className="p-5 rounded-2xl border space-y-3" style={{ backgroundColor: '#1e293b', borderColor: 'rgba(255,255,255,0.15)' }}>
-                <h4 className="text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 border-b pb-2" style={{ color: '#ffffff', borderColor: 'rgba(255,255,255,0.15)' }}>
-                  <User className="w-4 h-4" style={{ color: cyanColor || '#38bdf8' }} /> Student Profile Specifications
-                </h4>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-                      <span className="font-semibold" style={{ color: '#94a3b8' }}>Full Name</span>
-                      <strong className="font-black text-sm" style={{ color: '#ffffff' }}>{student.firstName} {student.lastName || ''}</strong>
-                    </div>
-                    <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-                      <span className="font-semibold" style={{ color: '#94a3b8' }}>Roll Number / ID</span>
-                      <strong className="font-mono font-black text-sm" style={{ color: cyanColor || '#38bdf8' }}>{student.rollNo || 'LKGA01'}</strong>
-                    </div>
-                    <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-                      <span className="font-semibold" style={{ color: '#94a3b8' }}>Class & Section</span>
-                      <strong className="font-bold" style={{ color: '#ffffff' }}>{student.classId} - Section {student.sectionId || 'A'}</strong>
-                    </div>
-                    <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-                      <span className="font-semibold" style={{ color: '#94a3b8' }}>Blood Group</span>
-                      <strong className="font-black" style={{ color: '#fb7185' }}>{student.bloodGroup || 'O+'}</strong>
-                    </div>
-                  </div>
-
-                  <div className="space-y-2.5">
-                    <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-                      <span className="font-semibold" style={{ color: '#94a3b8' }}>Student Email</span>
-                      <strong className="font-mono text-xs font-bold" style={{ color: cyanColor || '#38bdf8' }}>{student.studentEmail || '—'}</strong>
-                    </div>
-                    <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-                      <span className="font-semibold" style={{ color: '#94a3b8' }}>Father / Parent Name</span>
-                      <strong className="font-bold" style={{ color: '#fcd34d' }}>{student.parentName || '—'}</strong>
-                    </div>
-                    <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-                      <span className="font-semibold" style={{ color: '#94a3b8' }}>Parent Phone</span>
-                      <strong className="font-mono font-black" style={{ color: '#34d399' }}>{student.parentPhone || '—'}</strong>
-                    </div>
-                    <div className="flex items-center justify-between border-b pb-2" style={{ borderColor: 'rgba(255,255,255,0.1)' }}>
-                      <span className="font-semibold" style={{ color: '#94a3b8' }}>Residential Address</span>
-                      <strong className="font-medium truncate max-w-[180px]" style={{ color: '#e2e8f0' }}>{student.address || 'Local School Area'}</strong>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <InnovativeStudentOverview
+              student={student}
+              attendanceRate={`${student.attendancePercentage || 94}%`}
+              transport={routeInfo}
+            />
           )}
 
           {/* TAB 2: BUS TRANSPORT & TIMINGS */}

@@ -476,8 +476,27 @@ aside {
 }
 
 /* Force text classes across tables, headings, and cards to use dark slate variables */
-.text-white:not(.btn-primary):not(.btn-primary *):not(.gradient-primary):not(.gradient-primary *):not(.gradient-emerald):not(.gradient-emerald *):not(header *):not(.badge-brand *):not(.active-pill *):not([style*="background-color"]) {
+.text-white:not(.btn-primary):not(.btn-primary *):not(.gradient-primary):not(.gradient-primary *):not(.gradient-emerald):not(.gradient-emerald *):not(header *):not(.badge-brand *):not(.active-pill *):not(.force-white-text):not(.force-white-text *):not(.card-dark):not(.card-dark *):not([style*="background-color"]) {
   color: #0f172a !important;
+}
+
+.force-white-text,
+.card-dark,
+.card-dark * {
+  color: #ffffff !important;
+}
+
+.card-dark .text-emerald-300 {
+  color: #6ee7b7 !important;
+}
+
+.card-dark .text-amber-300 {
+  color: #fde047 !important;
+}
+
+.card-dark .text-slate-200,
+.card-dark .text-slate-300 {
+  color: #e2e8f0 !important;
 }
 
 .text-slate-100,
