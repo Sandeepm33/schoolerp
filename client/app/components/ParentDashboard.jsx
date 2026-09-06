@@ -635,7 +635,7 @@ function ParentDashboardContent() {
                 </button>
               </div>
 
-              {childMarks.length === 0 ? (
+              {cardsList.length === 0 ? (
                 <div className="p-8 text-center text-xs text-slate-500 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
                   <Award className="w-10 h-10 text-slate-400 mx-auto" />
                   <p className="font-bold text-slate-700 text-sm">No Exam Marks Published Yet</p>
@@ -643,15 +643,17 @@ function ParentDashboardContent() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {childMarks.slice(0, 3).map((m, idx) => (
+                  {cardsList.slice(0, 3).map((card, idx) => (
                     <div key={idx} className="p-4 bg-slate-50 rounded-2xl border border-purple-200 flex items-center justify-between hover:border-purple-400 hover:shadow-md transition-all">
                       <div>
-                        <h4 className="font-extrabold text-slate-900 text-sm">{m.examTitle || 'Mid-Term Examination'}</h4>
-                        <p className="text-[11px] text-slate-500">Class Grade Evaluation</p>
+                        <h4 className="font-extrabold text-slate-900 text-sm">{card.examTitle || 'Mid-Term Examination'}</h4>
+                        <p className="text-[11px] text-slate-500">{card.subjectMarks.length} Subject Evaluation{card.subjectMarks.length > 1 ? 's' : ''}</p>
                       </div>
                       <div className="text-right">
-                        <span className="text-xl font-black text-purple-700">{m.percentage}%</span>
-                        <span className="block text-[10px] text-emerald-700 font-extrabold">PASSED</span>
+                        <span className="text-xl font-black text-purple-700">{card.overallPct}%</span>
+                        <span className={`block text-[10px] font-extrabold ${card.overallStatus === 'PASSED' ? 'text-emerald-700' : 'text-rose-600'}`}>
+                          {card.overallStatus}
+                        </span>
                       </div>
                     </div>
                   ))}
