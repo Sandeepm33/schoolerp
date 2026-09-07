@@ -1951,7 +1951,11 @@ const deleteHealthRecord = async (req, res) => {
 const getDisciplineRecords = async (req, res) => {
   try {
     const { classId, severity, status, studentId } = req.query;
-    const query = { schoolId: getSchoolId(req), isArchived: false };
+    const sId = getSchoolId(req);
+    const query = { isArchived: false };
+    if (sId) {
+      query.$or = [{ schoolId: sId }, { schoolId: null }, { schoolId: { $exists: false } }];
+    }
     if (studentId) query.studentId = studentId;
     else if (classId) query.classId = classId;
     if (severity) query.severity = severity;
@@ -1962,19 +1966,81 @@ const getDisciplineRecords = async (req, res) => {
 };
 const createDisciplineRecord = async (req, res) => {
   try {
-    const doc = await Discipline.create({ ...req.body, schoolId: getSchoolId(req) });
+    const payload = { ...req.body, schoolId: getSchoolId(req) };
+    if (!payload.title) {
+      payload.title = payload.incidentType ? `${payload.incidentType} Incident` : `Discipline Incident - ${payload.studentName || 'Student'}`;
+    }
+    if (!payload.incidentDate) {
+      payload.incidentDate = new Date();
+    }
+    const doc = await Discipline.create(payload);
+    try {
+      const { broadcastDataMutation } = require('../config/dataSync');
+      broadcastDataMutation({ entity: 'DISCIPLINE', action: 'CREATE', payload: doc });
+    } catch (_) {}
     ok(res, doc, 201);
   } catch (e) { err(res, e.message); }
 };
 const updateDisciplineRecord = async (req, res) => {
   try {
     const doc = await Discipline.findByIdAndUpdate(req.params.id, req.body, { new: true });
+
+    // If parent requested a reschedule, notify the admin immediately
+    if (req.body.counselingStatus === 'RESCHEDULE_REQUESTED' && doc) {
+      try {
+        const { Notification } = require('../models/saasModels');
+        const newDate = req.body.requestedCounselingDate
+          ? new Date(req.body.requestedCounselingDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+          : 'new date';
+        const newTime = req.body.requestedCounselingTime || '';
+        await Notification.create({
+          schoolId: doc.schoolId || getSchoolId(req),
+          title: `📅 Reschedule Request: ${doc.studentName}`,
+          message: `Parent of ${doc.studentName} has requested to reschedule the counseling session to ${newDate}${newTime ? ' at ' + newTime : ''}. Reason: ${req.body.rescheduleReason || 'Not specified'}`,
+          type: 'ANNOUNCEMENT',
+          targetRole: 'SCHOOL_ADMIN',
+          link: '/admin/dashboard?tab=discipline',
+          read: false
+        });
+      } catch (notifErr) { /* non-blocking */ }
+    }
+
+    // If counseling accepted / confirmed, notify the parent immediately
+    if (req.body.counselingStatus === 'ACCEPTED' && doc) {
+      try {
+        const { Notification } = require('../models/saasModels');
+        const cDate = doc.counselingDate
+          ? new Date(doc.counselingDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
+          : 'scheduled date';
+        const cTime = doc.counselingTime || '';
+        await Notification.create({
+          schoolId: doc.schoolId || getSchoolId(req),
+          title: `✅ Counselling Confirmed: ${doc.studentName}`,
+          message: `Counseling session for ${doc.studentName} has been confirmed for ${cDate}${cTime ? ' at ' + cTime : ''}.`,
+          type: 'ANNOUNCEMENT',
+          targetRole: 'PARENT',
+          link: '/parent?tab=discipline',
+          read: false
+        });
+      } catch (notifErr) { /* non-blocking */ }
+    }
+
+    // Real-time broadcast to all connected clients & devices instantly
+    try {
+      const { broadcastDataMutation } = require('../config/dataSync');
+      broadcastDataMutation({ entity: 'DISCIPLINE', action: 'UPDATE', payload: doc });
+    } catch (_) {}
+
     ok(res, doc);
   } catch (e) { err(res, e.message); }
 };
 const deleteDisciplineRecord = async (req, res) => {
   try {
     await Discipline.findByIdAndUpdate(req.params.id, { isArchived: true });
+    try {
+      const { broadcastDataMutation } = require('../config/dataSync');
+      broadcastDataMutation({ entity: 'DISCIPLINE', action: 'DELETE', payload: { id: req.params.id } });
+    } catch (_) {}
     ok(res, { message: 'Archived' });
   } catch (e) { err(res, e.message); }
 };

@@ -7220,10 +7220,15 @@ export function DisciplineTab() {
       setSaving(true);
       const isClosed = rec.status === 'RESOLVED' || rec.status === 'CLOSED';
       const newStatus = isClosed ? 'OPEN' : 'RESOLVED';
+      // 1. Instant optimistic update
+      setRecords(prev => prev.map(r => r._id === rec._id ? { ...r, status: newStatus } : r));
+
       await apiFetch(`/admin/discipline/${rec._id}`, {
         method: 'PUT',
         body: JSON.stringify({ status: newStatus })
       });
+      // 2. Broadcast change globally
+      notifyGlobalDataChange('DISCIPLINE', 'UPDATE', { id: rec._id, status: newStatus });
       setMsg({
         type: 'success',
         text: newStatus === 'RESOLVED'
@@ -7234,6 +7239,7 @@ export function DisciplineTab() {
       setTimeout(() => setMsg(null), 3500);
     } catch (e) {
       setMsg({ type: 'error', text: e.message });
+      loadData();
     } finally {
       setSaving(false);
     }
@@ -7243,6 +7249,7 @@ export function DisciplineTab() {
   const [search, setSearch] = useState('');
   const [filterClass, setFilterClass] = useState('');
   const [filterSeverity, setFilterSeverity] = useState('ALL');
+  const [filterType, setFilterType] = useState('ALL'); // 'ALL' | 'RESCHEDULE' | 'OPEN' | 'HIGH'
   const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid'
 
   // Modal State
@@ -7290,6 +7297,11 @@ export function DisciplineTab() {
   useEffect(() => {
     loadData();
   }, []);
+
+  // Listen to live data mutations from parent or other admin tabs
+  useDataSync(useCallback(() => {
+    loadData();
+  }, []));
 
   // Helper function to clean class name
   const cleanClassStr = (c) => String(c || '').replace(/Class\s*/i, '').trim();
@@ -7355,6 +7367,11 @@ export function DisciplineTab() {
       counselingTime: '10:00 AM',
       counselingTopic: '',
       counselingStatus: 'NONE',
+      requestedCounselingDate: '',
+      requestedCounselingTime: '',
+      rescheduleReason: '',
+      rescheduleStatus: 'NONE',
+      parentExplanation: '',
       reportedBy: 'Class Teacher'
     });
     setShowModal(true);
@@ -7378,6 +7395,11 @@ export function DisciplineTab() {
       counselingTime: rec.counselingTime || '10:00 AM',
       counselingTopic: rec.counselingTopic || '',
       counselingStatus: rec.counselingStatus || 'NONE',
+      requestedCounselingDate: rec.requestedCounselingDate ? new Date(rec.requestedCounselingDate).toISOString().split('T')[0] : '',
+      requestedCounselingTime: rec.requestedCounselingTime || '',
+      rescheduleReason: rec.rescheduleReason || '',
+      rescheduleStatus: rec.rescheduleStatus || 'NONE',
+      parentExplanation: rec.parentExplanation || '',
       reportedBy: rec.reportedBy || 'Class Teacher'
     });
     setSelectedStudentId(rec.studentId || '');
@@ -7388,20 +7410,36 @@ export function DisciplineTab() {
     try {
       setSaving(true);
       const reqDate = rec.requestedCounselingDate ? new Date(rec.requestedCounselingDate).toISOString().split('T')[0] : rec.counselingDate;
+      const reqTime = rec.requestedCounselingTime || rec.counselingTime || '10:00 AM';
+
+      // 1. Instant optimistic update so it vanishes from pending requests banner immediately
+      setRecords(prev => prev.map(r => r._id === rec._id ? {
+        ...r,
+        counselingDate: reqDate,
+        counselingTime: reqTime,
+        counselingStatus: 'ACCEPTED',
+        rescheduleStatus: 'APPROVED'
+      } : r));
+
       await apiFetch(`/admin/discipline/${rec._id}`, {
         method: 'PUT',
         body: JSON.stringify({
           counselingDate: reqDate,
-          counselingTime: rec.requestedCounselingTime || rec.counselingTime || '10:00 AM',
+          counselingTime: reqTime,
           counselingStatus: 'ACCEPTED',
           rescheduleStatus: 'APPROVED'
         })
       });
+
+      // 2. Broadcast globally so Parent Dashboard & other tabs see the accepted status live immediately
+      notifyGlobalDataChange('DISCIPLINE', 'UPDATE', { id: rec._id, counselingStatus: 'ACCEPTED' });
+
       setMsg({ type: 'success', text: `✅ Counselling rescheduled to requested date for ${rec.studentName}` });
       loadData();
       setTimeout(() => setMsg(null), 4000);
     } catch (e) {
       setMsg({ type: 'error', text: `Error approving reschedule: ${e.message}` });
+      loadData();
     } finally {
       setSaving(false);
     }
@@ -7421,21 +7459,31 @@ export function DisciplineTab() {
     setSaving(true);
     try {
       const payload = { ...form };
+      if (!payload.title) {
+        payload.title = payload.incidentType ? `${payload.incidentType} Incident` : `Discipline Report: ${payload.studentName || 'Student'}`;
+      }
       if ((payload.counselingDate || payload.counsellingRequired) && (payload.counselingStatus === 'NONE' || !payload.counselingStatus)) {
         payload.counselingStatus = 'SCHEDULED';
       }
 
       if (editingId) {
+        // 1. Optimistic update
+        setRecords(prev => prev.map(r => r._id === editingId ? { ...r, ...payload } : r));
+
         await apiFetch(`/admin/discipline/${editingId}`, {
           method: 'PUT',
           body: JSON.stringify(payload)
         });
+        // 2. Broadcast update
+        notifyGlobalDataChange('DISCIPLINE', 'UPDATE', payload);
         setMsg({ type: 'success', text: `✅ Discipline incident for ${form.studentName} updated successfully!` });
       } else {
-        await apiFetch('/admin/discipline', {
+        const created = await apiFetch('/admin/discipline', {
           method: 'POST',
           body: JSON.stringify(payload)
         });
+        // 2. Broadcast create
+        notifyGlobalDataChange('DISCIPLINE', 'CREATE', created || payload);
         setMsg({ type: 'success', text: `✅ Discipline incident for ${form.studentName} logged successfully!` });
       }
 
@@ -7444,6 +7492,7 @@ export function DisciplineTab() {
       setTimeout(() => setMsg(null), 4000);
     } catch (err) {
       setMsg({ type: 'error', text: `Save error: ${err.message}` });
+      loadData();
     } finally {
       setSaving(false);
     }
@@ -7452,12 +7501,18 @@ export function DisciplineTab() {
   const handleDelete = async (id, name) => {
     if (!confirm(`Are you sure you want to delete/archive the discipline record for ${name}?`)) return;
     try {
+      // 1. Optimistic delete
+      setRecords(prev => prev.filter(r => r._id !== id));
+
       await apiFetch(`/admin/discipline/${id}`, { method: 'DELETE' });
+      // 2. Broadcast delete
+      notifyGlobalDataChange('DISCIPLINE', 'DELETE', { id });
       setMsg({ type: 'success', text: `Record archived` });
       loadData();
       setTimeout(() => setMsg(null), 3000);
     } catch (e) {
       setMsg({ type: 'error', text: e.message });
+      loadData();
     }
   };
 
@@ -7469,12 +7524,19 @@ export function DisciplineTab() {
     const matchesSearch = !search || sName.includes(search.toLowerCase()) || sClass.includes(search.toLowerCase()) || sTitle.includes(search.toLowerCase());
     const matchesClass = !filterClass || sClass.includes(filterClass.toLowerCase());
     const matchesSev = filterSeverity === 'ALL' || (r.severity || '').toUpperCase() === filterSeverity;
-    return matchesSearch && matchesClass && matchesSev;
+    const matchesType =
+      filterType === 'ALL' ? true :
+      filterType === 'RESCHEDULE' ? (r.counselingStatus === 'RESCHEDULE_REQUESTED' || r.rescheduleStatus === 'PENDING') :
+      filterType === 'HIGH' ? (r.severity || '').toUpperCase() === 'HIGH' :
+      filterType === 'OPEN' ? (r.status === 'OPEN' || !r.status) : true;
+    return matchesSearch && matchesClass && matchesSev && matchesType;
   });
 
   // Extract unique classes list
   const uniqueClassNames = Array.from(new Set(classes.map(c => c.className).filter(Boolean)));
   const defaultClassList = uniqueClassNames.length > 0 ? uniqueClassNames : ['LKG', 'UKG', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+
+  const pendingReschedules = records.filter(r => r.counselingStatus === 'RESCHEDULE_REQUESTED' || r.rescheduleStatus === 'PENDING');
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
@@ -7482,6 +7544,78 @@ export function DisciplineTab() {
         <div className={`p-4 rounded-2xl text-xs font-semibold flex items-center justify-between shadow-sm ${msg.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'}`}>
           <span className="font-bold">{msg.text}</span>
           <button onClick={() => setMsg(null)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+        </div>
+      )}
+
+      {/* PENDING RESCHEDULE REQUESTS ALERT BANNER */}
+      {pendingReschedules.length > 0 && (
+        <div className="p-5 rounded-3xl bg-gradient-to-r from-purple-50 via-indigo-50 to-purple-50 border-2 border-purple-300 shadow-lg space-y-3 animate-in fade-in duration-300">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2.5 text-purple-950 font-black text-sm">
+              <span className="flex h-3 w-3 relative">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-purple-600"></span>
+              </span>
+              <span>⚡ Action Required: Parent Reschedule Requests ({pendingReschedules.length})</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 rounded-full bg-purple-200 text-purple-900 text-[10px] font-extrabold uppercase tracking-wide">
+                Parent Requested
+              </span>
+              <button
+                type="button"
+                onClick={() => setFilterType(prev => prev === 'RESCHEDULE' ? 'ALL' : 'RESCHEDULE')}
+                className="px-3 py-1 rounded-full bg-purple-600 text-white text-[10px] font-extrabold hover:bg-purple-700 transition cursor-pointer"
+              >
+                {filterType === 'RESCHEDULE' ? 'Show All Incidents' : 'Filter Reschedules Only'}
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+            {pendingReschedules.map(reqRec => (
+              <div key={reqRec._id} className="p-4 rounded-2xl bg-white border border-purple-200 shadow-sm space-y-2.5 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="font-extrabold text-slate-900 text-xs">{reqRec.studentName}</span>
+                    <span className="text-[10px] font-bold text-slate-500">Class {cleanClassStr(reqRec.classId) || 'N/A'}</span>
+                  </div>
+                  <div className="text-xs text-slate-600 space-y-1">
+                    <div className="text-slate-500 text-[11px]">
+                      Scheduled: <span className="font-semibold text-slate-700">{reqRec.counselingDate ? new Date(reqRec.counselingDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not set'} {reqRec.counselingTime || ''}</span>
+                    </div>
+                    <div className="text-purple-800 font-extrabold text-[12px] bg-purple-50 p-2 rounded-xl border border-purple-200">
+                      📅 Requested: {reqRec.requestedCounselingDate ? new Date(reqRec.requestedCounselingDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'New date'} {reqRec.requestedCounselingTime ? `at ${reqRec.requestedCounselingTime}` : ''}
+                    </div>
+                    {reqRec.rescheduleReason && (
+                      <div className="text-[11px] text-slate-600 italic mt-1 bg-slate-50 p-2 rounded-xl border border-slate-100">
+                        Reason: "{reqRec.rescheduleReason}"
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="pt-2 flex items-center gap-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => handleApproveReschedule(reqRec)}
+                    disabled={saving}
+                    className="flex-1 py-2 px-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Check className="w-3.5 h-3.5 text-white" />
+                    <span>Approve Date</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditModal(reqRec)}
+                    className="py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
+                  >
+                    Details
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -7511,23 +7645,46 @@ export function DisciplineTab() {
       </div>
 
       {/* STATS STRIP */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm space-y-1">
           <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Total Incidents</span>
           <div className="text-3xl font-black text-slate-900">{records.length}</div>
-          <span className="text-[11px] text-slate-400 font-medium">Recorded across all classes</span>
+          <span className="text-[11px] text-slate-400 font-medium">Recorded across classes</span>
         </div>
 
         <div className="p-5 rounded-2xl bg-rose-50/80 border border-rose-200 shadow-sm space-y-1">
           <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider block">High Severity</span>
-          <div className="text-3xl font-black text-rose-700">{records.filter(r => r.severity === 'HIGH').length}</div>
+          <div className="text-3xl font-black text-rose-700">{records.filter(r => (r.severity || '').toUpperCase() === 'HIGH').length}</div>
           <span className="text-[11px] text-rose-600/90 font-medium">Critical cases</span>
         </div>
 
         <div className="p-5 rounded-2xl bg-amber-50/80 border border-amber-200 shadow-sm space-y-1">
           <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider block">Open Cases</span>
           <div className="text-3xl font-black text-amber-700">{records.filter(r => r.status === 'OPEN' || !r.status).length}</div>
-          <span className="text-[11px] text-amber-700/90 font-medium">Pending action / counselling</span>
+          <span className="text-[11px] text-amber-700/90 font-medium">Pending action</span>
+        </div>
+
+        {/* RESCHEDULE REQUESTS STAT CARD */}
+        <div 
+          onClick={() => setFilterType(prev => prev === 'RESCHEDULE' ? 'ALL' : 'RESCHEDULE')}
+          className={`p-5 rounded-2xl border shadow-sm space-y-1 cursor-pointer transition-all ${
+            pendingReschedules.length > 0
+              ? 'bg-purple-50/90 border-purple-300 ring-2 ring-purple-400/30'
+              : 'bg-purple-50/40 border-purple-200'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-purple-900 uppercase tracking-wider block">Reschedule Req</span>
+            {pendingReschedules.length > 0 && (
+              <span className="h-2.5 w-2.5 rounded-full bg-purple-600 animate-ping"></span>
+            )}
+          </div>
+          <div className="text-3xl font-black text-purple-900">
+            {pendingReschedules.length}
+          </div>
+          <span className="text-[11px] text-purple-700 font-semibold">
+            {filterType === 'RESCHEDULE' ? '● Filtering active' : 'Click to filter'}
+          </span>
         </div>
 
         <div className="p-5 rounded-2xl bg-emerald-50/80 border border-emerald-200 shadow-sm space-y-1">
@@ -7551,6 +7708,20 @@ export function DisciplineTab() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {/* QUICK TYPE FILTER SELECT */}
+          <select
+            className={`border rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none transition ${
+              filterType === 'RESCHEDULE' ? 'bg-purple-100 border-purple-400 text-purple-900 font-black' : 'bg-slate-50 border-slate-200 text-slate-800'
+            }`}
+            value={filterType}
+            onChange={e => setFilterType(e.target.value)}
+          >
+            <option value="ALL">All Incidents</option>
+            <option value="RESCHEDULE">⚡ Reschedule Requests ({pendingReschedules.length})</option>
+            <option value="OPEN">Open Cases</option>
+            <option value="HIGH">High Severity</option>
+          </select>
+
           {/* VIEW MODE SWITCHER */}
           <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200">
             <button
@@ -7653,10 +7824,19 @@ export function DisciplineTab() {
                     )}
                   </div>
 
-                  {rec.actionTaken && (
-                    <div className="text-xs text-slate-600">
-                      <strong className="text-slate-700 font-bold">Action Taken: </strong>
-                      <span>{rec.actionTaken}</span>
+                  {(rec.actionTaken || rec.counselingTopic) && (
+                    <div className="space-y-1">
+                      {rec.counselingTopic && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-indigo-100 text-indigo-800 border border-indigo-200">
+                          🎯 {rec.counselingTopic}
+                        </span>
+                      )}
+                      {rec.actionTaken && (
+                        <div className="text-xs text-slate-600">
+                          <strong className="text-slate-700 font-bold">Action Taken: </strong>
+                          <span>{rec.actionTaken}</span>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -7793,7 +7973,12 @@ export function DisciplineTab() {
                       </span>
                     </td>
                     <td className="px-4 py-3.5 max-w-[280px] space-y-1.5">
-                      <div>{rec.actionTaken || 'No action notes'}</div>
+                      {rec.counselingTopic && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-indigo-100 text-indigo-800 border border-indigo-200">
+                          🎯 {rec.counselingTopic}
+                        </span>
+                      )}
+                      <div className="text-xs text-slate-700 font-medium">{rec.actionTaken || 'No action notes'}</div>
                       {rec.counselingStatus === 'RESCHEDULE_REQUESTED' && (
                         <div className="p-2 rounded-xl bg-purple-50 border border-purple-200 text-[11px] text-purple-900 space-y-1">
                           <div className="font-bold text-purple-950 flex items-center justify-between">
@@ -8074,6 +8259,49 @@ export function DisciplineTab() {
                           onChange={e => setForm(f => ({ ...f, counselingTopic: e.target.value }))}
                         />
                       </div>
+
+                      {/* PARENT RESCHEDULE PROMPT IN MODAL */}
+                      {(form.counselingStatus === 'RESCHEDULE_REQUESTED' || form.rescheduleStatus === 'PENDING' || form.requestedCounselingDate) && (
+                        <div className="p-3.5 bg-purple-50 border-2 border-purple-300 rounded-2xl space-y-2 text-purple-950">
+                          <div className="flex items-center justify-between">
+                            <span className="font-extrabold text-xs flex items-center gap-1.5 text-purple-900">
+                              ⚡ Parent Requested New Date
+                            </span>
+                            <span className="px-2 py-0.5 rounded-full bg-purple-200 text-purple-900 text-[10px] font-black uppercase">
+                              {form.rescheduleStatus === 'APPROVED' ? 'Approved' : 'Pending Request'}
+                            </span>
+                          </div>
+                          <div className="text-xs space-y-1 text-slate-700">
+                            <div>Requested: <strong className="text-purple-900 font-bold">{form.requestedCounselingDate ? new Date(form.requestedCounselingDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A'}</strong> {form.requestedCounselingTime ? `at ${form.requestedCounselingTime}` : ''}</div>
+                            {form.rescheduleReason && <div className="italic text-[11px] text-slate-600 bg-white/80 p-2 rounded-xl border border-purple-100">Reason: "{form.rescheduleReason}"</div>}
+                          </div>
+                          {form.counselingStatus === 'RESCHEDULE_REQUESTED' && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setForm(f => ({
+                                  ...f,
+                                  counselingDate: f.requestedCounselingDate ? new Date(f.requestedCounselingDate).toISOString().split('T')[0] : f.counselingDate,
+                                  counselingTime: f.requestedCounselingTime || f.counselingTime || '10:00 AM',
+                                  counselingStatus: 'ACCEPTED',
+                                  rescheduleStatus: 'APPROVED'
+                                }));
+                              }}
+                              className="w-full py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-xs transition shadow-sm cursor-pointer"
+                            >
+                              ✅ Accept &amp; Apply Parent's Requested Date
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* PARENT EXPLANATION IN MODAL */}
+                      {form.parentExplanation && (
+                        <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-2xl space-y-1 text-xs text-indigo-950">
+                          <span className="font-extrabold block text-indigo-900">💬 Parent Explanation:</span>
+                          <p className="italic text-[11px] bg-white/80 p-2 rounded-xl border border-indigo-100">"{form.parentExplanation}"</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -12438,6 +12666,8 @@ function AIRiskDetectorTab() {
   const [actionModalItem, setActionModalItem] = useState(null);
   const [actionNote, setActionNote] = useState('');
   const [selectedActionType, setSelectedActionType] = useState('Counsel Parent');
+  const [meetingDate, setMeetingDate] = useState(() => new Date(Date.now() + 86400000 * 2).toISOString().split('T')[0]);
+  const [meetingTime, setMeetingTime] = useState('10:00 AM');
 
   const fetchAlerts = async (isScan = false) => {
     if (isScan) setScanning(true);
@@ -12463,12 +12693,21 @@ function AIRiskDetectorTab() {
 
   const handleTakeAction = async (item, actionType) => {
     setActionInProgress(item.id || item.studentName);
+    // Only include meeting date/time for Call & Meeting actions
+    const isMeetingAction = actionType === 'Counsel Parent';
     try {
       await apiFetch('/ai/early-warning/action', {
         method: 'POST',
         body: JSON.stringify({
+          studentId: item.studentId || item.id,
           studentName: item.studentName || item.name,
+          classId: item.classId,
+          sectionId: item.sectionId,
+          className: item.class || `${item.classId || ''} - ${item.sectionId || ''}`,
           actionType: actionType || item.action || 'Counsel Parent',
+          counselingDate: isMeetingAction ? meetingDate : '',
+          counselingTime: isMeetingAction ? meetingTime : '',
+          reasons: item.reasons || (item.reason ? [item.reason] : []),
           notes: actionNote || `Initiated ${actionType} for student ${item.studentName || item.name}`,
           parentPhone: item.parentPhone
         })
@@ -12476,11 +12715,12 @@ function AIRiskDetectorTab() {
 
       setMsg({
         type: 'success',
-        text: `✅ Action [${actionType}] successfully initiated for ${item.studentName || item.name}! Parent notified.`
+        text: `✅ Action [${actionType}] recorded in Discipline Tracker for ${item.studentName || item.name}! Parent & Student notified.`
       });
       setTimeout(() => setMsg(null), 4000);
       setActionModalItem(null);
       setActionNote('');
+      fetchAlerts();
     } catch (e) {
       setMsg({ type: 'error', text: `Action error: ${e.message}` });
     } finally {
@@ -12724,6 +12964,29 @@ function AIRiskDetectorTab() {
                   )}
                 </div>
 
+                {/* LAST ACTION TAKEN — shown when admin has previously dispatched an action */}
+                {s.lastActionType && (
+                  <div className="flex items-start gap-2.5 p-3 rounded-xl bg-indigo-50 border border-indigo-200">
+                    <CheckCircle2 className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[10px] font-extrabold uppercase text-indigo-500 tracking-wider">Last Action Taken</span>
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-indigo-600 text-white">
+                          {s.lastActionType}
+                        </span>
+                        {s.lastActionDate && (
+                          <span className="text-[10px] text-indigo-500 font-semibold">
+                            {new Date(s.lastActionDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </span>
+                        )}
+                      </div>
+                      {s.lastActionNote && (
+                        <p className="text-[11px] text-indigo-800 font-medium mt-0.5 truncate">{s.lastActionNote}</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
                 {/* SUGGESTED ACTION & BUTTONS */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
                   <p className="text-xs text-slate-800 font-bold flex items-center gap-2">
@@ -12772,9 +13035,14 @@ function AIRiskDetectorTab() {
               <button onClick={() => setActionModalItem(null)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
             </div>
 
-            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-700 space-y-1">
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-700 space-y-1.5">
               <p>Student: <strong className="text-slate-900 font-extrabold">{actionModalItem.studentName || actionModalItem.name}</strong> ({actionModalItem.class || actionModalItem.classId})</p>
               <p>Parent: <strong className="font-bold" style={{ color: brandColor }}>{actionModalItem.parentName || 'Parent'} ({actionModalItem.parentPhone || '+919876543210'})</strong></p>
+              {(actionModalItem.reasons?.length > 0 || actionModalItem.reason) && (
+                <div className="p-2 rounded-xl bg-amber-50 border border-amber-200 text-[11px] text-amber-900 font-medium">
+                  <strong>🤖 AI Risk Reason:</strong> {actionModalItem.reasons ? actionModalItem.reasons.join(' • ') : actionModalItem.reason}
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -12784,12 +13052,38 @@ function AIRiskDetectorTab() {
                 value={selectedActionType}
                 onChange={e => setSelectedActionType(e.target.value)}
               >
-                <option value="Counsel Parent">Counsel Parent (Call & Meeting Request)</option>
-                <option value="Warning Notice">Send Formal Attendance Warning SMS/Notice</option>
-                <option value="Assign Remedial">Assign After-School Remedial Support</option>
-                <option value="Behavioral Review">Principal Behavioral Review</option>
+                <option value="Counsel Parent">Counsel Parent (Call &amp; Meeting Request)</option>
               </select>
             </div>
+
+            {/* MEETING DATE & TIME SCHEDULER — only for Call & Meeting actions */}
+            {selectedActionType === 'Counsel Parent' && (
+              <div className="grid grid-cols-2 gap-3 p-3 bg-amber-50/50 rounded-2xl border border-amber-200/60">
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-amber-900 block flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-amber-600" /> Meeting Date
+                  </label>
+                  <input
+                    type="date"
+                    className="w-full bg-white border border-amber-300 rounded-xl px-3 py-1.5 text-xs font-extrabold text-slate-900 focus:outline-none"
+                    value={meetingDate}
+                    onChange={e => setMeetingDate(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[11px] font-bold text-amber-900 block flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-amber-600" /> Meeting Time
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 10:00 AM"
+                    className="w-full bg-white border border-amber-300 rounded-xl px-3 py-1.5 text-xs font-extrabold text-slate-900 focus:outline-none"
+                    value={meetingTime}
+                    onChange={e => setMeetingTime(e.target.value)}
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <label className="text-xs font-bold text-slate-700 block">Notes / Action Details</label>

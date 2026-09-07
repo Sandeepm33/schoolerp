@@ -10,16 +10,17 @@ const getNotifications = async (req, res) => {
       const title = (doc.title || '').toLowerCase();
       const msg = (doc.message || '').toLowerCase();
 
+      // Only set specific links for saas-level notification types.
+      // All other notifications leave link empty so the client's role-aware
+      // routing in NotificationModal resolves the correct destination per user role.
       if (!link || link === '#') {
         if (title.includes('testimonial') || msg.includes('testimonial') || msg.includes('pending approval')) {
           link = '/saas-admin?tab=testimonials';
-        } else if (title.includes('lead') || title.includes('inquiry') || title.includes('demo') || doc.type === 'INQUIRY') {
+        } else if ((title.includes('lead') || title.includes('inquiry') || title.includes('demo') || doc.type === 'INQUIRY') && doc.targetRole === 'SUPER_ADMIN') {
           link = '/saas-admin?tab=support';
-        } else if (title.includes('admission') || doc.type === 'ADMISSION') {
-          link = '/admin/admissions';
-        } else {
-          link = '/saas-admin?tab=overview';
         }
+        // Leave link = '' for all other types (discipline, attendance, ai-risk, etc.)
+        // so NotificationModal.resolveNotificationLink() handles role-based routing
       }
       return { ...doc, link };
     });

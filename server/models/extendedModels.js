@@ -465,7 +465,7 @@ const DisciplineSchema = new mongoose.Schema({
   classId: { type: String },
   sectionId: { type: String },
   incidentDate: { type: Date, required: true },
-  title: { type: String, required: true },
+  title: { type: String, default: 'Discipline Incident' },
   description: { type: String },
   severity: { type: String, enum: ['LOW', 'MEDIUM', 'HIGH'], required: true },
   actionTaken: { type: String },

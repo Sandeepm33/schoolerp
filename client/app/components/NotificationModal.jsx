@@ -50,19 +50,111 @@ export default function NotificationModal({ isOpen, onClose, onUnreadCountChange
     const msg = (item?.message || '').toLowerCase();
     const type = (item?.type || '').toUpperCase();
 
+    // Read role from erp_user JSON (the correct auth storage key)
+    let role = '';
+    if (typeof window !== 'undefined') {
+      try {
+        const erpUser = localStorage.getItem('erp_user');
+        if (erpUser) {
+          const parsed = JSON.parse(erpUser);
+          role = (parsed?.role || parsed?.userRole || '').toUpperCase();
+        }
+      } catch {}
+      // Fallback to legacy keys if erp_user not present
+      if (!role) {
+        role = (localStorage.getItem('userRole') || localStorage.getItem('role') || '').toUpperCase();
+      }
+    }
+
+    // 1. AI Risk Alert Notifications → navigate to AI Risk tab
+    if (
+      title.includes('ai risk') || title.includes('ai_risk') || title.includes('atrisk') ||
+      msg.includes('ai risk') || msg.includes('counsel parent') || msg.includes('resolve risk')
+    ) {
+      if (role === 'PARENT' || role === 'STUDENT') {
+        return '/parent?tab=discipline';
+      }
+      if (role === 'TEACHER' || role === 'FACULTY' || role === 'PRINCIPAL' || role === 'HEADMASTER') {
+        return '/teacher?tab=discipline';
+      }
+      return '/admin/dashboard?tab=ai-risk';
+    }
+
+    // 2. Discipline, Counseling, Incident & Reschedule Notifications
+    if (
+      title.includes('discipline') || title.includes('counseling') || title.includes('counselling') ||
+      title.includes('reschedule') || title.includes('notice') || title.includes('incident') ||
+      msg.includes('discipline') || msg.includes('counseling') || msg.includes('counselling') ||
+      msg.includes('reschedule')
+    ) {
+      if (role === 'PARENT' || role === 'STUDENT') {
+        return '/parent?tab=discipline';
+      }
+      if (role === 'TEACHER' || role === 'FACULTY' || role === 'PRINCIPAL' || role === 'HEADMASTER') {
+        return '/teacher?tab=discipline';
+      }
+      return '/admin/dashboard?tab=discipline';
+    }
+
+    // 3. Attendance Notifications
+    if (title.includes('attendance') || msg.includes('attendance')) {
+      if (role === 'PARENT' || role === 'STUDENT') {
+        return '/parent?tab=attendance';
+      }
+      if (role === 'TEACHER' || role === 'FACULTY' || role === 'PRINCIPAL' || role === 'HEADMASTER') {
+        return '/teacher?tab=attendance';
+      }
+      return '/admin/dashboard?tab=attendance';
+    }
+
+    // 4. Homework / Assignment Notifications
+    if (title.includes('homework') || title.includes('assignment') || msg.includes('homework')) {
+      if (role === 'PARENT' || role === 'STUDENT') {
+        return '/parent?tab=homework';
+      }
+      if (role === 'TEACHER' || role === 'FACULTY') {
+        return '/teacher?tab=homework';
+      }
+      return '/admin/dashboard?tab=homework';
+    }
+
+    // 5. Exam / Marks / Results Notifications
+    if (title.includes('exam') || title.includes('mark') || title.includes('result') || msg.includes('report card')) {
+      if (role === 'PARENT' || role === 'STUDENT') {
+        return '/parent?tab=results';
+      }
+      if (role === 'TEACHER' || role === 'FACULTY') {
+        return '/teacher?tab=marks';
+      }
+      return '/admin/dashboard?tab=marks';
+    }
+
+    // 6. Testimonials
     if (title.includes('testimonial') || msg.includes('testimonial') || msg.includes('pending approval')) {
       return '/saas-admin?tab=testimonials';
     }
+
+    // 7. Leads / Inquiries
     if (title.includes('lead') || title.includes('inquiry') || title.includes('demo') || type === 'INQUIRY') {
-      return '/saas-admin?tab=support';
+      return (role === 'SUPER_ADMIN' || role === 'SAAS_SUPER_ADMIN') ? '/saas-admin?tab=support' : '/admin/dashboard';
     }
+
+    // 8. Admissions
     if (title.includes('admission') || type === 'ADMISSION') {
-      return '/admin/admissions';
+      return '/admin/dashboard?tab=admissions';
     }
-    if (title.includes('school') || title.includes('tenant')) {
+
+    // 9. SaaS Schools / Tenants (only for super admin role)
+    if ((title.includes('school') || title.includes('tenant')) && (role === 'SUPER_ADMIN' || role === 'SAAS_SUPER_ADMIN')) {
       return '/saas-admin?tab=schools';
     }
-    return '/saas-admin?tab=overview';
+
+    // Role-based default fallback
+    if (role === 'PARENT') return '/parent';
+    if (role === 'STUDENT') return '/student';
+    if (role === 'TEACHER' || role === 'FACULTY' || role === 'PRINCIPAL' || role === 'HEADMASTER') return '/teacher';
+    if (role === 'SUPER_ADMIN' || role === 'SAAS_SUPER_ADMIN') return '/saas-admin';
+    return '/admin/dashboard';
   };
 
   const handleMarkAsRead = async (id, rawLink, e, item) => {

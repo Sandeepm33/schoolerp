@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const { Student, AttendanceRecord, Admission } = require('../models/coreModels');
 const { Mark, Helpdesk, AttendanceSession, Discipline, Homework } = require('../models/extendedModels');
 const { Notification } = require('../models/saasModels');
@@ -98,9 +99,28 @@ const getEarlyWarningAlerts = async (req, res) => {
           reason: reasons.join(' • '),
           action: suggestedAction,
           aiRecommendation: suggestedAction,
-          lastUpdated: new Date()
+          lastUpdated: new Date(),
+          lastActionType: null,
+          lastActionDate: null,
+          lastActionNote: null
         });
       }
+    }
+
+    // Enrich each alert with the latest discipline action taken for that student
+    for (const alert of alerts) {
+      try {
+        const latestRecord = await Discipline.findOne(
+          { studentId: alert.studentId },
+          { counselingTopic: 1, actionTaken: 1, createdAt: 1, incidentDate: 1 },
+          { sort: { createdAt: -1 } }
+        );
+        if (latestRecord) {
+          alert.lastActionType = latestRecord.counselingTopic || null;
+          alert.lastActionDate = latestRecord.incidentDate || latestRecord.createdAt || null;
+          alert.lastActionNote = latestRecord.actionTaken || null;
+        }
+      } catch (e) { /* non-blocking */ }
     }
 
     // Fallback dynamic seed if DB has no flagged students (ensures demo/testing experience is 100% active and live)
@@ -189,24 +209,86 @@ const getEarlyWarningAlerts = async (req, res) => {
   }
 };
 
-// --- TAKE ACTION ON AI RISK ALERT (DISPATCH NOTIFICATION) ---
+// --- TAKE ACTION ON AI RISK ALERT (DISPATCH NOTIFICATION & CREATE DISCIPLINE/COUNSELING RECORD) ---
 const takeRiskAction = async (req, res) => {
   try {
-    const { studentName, actionType, notes, parentPhone } = req.body;
+    const { studentId, studentName, className, classId, sectionId, actionType, notes, parentPhone } = req.body;
 
-    // Log notification in DB
+    // 1. Find matching student if possible
+    let student = null;
+    if (studentId && mongoose.Types.ObjectId.isValid(studentId)) {
+      student = await Student.findById(studentId);
+    }
+    if (!student && studentName) {
+      student = await Student.findOne({
+        $or: [
+          { firstName: new RegExp((studentName || '').split(' ')[0], 'i') },
+          { name: new RegExp(studentName || '', 'i') }
+        ]
+      });
+    }
+
+    const sName = studentName || (student ? `${student.firstName} ${student.lastName}` : 'Student');
+    const sId = student ? student._id : (studentId && mongoose.Types.ObjectId.isValid(studentId) ? studentId : null);
+
+    // 2. Log Notifications for Admin, Parent, and Student
     await Notification.create({
-      title: `AI Risk Alert Action: ${studentName}`,
-      message: `Action [${actionType}] initiated for ${studentName}. Notes: ${notes || 'Parent communication dispatched.'}`,
+      title: `⚠️ AI Risk Alert Action: ${sName}`,
+      message: `Action [${actionType}] initiated for ${sName}. Details: ${notes || 'Parent notification dispatched.'}`,
       type: 'ANNOUNCEMENT',
-      targetRole: 'SCHOOL_ADMIN'
+      targetRole: 'SCHOOL_ADMIN',
+      link: '/admin/dashboard?tab=discipline'
+    });
+
+    await Notification.create({
+      title: `⚠️ Discipline Notice for ${sName}: ${actionType}`,
+      message: `Action [${actionType}] issued for ${sName}. Details: ${notes || 'Counseling session / notice issued by authority.'}`,
+      type: 'ANNOUNCEMENT',
+      targetRole: 'PARENT',
+      link: '/parent?tab=discipline'
+    });
+
+    await Notification.create({
+      title: `⚠️ Discipline & Counseling Notice: ${actionType}`,
+      message: `A counseling / risk action notice has been logged for you: ${actionType}. Details: ${notes || 'Check Discipline Tracker.'}`,
+      type: 'ANNOUNCEMENT',
+      targetRole: 'STUDENT',
+      link: '/parent?tab=discipline'
+    });
+
+    const isResolved = (actionType || '').toLowerCase().includes('resolve');
+
+    // Use counselingDate/Time from request body; only apply for meeting/counsel actions
+    const { counselingDate, counselingTime } = req.body;
+    const hasMeetingSchedule = !isResolved && counselingDate && counselingDate.trim();
+
+    // 3. Create Discipline & Counseling Record in DB so it shows in Discipline Log / Tracker for Parents and Students
+    await Discipline.create({
+      studentId: sId,
+      studentName: sName,
+      title: `${actionType || 'Risk Action'}: ${sName}`,
+      classId: classId || (student ? student.classId : ''),
+      sectionId: sectionId || (student ? student.sectionId : ''),
+      className: className || (student ? `${student.classId || 'Class'} - ${student.sectionId || 'Section'}` : 'All Classes'),
+      incidentDate: new Date(),
+      incidentType: actionType || 'Behavioral Counseling',
+      severity: (actionType === 'Warning Notice' || actionType === 'Behavioral Review') ? 'HIGH' : 'MEDIUM',
+      description: notes || `AI Risk Action initiated: ${actionType}`,
+      actionTaken: isResolved ? `Resolved by Authority: ${notes || 'Risk alert closed'}` : `${actionType} - Dispatched`,
+      counselingTopic: actionType || 'Risk Alert Counseling',
+      counselingStatus: isResolved ? 'NONE' : (hasMeetingSchedule ? 'SCHEDULED' : 'NONE'),
+      counselingDate: hasMeetingSchedule ? counselingDate : null,
+      counselingTime: hasMeetingSchedule ? (counselingTime || '') : null,
+      status: isResolved ? 'RESOLVED' : 'OPEN',
+      schoolId: req.user?.schoolId
     });
 
     res.json({
       success: true,
-      message: `Action "${actionType}" dispatched successfully for ${studentName}. Parent notified.`
+      message: `Action "${actionType}" dispatched successfully for ${sName}. Discipline record created & Parent/Student notified.`
     });
   } catch (error) {
+    console.error('takeRiskAction error:', error);
     res.status(500).json({ message: error.message });
   }
 };

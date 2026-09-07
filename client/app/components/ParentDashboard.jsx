@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useAuth, API_BASE } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
-import { useDataSync } from '../context/DataSyncContext';
+import { useDataSync, notifyGlobalDataChange } from '../context/DataSyncContext';
 import AllServicesPanel from './AllServicesPanel';
 import StudentAttendanceReport from './StudentAttendanceReport';
 import AIResultIntelligence from './AIResultIntelligence';
@@ -64,6 +64,9 @@ function ParentDashboardContent() {
   const handleAcceptCounselling = async (recId) => {
     try {
       setSubmittingDiscAction(true);
+      // 1. Instant optimistic update so parent sees it accepted immediately
+      setDisciplineRecords(prev => prev.map(r => r._id === recId ? { ...r, counselingStatus: 'ACCEPTED', rescheduleStatus: 'NONE' } : r));
+
       const res = await fetch(`${API_BASE}/admin/discipline/${recId}`, {
         method: 'PUT',
         headers: {
@@ -76,10 +79,13 @@ function ParentDashboardContent() {
         })
       });
       if (res.ok) {
+        // 2. Broadcast immediately so admin sees acceptance live without refreshing
+        notifyGlobalDataChange('DISCIPLINE', 'UPDATE', { id: recId, counselingStatus: 'ACCEPTED' });
         fetchStudentData();
       }
     } catch (e) {
       console.error(e);
+      fetchStudentData();
     } finally {
       setSubmittingDiscAction(false);
     }
@@ -90,6 +96,11 @@ function ParentDashboardContent() {
     if (!explanationModalItem || !explanationText.trim()) return;
     try {
       setSubmittingDiscAction(true);
+      const expText = explanationText.trim();
+      // 1. Instant optimistic update
+      setDisciplineRecords(prev => prev.map(r => r._id === explanationModalItem._id ? { ...r, parentExplanation: expText } : r));
+      setExplanationModalItem(null);
+
       const res = await fetch(`${API_BASE}/admin/discipline/${explanationModalItem._id}`, {
         method: 'PUT',
         headers: {
@@ -97,17 +108,18 @@ function ParentDashboardContent() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          parentExplanation: explanationText.trim(),
+          parentExplanation: expText,
           parentExplanationDate: new Date()
         })
       });
       if (res.ok) {
-        setExplanationModalItem(null);
+        notifyGlobalDataChange('DISCIPLINE', 'UPDATE', { id: explanationModalItem._id, parentExplanation: expText });
         setExplanationText('');
         fetchStudentData();
       }
     } catch (e) {
       console.error(e);
+      fetchStudentData();
     } finally {
       setSubmittingDiscAction(false);
     }
@@ -118,6 +130,21 @@ function ParentDashboardContent() {
     if (!rescheduleModalItem || !rescheduleForm.requestedDate) return;
     try {
       setSubmittingDiscAction(true);
+      const reqDate = rescheduleForm.requestedDate;
+      const reqTime = rescheduleForm.requestedTime;
+      const reason = rescheduleForm.reason;
+
+      // 1. Instant optimistic update so parent sees Reschedule Requested right away
+      setDisciplineRecords(prev => prev.map(r => r._id === rescheduleModalItem._id ? {
+        ...r,
+        counselingStatus: 'RESCHEDULE_REQUESTED',
+        requestedCounselingDate: reqDate,
+        requestedCounselingTime: reqTime,
+        rescheduleReason: reason,
+        rescheduleStatus: 'PENDING'
+      } : r));
+      setRescheduleModalItem(null);
+
       const res = await fetch(`${API_BASE}/admin/discipline/${rescheduleModalItem._id}`, {
         method: 'PUT',
         headers: {
@@ -126,19 +153,21 @@ function ParentDashboardContent() {
         },
         body: JSON.stringify({
           counselingStatus: 'RESCHEDULE_REQUESTED',
-          requestedCounselingDate: rescheduleForm.requestedDate,
-          requestedCounselingTime: rescheduleForm.requestedTime,
-          rescheduleReason: rescheduleForm.reason,
+          requestedCounselingDate: reqDate,
+          requestedCounselingTime: reqTime,
+          rescheduleReason: reason,
           rescheduleStatus: 'PENDING'
         })
       });
       if (res.ok) {
-        setRescheduleModalItem(null);
+        // 2. Broadcast immediately so admin sees reschedule request live without refreshing
+        notifyGlobalDataChange('DISCIPLINE', 'UPDATE', { id: rescheduleModalItem._id, counselingStatus: 'RESCHEDULE_REQUESTED' });
         setRescheduleForm({ requestedDate: '', requestedTime: '10:00 AM', reason: '' });
         fetchStudentData();
       }
     } catch (e) {
       console.error(e);
+      fetchStudentData();
     } finally {
       setSubmittingDiscAction(false);
     }
