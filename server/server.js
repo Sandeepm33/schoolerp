@@ -15,8 +15,12 @@ const connectDB = require('./config/db');
 const apiRoutes = require('./routes/apiRoutes');
 const seedData = require('./seed');
 const { handleSyncStream, handleSyncCheck, broadcastDataMutation } = require('./config/dataSync');
+const { setupSwagger } = require('./config/swagger');
 
 const app = express();
+
+// Initialize Swagger Interactive API Documentation UI
+setupSwagger(app);
 
 // Middlewares
 app.use(cors({
