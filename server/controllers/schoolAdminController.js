@@ -1920,8 +1920,8 @@ const getHealthRecords = async (req, res) => {
   try {
     const { classId, studentId } = req.query;
     const query = { schoolId: getSchoolId(req) };
-    if (classId) query.classId = classId;
     if (studentId) query.studentId = studentId;
+    else if (classId) query.classId = classId;
     const docs = await HealthRecord.find(query).sort({ createdAt: -1 });
     ok(res, docs);
   } catch (e) { err(res, e.message); }
@@ -1950,9 +1950,10 @@ const deleteHealthRecord = async (req, res) => {
 // ─────────────────────────────────────────────────────────
 const getDisciplineRecords = async (req, res) => {
   try {
-    const { classId, severity, status } = req.query;
+    const { classId, severity, status, studentId } = req.query;
     const query = { schoolId: getSchoolId(req), isArchived: false };
-    if (classId) query.classId = classId;
+    if (studentId) query.studentId = studentId;
+    else if (classId) query.classId = classId;
     if (severity) query.severity = severity;
     if (status) query.status = status;
     const docs = await Discipline.find(query).sort({ incidentDate: -1 });

@@ -19,6 +19,7 @@ import { useDataSync, notifyGlobalDataChange } from '../context/DataSyncContext'
 import AllServicesPanel from './AllServicesPanel';
 import StudentAttendanceReport from './StudentAttendanceReport';
 import AIResultIntelligence from './AIResultIntelligence';
+import { DisciplineTab } from './AdminDashboard';
 
 // ─── STATUS CONFIG ────────────────────────────────────────────────────────────
 const STATUS_CONFIG = {
@@ -804,6 +805,7 @@ function TeacherDashboardContent() {
             { id: 'attendance', label: 'Mark Attendance', icon: CheckSquare },
             { id: 'reports', label: 'Analytics & Reports', icon: BarChart3 },
             { id: 'homework', label: 'Homework & LMS', icon: BookOpen },
+            { id: 'discipline', label: 'Discipline Tracker', icon: AlertTriangle },
             { id: 'services', label: 'All Services', icon: BarChart3 },
           ].map(tab => {
             const Icon = tab.icon;
@@ -1857,7 +1859,7 @@ function TeacherDashboardContent() {
 
       {/* ─── DISCIPLINE TRACKER TAB ─── */}
       {activeTab === 'discipline' && (
-        <TeacherDisciplineTab token={token} classList={classList} />
+        <DisciplineTab />
       )}
 
       {/* ─── CLASSES & SECTIONS TAB ─── */}
@@ -2439,64 +2441,7 @@ function TeacherHealthRecordsTab({ token, classList }) {
   );
 }
 
-// ─── DISCIPLINE TRACKER SUB-COMPONENT ────────────────────────────────────
-function TeacherDisciplineTab({ token, classList }) {
-  const [incidents, setIncidents] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
-
-  React.useEffect(() => {
-    fetch(`${API_BASE}/admin/discipline`, { headers: { 'Authorization': `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : [])
-      .then(d => setIncidents(Array.isArray(d) ? d : []))
-      .catch(() => setIncidents([]))
-      .finally(() => setLoading(false));
-  }, [token]);
-
-  return (
-    <div className="glass-panel p-6 rounded-3xl border border-slate-800 space-y-5">
-      <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-        <div>
-          <h3 className="text-base font-extrabold text-white flex items-center gap-2">⚠️ Student Discipline & Incident Log</h3>
-          <p className="text-xs text-slate-400">Faculty-logged conduct reports and severity tracking</p>
-        </div>
-      </div>
-      {loading ? <Loader2 className="w-6 h-6 text-indigo-400 animate-spin mx-auto my-8" /> : (
-        <div className="bg-slate-950 rounded-2xl border border-slate-800 overflow-hidden">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-900 text-slate-400 text-[10px] uppercase font-black border-b border-slate-800">
-              <tr>
-                <th className="p-3.5">Date</th>
-                <th className="p-3.5">Student Name</th>
-                <th className="p-3.5">Incident Type</th>
-                <th className="p-3.5">Severity</th>
-                <th className="p-3.5">Description</th>
-                <th className="p-3.5">Action Taken</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {incidents.length === 0 ? (
-                <tr><td colSpan="6" className="p-6 text-center text-slate-500 font-bold">No disciplinary incidents recorded.</td></tr>
-              ) : incidents.map((inc, i) => (
-                <tr key={i} className="hover:bg-slate-900/40">
-                  <td className="p-3.5 font-mono text-slate-300">{inc.date || 'Today'}</td>
-                  <td className="p-3.5 font-bold text-white">{inc.studentName}</td>
-                  <td className="p-3.5 text-amber-300 font-semibold">{inc.incidentType || 'Behavioral'}</td>
-                  <td className="p-3.5">
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                      inc.severity === 'HIGH' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                    }`}>{inc.severity || 'MEDIUM'}</span>
-                  </td>
-                  <td className="p-3.5 text-slate-300">{inc.description}</td>
-                  <td className="p-3.5 text-emerald-400 font-semibold">{inc.actionTaken || 'Counseling Session'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
+// ─── DISCIPLINE TRACKER SUB-COMPONENT (USES FULL DISCIPLINE TAB) ──────────
 
 // ─── CLASSES SUB-COMPONENT ────────────────────────────────────────────────
 function TeacherClassesTab({ classList }) {
@@ -4309,6 +4254,8 @@ function TeacherHolidayCalendarTab({ token }) {
           })()}
         </div>
       )}
+
+
     </div>
   );
 }

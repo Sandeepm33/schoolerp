@@ -7,7 +7,8 @@ import {
   Truck, Bell, CheckCircle, FileText, ChevronRight, ShieldAlert,
   Send, MapPin, Check, Sparkles, AlertCircle, LogOut, Menu, X,
   GraduationCap, Search, ShieldCheck, UserCheck, Phone, Mail, Building,
-  BarChart3, ChevronLeft, Printer, Filter, LayoutGrid, List
+  BarChart3, ChevronLeft, Printer, Filter, LayoutGrid, List,
+  AlertTriangle, Stethoscope, CheckCircle2
 } from 'lucide-react';
 import { useAuth, API_BASE } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -44,6 +45,104 @@ function ParentDashboardContent() {
   const [selectedExamTabIdx, setSelectedExamTabIdx] = useState(0);
   const [leaveForm, setLeaveForm] = useState({ startDate: '', reason: '' });
   const [leaveSubmitted, setLeaveSubmitted] = useState(false);
+
+  // Discipline & Health Records State for Student/Parent
+  const [disciplineRecords, setDisciplineRecords] = useState([]);
+  const [disciplineLoading, setDisciplineLoading] = useState(true);
+  const [discViewMode, setDiscViewMode] = useState('list'); // 'list' | 'grid'
+  const [healthRecords, setHealthRecords] = useState([]);
+  const [healthLoading, setHealthLoading] = useState(true);
+  const [healthViewMode, setHealthViewMode] = useState('list'); // 'list' | 'grid'
+
+  // Discipline Parent Explanation & Reschedule State
+  const [explanationModalItem, setExplanationModalItem] = useState(null);
+  const [explanationText, setExplanationText] = useState('');
+  const [rescheduleModalItem, setRescheduleModalItem] = useState(null);
+  const [rescheduleForm, setRescheduleForm] = useState({ requestedDate: '', requestedTime: '10:00 AM', reason: '' });
+  const [submittingDiscAction, setSubmittingDiscAction] = useState(false);
+
+  const handleAcceptCounselling = async (recId) => {
+    try {
+      setSubmittingDiscAction(true);
+      const res = await fetch(`${API_BASE}/admin/discipline/${recId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          counselingStatus: 'ACCEPTED',
+          rescheduleStatus: 'NONE'
+        })
+      });
+      if (res.ok) {
+        fetchStudentData();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSubmittingDiscAction(false);
+    }
+  };
+
+  const handleSubmitExplanation = async (e) => {
+    e.preventDefault();
+    if (!explanationModalItem || !explanationText.trim()) return;
+    try {
+      setSubmittingDiscAction(true);
+      const res = await fetch(`${API_BASE}/admin/discipline/${explanationModalItem._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          parentExplanation: explanationText.trim(),
+          parentExplanationDate: new Date()
+        })
+      });
+      if (res.ok) {
+        setExplanationModalItem(null);
+        setExplanationText('');
+        fetchStudentData();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSubmittingDiscAction(false);
+    }
+  };
+
+  const handleSubmitRescheduleRequest = async (e) => {
+    e.preventDefault();
+    if (!rescheduleModalItem || !rescheduleForm.requestedDate) return;
+    try {
+      setSubmittingDiscAction(true);
+      const res = await fetch(`${API_BASE}/admin/discipline/${rescheduleModalItem._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          counselingStatus: 'RESCHEDULE_REQUESTED',
+          requestedCounselingDate: rescheduleForm.requestedDate,
+          requestedCounselingTime: rescheduleForm.requestedTime,
+          rescheduleReason: rescheduleForm.reason,
+          rescheduleStatus: 'PENDING'
+        })
+      });
+      if (res.ok) {
+        setRescheduleModalItem(null);
+        setRescheduleForm({ requestedDate: '', requestedTime: '10:00 AM', reason: '' });
+        fetchStudentData();
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSubmittingDiscAction(false);
+    }
+  };
 
   const handleMarkHomeworkCompleted = async (hwId) => {
     try {
@@ -295,6 +394,52 @@ function ParentDashboardContent() {
           setSchoolHolidays(Array.isArray(data) ? data : []);
         }
       }
+
+      // Fetch Student Discipline & Health Records
+      if (activeTab === 'discipline' || activeTab === 'overview') {
+        setDisciplineLoading(true);
+        const stId = String(mapped?._id || user?._id || '');
+        const res = await fetch(`${API_BASE}/admin/discipline?studentId=${encodeURIComponent(stId)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null);
+        if (res && res.ok) {
+          const data = await res.json().catch(() => []);
+          setDisciplineRecords(Array.isArray(data) ? data : []);
+        } else {
+          // Fallback to fetch all discipline records and filter for this student
+          const resAll = await fetch(`${API_BASE}/admin/discipline`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null);
+          if (resAll && resAll.ok) {
+            const dataAll = await resAll.json().catch(() => []);
+            const filtered = (Array.isArray(dataAll) ? dataAll : []).filter(r => {
+              const sName = (r.studentName || '').toLowerCase();
+              const myName = childName.toLowerCase();
+              return (r.studentId && String(r.studentId) === stId) || (myName && sName.includes(myName));
+            });
+            setDisciplineRecords(filtered);
+          }
+        }
+        setDisciplineLoading(false);
+      }
+
+      if (activeTab === 'health' || activeTab === 'overview') {
+        setHealthLoading(true);
+        const stId = String(mapped?._id || user?._id || '');
+        const res = await fetch(`${API_BASE}/admin/health-records?studentId=${encodeURIComponent(stId)}`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null);
+        if (res && res.ok) {
+          const data = await res.json().catch(() => []);
+          setHealthRecords(Array.isArray(data) ? data : []);
+        } else {
+          const resAll = await fetch(`${API_BASE}/admin/health-records`, { headers: { 'Authorization': `Bearer ${token}` } }).catch(() => null);
+          if (resAll && resAll.ok) {
+            const dataAll = await resAll.json().catch(() => []);
+            const filtered = (Array.isArray(dataAll) ? dataAll : []).filter(r => {
+              const sName = (r.studentName || '').toLowerCase();
+              const myName = childName.toLowerCase();
+              return (r.studentId && String(r.studentId) === stId) || (myName && sName.includes(myName));
+            });
+            setHealthRecords(filtered);
+          }
+        }
+        setHealthLoading(false);
+      }
     } catch (e) {
       console.warn('Student fetch error');
     }
@@ -515,6 +660,8 @@ function ParentDashboardContent() {
             { id: 'analytics', label: 'Analytics & Reports', icon: BarChart3 },
             { id: 'transport', label: 'Transport', icon: Truck },
             { id: 'leave', label: 'Apply Leave', icon: FileText },
+            { id: 'discipline', label: 'Discipline Log', icon: AlertTriangle },
+            { id: 'health', label: 'Health Records', icon: Stethoscope },
             { id: 'services', label: 'All Services', icon: Bell },
           ].map(tab => {
             const Icon = tab.icon;
@@ -2019,6 +2166,637 @@ function ParentDashboardContent() {
               <span>Submit Leave Request</span>
             </button>
           </form>
+        </div>
+      )}
+
+
+      {/* DISCIPLINE LOG TAB */}
+      {activeTab === 'discipline' && (
+        <div className="space-y-6">
+          {/* Header Banner */}
+          <div className="relative overflow-hidden rounded-3xl p-6 sm:p-8 text-white shadow-xl"
+               style={{ background: 'linear-gradient(135deg, #064e3b 0%, #047857 50%, #065f46 100%)' }}>
+            <div className="flex flex-wrap items-center justify-between gap-4 relative z-10">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-950/60 border border-emerald-400/30 flex items-center justify-center text-emerald-300 shadow-inner">
+                  <AlertTriangle className="w-7 h-7" />
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-black tracking-tight">Discipline Log & Incident Records</h2>
+                  <p className="text-xs sm:text-sm text-emerald-100 font-medium mt-1">
+                    Behavioral incident history, reprimands, parent notifications & counselling notes for {childName}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Stats Summary Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="p-4 rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Total Incidents</p>
+              <h3 className="text-2xl font-black text-slate-800 mt-1">{disciplineRecords.length}</h3>
+              <p className="text-[11px] text-slate-500 font-medium mt-0.5">Recorded across all terms</p>
+            </div>
+            <div className="p-4 rounded-2xl border border-rose-100 bg-rose-50/50 shadow-sm">
+              <p className="text-[11px] font-bold text-rose-500 uppercase tracking-wider">High Severity</p>
+              <h3 className="text-2xl font-black text-rose-700 mt-1">
+                {disciplineRecords.filter(r => (r.severity || '').toUpperCase() === 'HIGH').length}
+              </h3>
+              <p className="text-[11px] text-rose-600 font-medium mt-0.5">Critical cases</p>
+            </div>
+            <div className="p-4 rounded-2xl border border-amber-100 bg-amber-50/50 shadow-sm">
+              <p className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Open Cases</p>
+              <h3 className="text-2xl font-black text-amber-800 mt-1">
+                {disciplineRecords.filter(r => (r.status || 'OPEN').toUpperCase() === 'OPEN').length}
+              </h3>
+              <p className="text-[11px] text-amber-700 font-medium mt-0.5">Pending resolution</p>
+            </div>
+            <div className="p-4 rounded-2xl border border-emerald-100 bg-emerald-50/50 shadow-sm">
+              <p className="text-[11px] font-bold text-emerald-600 uppercase tracking-wider">Resolved</p>
+              <h3 className="text-2xl font-black text-emerald-800 mt-1">
+                {disciplineRecords.filter(r => (r.status || '').toUpperCase() === 'RESOLVED').length}
+              </h3>
+              <p className="text-[11px] text-emerald-700 font-medium mt-0.5">Cases closed</p>
+            </div>
+          </div>
+
+          {/* Controls Bar: View Mode Switcher */}
+          <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="text-xs font-bold text-slate-700">
+              Showing <span className="font-extrabold text-slate-900">{disciplineRecords.length}</span> incident record(s)
+            </div>
+            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <button
+                onClick={() => setDiscViewMode('list')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  discViewMode === 'list'
+                    ? 'bg-white text-slate-900 shadow-sm font-black'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <List className="w-3.5 h-3.5" /> List View
+              </button>
+              <button
+                onClick={() => setDiscViewMode('grid')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  discViewMode === 'grid'
+                    ? 'bg-white text-slate-900 shadow-sm font-black'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" /> Grid View
+              </button>
+            </div>
+          </div>
+
+          {/* Loading Indicator */}
+          {disciplineLoading ? (
+            <div className="p-12 text-center text-xs text-slate-400 font-medium bg-white rounded-3xl border border-slate-200">
+              Loading discipline records...
+            </div>
+          ) : disciplineRecords.length === 0 ? (
+            <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 space-y-3">
+              <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
+                <CheckCircle2 className="w-7 h-7" />
+              </div>
+              <h4 className="text-base font-bold text-slate-800">Clean Discipline Record</h4>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                No behavioral or incident records logged for {childName}. Keep up the great conduct!
+              </p>
+            </div>
+          ) : discViewMode === 'list' ? (
+            /* LIST VIEW (Table) */
+            <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-extrabold uppercase tracking-wider text-[10px]">
+                    <th className="py-3.5 px-4">Incident Title</th>
+                    <th className="py-3.5 px-4">Class & Section</th>
+                    <th className="py-3.5 px-4">Severity</th>
+                    <th className="py-3.5 px-4">Incident Date</th>
+                    <th className="py-3.5 px-4">Status</th>
+                    <th className="py-3.5 px-4">Counselling & Actions</th>
+                    <th className="py-3.5 px-4 text-right">Parent Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                  {disciplineRecords.map((item, idx) => {
+                    const sev = (item.severity || 'LOW').toUpperCase();
+                    const st = (item.status || 'OPEN').toUpperCase();
+                    const rawDate = item.incidentDate || item.date || item.createdAt;
+                    const dateStr = rawDate ? new Date(rawDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A';
+                    const clsSec = item.classId ? (String(item.classId).toLowerCase().startsWith('class') ? item.classId : `Class ${item.classId}`) : formattedClassStr;
+                    const isCounselling = item.counsellingRequired || item.counselingDate || item.counselingStatus !== 'NONE';
+                    const counselDateStr = item.counselingDate ? new Date(item.counselingDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+
+                    return (
+                      <tr key={item._id || idx} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3.5 px-4 font-bold text-slate-900">
+                          <div>{item.title || item.incidentTitle || 'Incident Record'}</div>
+                          {item.description && <div className="text-[11px] text-slate-500 font-normal mt-0.5">{item.description}</div>}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-500 font-medium">{clsSec}</td>
+                        <td className="py-3.5 px-4">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border ${
+                            sev === 'HIGH' ? 'bg-rose-50 text-rose-600 border-rose-200' :
+                            sev === 'MEDIUM' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                            'bg-slate-100 text-slate-600 border-slate-200'
+                          }`}>
+                            {sev}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-slate-600">{dateStr}</td>
+                        <td className="py-3.5 px-4">
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border ${
+                            st === 'RESOLVED' || st === 'CLOSED' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                            st === 'IN_PROGRESS' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                            'bg-amber-50 text-amber-700 border-amber-200'
+                          }`}>
+                            {st === 'RESOLVED' || st === 'CLOSED' ? '✅ Issue Closed' : st}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 max-w-xs space-y-1">
+                          <div className="text-slate-700">{item.actionTaken || 'No action recorded'}</div>
+                          {isCounselling && (
+                            <div className="p-2 rounded-xl bg-amber-50/80 border border-amber-200 text-[11px] space-y-1">
+                              <div className="font-extrabold text-amber-900 flex items-center justify-between">
+                                <span>📅 Counselling: {counselDateStr || 'Pending Date'}</span>
+                                <span className={`px-2 py-0.2 rounded-full text-[9px] font-black ${
+                                  item.counselingStatus === 'ACCEPTED' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                                  item.counselingStatus === 'RESCHEDULE_REQUESTED' ? 'bg-purple-100 text-purple-800 border border-purple-200' :
+                                  'bg-amber-100 text-amber-800 border border-amber-200'
+                                }`}>
+                                  {item.counselingStatus === 'ACCEPTED' ? '✅ Confirmed & Accepted by Parent' :
+                                   item.counselingStatus === 'RESCHEDULE_REQUESTED' ? 'Reschedule Requested' :
+                                   'Scheduled'}
+                                </span>
+                              </div>
+                              {item.counselingTime && <div className="text-amber-700 font-mono">Time: {item.counselingTime}</div>}
+                              {item.counselingTopic && <div className="text-amber-800">Topic: {item.counselingTopic}</div>}
+                            </div>
+                          )}
+                          {item.parentExplanation && (
+                            <div className="p-2 rounded-xl bg-indigo-50/80 border border-indigo-200 text-[11px]">
+                              <span className="font-bold text-indigo-900 block">Parent Explanation:</span>
+                              <p className="text-indigo-800 italic">"{item.parentExplanation}"</p>
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-right space-y-1.5">
+                          {isParentRole && (
+                            <div className="flex flex-col items-end gap-1.5">
+                              {isCounselling && (
+                                <div className="flex items-center gap-1.5">
+                                  {item.counselingStatus !== 'ACCEPTED' && (
+                                    <button
+                                      onClick={() => handleAcceptCounselling(item._id)}
+                                      disabled={submittingDiscAction}
+                                      className="px-2.5 py-1 rounded-lg bg-emerald-600 text-white font-bold text-[10px] hover:bg-emerald-700 transition-all shadow-sm cursor-pointer"
+                                    >
+                                      ✅ Accept Date
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={() => {
+                                      setRescheduleModalItem(item);
+                                      setRescheduleForm({
+                                        requestedDate: item.counselingDate ? new Date(item.counselingDate).toISOString().split('T')[0] : '',
+                                        requestedTime: item.counselingTime || '10:00 AM',
+                                        reason: ''
+                                      });
+                                    }}
+                                    disabled={submittingDiscAction}
+                                    className="px-2.5 py-1 rounded-lg bg-amber-500 text-white font-bold text-[10px] hover:bg-amber-600 transition-all shadow-sm cursor-pointer"
+                                  >
+                                    📅 {item.counselingStatus === 'ACCEPTED' ? 'Reschedule' : 'Reschedule'}
+                                  </button>
+                                </div>
+                              )}
+                              <button
+                                onClick={() => {
+                                  setExplanationModalItem(item);
+                                  setExplanationText(item.parentExplanation || '');
+                                }}
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-bold text-[10px] hover:bg-slate-200 border border-slate-200 transition-all"
+                              >
+                                💬 {item.parentExplanation ? 'Edit' : 'Add'} Explanation
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            /* GRID VIEW (Cards) */
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {disciplineRecords.map((item, idx) => {
+                const sev = (item.severity || 'LOW').toUpperCase();
+                const st = (item.status || 'OPEN').toUpperCase();
+                const rawDate = item.incidentDate || item.date || item.createdAt;
+                const dateStr = rawDate ? new Date(rawDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A';
+                const isCounselling = item.counsellingRequired || item.counselingDate || item.counselingStatus !== 'NONE';
+                const counselDateStr = item.counselingDate ? new Date(item.counselingDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
+
+                return (
+                  <div key={item._id || idx} className="p-5 rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h4 className="font-extrabold text-slate-900 text-sm">{item.title || item.incidentTitle || 'Incident Record'}</h4>
+                        <p className="text-[11px] text-slate-400 font-medium mt-0.5">Date: {dateStr}</p>
+                      </div>
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase border shrink-0 ${
+                        sev === 'HIGH' ? 'bg-rose-50 text-rose-600 border-rose-200' :
+                        sev === 'MEDIUM' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                        'bg-slate-100 text-slate-600 border-slate-200'
+                      }`}>
+                        {sev} SEVERITY
+                      </span>
+                    </div>
+
+                    <p className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100 leading-relaxed">
+                      {item.description || 'No additional details logged.'}
+                    </p>
+
+                    {/* COUNSELLING SECTION CARD */}
+                    {isCounselling && (
+                      <div className="p-3 rounded-xl bg-amber-50/90 border border-amber-200 space-y-2 text-xs">
+                        <div className="flex items-center justify-between flex-wrap gap-1">
+                          <span className="font-extrabold text-amber-900 flex items-center gap-1.5">
+                            📅 Counselling Session
+                          </span>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${
+                            item.counselingStatus === 'ACCEPTED' ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' :
+                            item.counselingStatus === 'RESCHEDULE_REQUESTED' ? 'bg-purple-100 text-purple-800 border border-purple-200' :
+                            'bg-amber-100 text-amber-800 border border-amber-200'
+                          }`}>
+                            {item.counselingStatus === 'ACCEPTED' ? '✅ Confirmed & Accepted by Parent' :
+                             item.counselingStatus === 'RESCHEDULE_REQUESTED' ? 'Reschedule Requested' :
+                             'Pending Acceptance'}
+                          </span>
+                        </div>
+                        <div className="text-amber-800 font-medium">
+                          Date: <strong className="font-bold">{counselDateStr || 'TBD'}</strong> {item.counselingTime ? `at ${item.counselingTime}` : ''}
+                        </div>
+                        {item.counselingTopic && (
+                          <div className="text-amber-900 text-[11px]">Topic / Notes: {item.counselingTopic}</div>
+                        )}
+
+                        {/* COUNSELLING ACTION BUTTONS FOR PARENT */}
+                        {isParentRole && (
+                          <div className="pt-2 border-t border-amber-200/80 flex items-center gap-2">
+                            {item.counselingStatus !== 'ACCEPTED' && (
+                              <button
+                                onClick={() => handleAcceptCounselling(item._id)}
+                                disabled={submittingDiscAction}
+                                className="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-extrabold text-xs hover:bg-emerald-700 transition shadow-sm cursor-pointer"
+                              >
+                                ✅ Accept Date
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                setRescheduleModalItem(item);
+                                setRescheduleForm({
+                                  requestedDate: item.counselingDate ? new Date(item.counselingDate).toISOString().split('T')[0] : '',
+                                  requestedTime: item.counselingTime || '10:00 AM',
+                                  reason: ''
+                                });
+                              }}
+                              disabled={submittingDiscAction}
+                              className="px-3 py-1.5 rounded-lg bg-amber-600 text-white font-extrabold text-xs hover:bg-amber-700 transition shadow-sm cursor-pointer"
+                            >
+                              📅 {item.counselingStatus === 'ACCEPTED' ? 'Reschedule Date' : 'Request Reschedule'}
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* PARENT EXPLANATION DISPLAY */}
+                    {item.parentExplanation && (
+                      <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-100 space-y-1 text-xs">
+                        <span className="font-extrabold text-indigo-900 block">💬 Parent Statement / Explanation:</span>
+                        <p className="text-indigo-800 italic bg-white/80 p-2 rounded-lg border border-indigo-100">
+                          "{item.parentExplanation}"
+                        </p>
+                      </div>
+                    )}
+
+                    <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100">
+                      <span className="text-slate-500 font-medium">
+                        Action Taken: <strong className="text-slate-800">{item.actionTaken || 'Pending'}</strong>
+                      </span>
+                      {isParentRole && (
+                        <button
+                          onClick={() => {
+                            setExplanationModalItem(item);
+                            setExplanationText(item.parentExplanation || '');
+                          }}
+                          className="px-3 py-1 rounded-lg bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200 transition"
+                        >
+                          💬 {item.parentExplanation ? 'Edit' : 'Add'} Explanation
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* PARENT EXPLANATION MODAL */}
+          {explanationModalItem && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl border border-slate-200">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                    💬 Parent Explanation for Incident
+                  </h3>
+                  <button onClick={() => setExplanationModalItem(null)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+                </div>
+
+                <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 space-y-1 text-xs">
+                  <span className="font-bold text-slate-800 block">{explanationModalItem.title}</span>
+                  <p className="text-slate-500">{explanationModalItem.description || 'No description'}</p>
+                </div>
+
+                <form onSubmit={handleSubmitExplanation} className="space-y-4 text-xs">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1.5">Your Explanation / Response</label>
+                    <textarea
+                      value={explanationText}
+                      onChange={e => setExplanationText(e.target.value)}
+                      placeholder="Enter your explanation regarding this behavioral incident..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-500 h-28 text-xs font-medium"
+                      required
+                    />
+                  </div>
+                  <div className="flex items-center justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setExplanationModalItem(null)}
+                      className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200 transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submittingDiscAction}
+                      className="px-5 py-2 rounded-xl bg-indigo-600 text-white font-extrabold text-xs hover:bg-indigo-700 transition shadow-md"
+                    >
+                      {submittingDiscAction ? 'Submitting...' : 'Submit Explanation'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* REQUEST RESCHEDULE COUNSELLING MODAL */}
+          {rescheduleModalItem && (
+            <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl border border-slate-200">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                    📅 Request Different Counselling Date
+                  </h3>
+                  <button onClick={() => setRescheduleModalItem(null)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+                </div>
+
+                <div className="bg-amber-50 p-3 rounded-2xl border border-amber-200 space-y-1 text-xs text-amber-900">
+                  <span className="font-bold block">Originally Assigned Session:</span>
+                  <p>
+                    {rescheduleModalItem.counselingDate ? new Date(rescheduleModalItem.counselingDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Not set'} {rescheduleModalItem.counselingTime ? `at ${rescheduleModalItem.counselingTime}` : ''}
+                  </p>
+                </div>
+
+                <form onSubmit={handleSubmitRescheduleRequest} className="space-y-4 text-xs">
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1.5">Requested New Date</label>
+                    <input
+                      type="date"
+                      value={rescheduleForm.requestedDate}
+                      onChange={e => setRescheduleForm({ ...rescheduleForm, requestedDate: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-500 font-medium"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1.5">Preferred Time</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. 10:30 AM or 02:00 PM"
+                      value={rescheduleForm.requestedTime}
+                      onChange={e => setRescheduleForm({ ...rescheduleForm, requestedTime: e.target.value })}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-500 font-medium"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-slate-700 font-bold mb-1.5">Reason for Rescheduling</label>
+                    <textarea
+                      value={rescheduleForm.reason}
+                      onChange={e => setRescheduleForm({ ...rescheduleForm, reason: e.target.value })}
+                      placeholder="Please explain why you are unavailable on the original date..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-slate-900 focus:outline-none focus:bg-white focus:border-indigo-500 h-24 text-xs font-medium"
+                      required
+                    />
+                  </div>
+                  <div className="flex items-center justify-end gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setRescheduleModalItem(null)}
+                      className="px-4 py-2 rounded-xl bg-slate-100 text-slate-700 font-bold text-xs hover:bg-slate-200 transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={submittingDiscAction}
+                      className="px-5 py-2 rounded-xl bg-amber-600 text-white font-extrabold text-xs hover:bg-amber-700 transition shadow-md"
+                    >
+                      {submittingDiscAction ? 'Sending Request...' : 'Send Reschedule Request'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* HEALTH RECORDS TAB */}
+      {activeTab === 'health' && (
+        <div className="space-y-6">
+          {/* Header Banner */}
+          <div className="relative overflow-hidden rounded-3xl p-6 sm:p-8 text-white shadow-xl"
+               style={{ background: 'linear-gradient(135deg, #0284c7 0%, #0369a1 50%, #075985 100%)' }}>
+            <div className="flex flex-wrap items-center justify-between gap-4 relative z-10">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-sky-950/60 border border-sky-400/30 flex items-center justify-center text-sky-200 shadow-inner">
+                  <Stethoscope className="w-7 h-7" />
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-black tracking-tight">Student Health & Medical Profile</h2>
+                  <p className="text-xs sm:text-sm text-sky-100 font-medium mt-1">
+                    Medical history, allergy alerts, blood group, physical checkup logs & emergency doctor contacts for {childName}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Stats Summary Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="p-4 rounded-2xl border border-sky-100 bg-sky-50/50 shadow-sm">
+              <p className="text-[11px] font-bold text-sky-600 uppercase tracking-wider">Health Status</p>
+              <h3 className="text-xl font-black text-sky-800 mt-1 flex items-center gap-1.5">
+                <CheckCircle2 className="w-5 h-5 text-emerald-500" /> Active Profile
+              </h3>
+              <p className="text-[11px] text-sky-600 font-medium mt-0.5">School Medical Record</p>
+            </div>
+            <div className="p-4 rounded-2xl border border-rose-100 bg-rose-50/50 shadow-sm">
+              <p className="text-[11px] font-bold text-rose-500 uppercase tracking-wider">Blood Group</p>
+              <h3 className="text-2xl font-black text-rose-700 mt-1">
+                {mapped?.bloodGroup || user?.bloodGroup || healthRecords?.[0]?.bloodGroup || 'O+'}
+              </h3>
+              <p className="text-[11px] text-rose-600 font-medium mt-0.5">Verified Tag</p>
+            </div>
+            <div className="p-4 rounded-2xl border border-amber-100 bg-amber-50/50 shadow-sm">
+              <p className="text-[11px] font-bold text-amber-600 uppercase tracking-wider">Allergies Logged</p>
+              <h3 className="text-2xl font-black text-amber-800 mt-1">
+                {healthRecords.filter(r => r.allergies || r.recordType === 'ALLERGY').length}
+              </h3>
+              <p className="text-[11px] text-amber-700 font-medium mt-0.5">Food / Medicine alerts</p>
+            </div>
+            <div className="p-4 rounded-2xl border border-indigo-100 bg-indigo-50/50 shadow-sm">
+              <p className="text-[11px] font-bold text-indigo-600 uppercase tracking-wider">Total Health Logs</p>
+              <h3 className="text-2xl font-black text-indigo-800 mt-1">{healthRecords.length}</h3>
+              <p className="text-[11px] text-indigo-700 font-medium mt-0.5">Checkup records</p>
+            </div>
+          </div>
+
+          {/* Controls Bar: View Mode Switcher */}
+          <div className="flex items-center justify-between gap-4 p-4 rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <div className="text-xs font-bold text-slate-700">
+              Showing <span className="font-extrabold text-slate-900">{healthRecords.length}</span> health record(s)
+            </div>
+            <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <button
+                onClick={() => setHealthViewMode('list')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  healthViewMode === 'list'
+                    ? 'bg-white text-slate-900 shadow-sm font-black'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <List className="w-3.5 h-3.5" /> List View
+              </button>
+              <button
+                onClick={() => setHealthViewMode('grid')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  healthViewMode === 'grid'
+                    ? 'bg-white text-slate-900 shadow-sm font-black'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+              >
+                <LayoutGrid className="w-3.5 h-3.5" /> Grid View
+              </button>
+            </div>
+          </div>
+
+          {/* Loading Indicator */}
+          {healthLoading ? (
+            <div className="p-12 text-center text-xs text-slate-400 font-medium bg-white rounded-3xl border border-slate-200">
+              Loading student health records...
+            </div>
+          ) : healthRecords.length === 0 ? (
+            <div className="p-12 text-center bg-white rounded-3xl border border-slate-200 space-y-3">
+              <div className="w-14 h-14 rounded-full bg-sky-50 text-sky-600 flex items-center justify-center mx-auto">
+                <Stethoscope className="w-7 h-7" />
+              </div>
+              <h4 className="text-base font-bold text-slate-800">No Specific Medical Logs</h4>
+              <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                Standard health profile is active. No special medical conditions, severe allergies, or infirmary visits recorded for {childName}.
+              </p>
+            </div>
+          ) : healthViewMode === 'list' ? (
+            /* LIST VIEW (Table) */
+            <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-extrabold uppercase tracking-wider text-[10px]">
+                    <th className="py-3.5 px-4">Record Title / Category</th>
+                    <th className="py-3.5 px-4">Blood Group</th>
+                    <th className="py-3.5 px-4">Allergies / Conditions</th>
+                    <th className="py-3.5 px-4">Doctor Notes</th>
+                    <th className="py-3.5 px-4">Emergency Contact</th>
+                    <th className="py-3.5 px-4">Updated Date</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-medium text-slate-700">
+                  {healthRecords.map((item, idx) => {
+                    const dateStr = item.updatedAt || item.date ? new Date(item.updatedAt || item.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A';
+
+                    return (
+                      <tr key={item._id || idx} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3.5 px-4 font-bold text-slate-900">{item.title || item.recordType || 'General Health Checkup'}</td>
+                        <td className="py-3.5 px-4">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-600 border border-rose-200">
+                            {item.bloodGroup || mapped?.bloodGroup || 'O+'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-600">{item.allergies || item.chronicConditions || 'None reported'}</td>
+                        <td className="py-3.5 px-4 text-slate-600 max-w-xs truncate">{item.doctorNotes || item.remarks || item.description || 'Fit & Healthy'}</td>
+                        <td className="py-3.5 px-4 font-mono text-slate-600">{item.emergencyContact || parentPhone}</td>
+                        <td className="py-3.5 px-4 font-mono text-slate-400">{dateStr}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            /* GRID VIEW (Cards) */
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {healthRecords.map((item, idx) => {
+                const dateStr = item.updatedAt || item.date ? new Date(item.updatedAt || item.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A';
+
+                return (
+                  <div key={item._id || idx} className="p-5 rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition-all space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h4 className="font-extrabold text-slate-900 text-sm">{item.title || item.recordType || 'General Medical Record'}</h4>
+                        <p className="text-[11px] text-slate-400 font-medium mt-0.5">Last Checked: {dateStr}</p>
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-50 text-rose-600 border border-rose-200">
+                        {item.bloodGroup || mapped?.bloodGroup || 'O+'}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2 text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <div>
+                        <span className="font-bold text-slate-700">Allergies / Conditions: </span>
+                        <span>{item.allergies || item.chronicConditions || 'None Reported'}</span>
+                      </div>
+                      <div>
+                        <span className="font-bold text-slate-700">Doctor Remarks: </span>
+                        <span>{item.doctorNotes || item.remarks || item.description || 'Fit and Healthy'}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-100 font-medium text-slate-500">
+                      <span>Emergency Tel: <strong className="font-mono text-emerald-600">{item.emergencyContact || parentPhone}</strong></span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

@@ -12,7 +12,7 @@ import {
   Building2, BookMarked, Calculator, Scroll, MapPin, ShieldCheck,
   HeartHandshake, ClipboardList, Eye, XCircle, CheckCircle, Loader2, Printer,
   User, Mail, Phone, Shield, Lock, Camera, Save, Coffee, History,
-  Wallet, CalendarCheck, MessageSquare, UserCheck, UserPlus, List, LayoutGrid, RotateCcw
+  Wallet, CalendarCheck, MessageSquare, UserCheck, UserPlus, List, LayoutGrid, RotateCcw, Send, CheckCircle2
 } from 'lucide-react';
 import AllServicesPanel from './AllServicesPanel';
 import StudentAttendanceReport from './StudentAttendanceReport';
@@ -6608,46 +6608,1502 @@ const InventoryTab = makeSimpleCRUDTab({
   ]
 });
 
-const HealthRecordsTab = makeSimpleCRUDTab({
-  title: 'Health Records', icon: Stethoscope, color: 'rose', endpoint: '/admin/health-records',
-  columns: [
-    { key: 'studentName', label: 'Student' },
-    { key: 'classId', label: 'Class' },
-    { key: 'bloodGroup', label: 'Blood Group' },
-    { key: 'allergies', label: 'Allergies', render: v => Array.isArray(v) ? v.join(', ') || 'None' : v || 'None' },
-    { key: 'chronicConditions', label: 'Conditions', render: v => Array.isArray(v) ? v.join(', ') || 'None' : v || 'None' },
-  ],
-  fields: [
-    { key: 'studentName', label: 'Student Name', required: true },
-    { key: 'classId', label: 'Class' },
-    { key: 'bloodGroup', label: 'Blood Group', type: 'select', options: ['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'] },
-    { key: 'allergies', label: 'Allergies (comma-separated)' },
-    { key: 'chronicConditions', label: 'Chronic Conditions (comma-separated)' },
-  ]
-});
+// ─────────────────────────────────────────────────────────────────────────────
+// 100% DYNAMIC HEALTH RECORDS TAB WITH CLASS & SECTION STUDENT SELECTOR
+// ─────────────────────────────────────────────────────────────────────────────
+function HealthRecordsTab() {
+  const { currentTheme } = useTheme();
+  const brandColor = currentTheme?.accentPrimary || 'var(--accent-primary, #02563d)';
+  const brandSecondary = currentTheme?.accentSecondary || 'var(--accent-secondary, #02422f)';
 
-const DisciplineTab = makeSimpleCRUDTab({
-  title: 'Discipline Tracker', icon: AlertTriangle, color: 'rose', endpoint: '/admin/discipline',
-  columns: [
-    { key: 'studentName', label: 'Student' },
-    { key: 'classId', label: 'Class' },
-    { key: 'title', label: 'Incident' },
-    { key: 'severity', label: 'Severity', badge: true },
-    { key: 'incidentDate', label: 'Date', render: v => v ? new Date(v).toLocaleDateString() : 'â€”' },
-    { key: 'status', label: 'Status', badge: true },
-    { key: 'actionTaken', label: 'Action Taken' },
-  ],
-  fields: [
-    { key: 'studentName', label: 'Student Name', required: true },
-    { key: 'classId', label: 'Class' },
-    { key: 'incidentDate', label: 'Incident Date', type: 'date', required: true },
-    { key: 'title', label: 'Incident Title', required: true },
-    { key: 'description', label: 'Description', type: 'textarea' },
-    { key: 'severity', label: 'Severity', type: 'select', required: true, options: ['LOW', 'MEDIUM', 'HIGH'] },
-    { key: 'actionTaken', label: 'Action Taken', type: 'textarea' },
-    { key: 'reportedBy', label: 'Reported By' },
-  ]
-});
+  const [records, setRecords] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  // Filters
+  const [search, setSearch] = useState('');
+  const [filterClass, setFilterClass] = useState('');
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid'
+
+  // Modal State
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  
+  // Modal Form State
+  const [selectedClass, setSelectedClass] = useState('');
+  const [selectedSection, setSelectedSection] = useState('');
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [form, setForm] = useState({
+    studentId: '',
+    studentName: '',
+    classId: '',
+    bloodGroup: 'O+',
+    allergies: '',
+    chronicConditions: '',
+    emergencyPhone: '',
+    medicalNotes: ''
+  });
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [hrData, stuData, clsData] = await Promise.all([
+        apiFetch('/admin/health-records').catch(() => []),
+        apiFetch('/admin/students').catch(() => apiFetch('/students').catch(() => [])),
+        apiFetch('/admin/classes').catch(() => [])
+      ]);
+
+      setRecords(Array.isArray(hrData) ? hrData : []);
+      setStudents(Array.isArray(stuData) ? stuData : []);
+      setClasses(Array.isArray(clsData) ? clsData : []);
+    } catch (e) {
+      setMsg({ type: 'error', text: `Failed to load data: ${e.message}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const cleanClassStr = (c) => String(c || '').replace(/Class\s*/i, '').trim();
+  const cleanSectionStr = (s) => String(s || '').replace(/Section\s*/i, '').trim();
+
+  const filteredStudentsForModal = useMemo(() => {
+    if (!students || students.length === 0) return [];
+    return students.filter(s => {
+      const sClass = cleanClassStr(s.classId);
+      const sSec = cleanSectionStr(s.sectionId);
+
+      const matchClass = !selectedClass || sClass.toLowerCase() === cleanClassStr(selectedClass).toLowerCase();
+      const matchSec = !selectedSection || sSec.toLowerCase() === cleanSectionStr(selectedSection).toLowerCase();
+
+      return matchClass && matchSec;
+    });
+  }, [students, selectedClass, selectedSection]);
+
+  const handleStudentSelect = (stId) => {
+    setSelectedStudentId(stId);
+    if (!stId) {
+      setForm(f => ({ ...f, studentId: '', studentName: '' }));
+      return;
+    }
+    const st = students.find(s => String(s._id) === String(stId));
+    if (st) {
+      const name = `${st.firstName} ${st.lastName || ''}`.trim();
+      const sClass = cleanClassStr(st.classId);
+      const sSec = cleanSectionStr(st.sectionId);
+      const combinedClass = `Class ${sClass}${sSec ? ` - Section ${sSec}` : ''}`;
+
+      setForm(f => ({
+        ...f,
+        studentId: st._id,
+        studentName: name,
+        classId: combinedClass,
+        bloodGroup: st.bloodGroup || f.bloodGroup || 'O+',
+        emergencyPhone: st.parentPhone || f.emergencyPhone || ''
+      }));
+      if (!selectedClass) setSelectedClass(sClass);
+      if (!selectedSection) setSelectedSection(sSec);
+    }
+  };
+
+  const handleOpenAddModal = () => {
+    setEditingId(null);
+    setSelectedClass('');
+    setSelectedSection('');
+    setSelectedStudentId('');
+    setForm({
+      studentId: '',
+      studentName: '',
+      classId: '',
+      bloodGroup: 'O+',
+      allergies: '',
+      chronicConditions: '',
+      emergencyPhone: '',
+      medicalNotes: ''
+    });
+    setShowModal(true);
+  };
+
+  const handleOpenEditModal = (rec) => {
+    setEditingId(rec._id);
+    setForm({
+      studentId: rec.studentId || '',
+      studentName: rec.studentName || '',
+      classId: rec.classId || '',
+      bloodGroup: rec.bloodGroup || 'O+',
+      allergies: Array.isArray(rec.allergies) ? rec.allergies.join(', ') : rec.allergies || '',
+      chronicConditions: Array.isArray(rec.chronicConditions) ? rec.chronicConditions.join(', ') : rec.chronicConditions || '',
+      emergencyPhone: rec.emergencyPhone || '',
+      medicalNotes: rec.medicalNotes || ''
+    });
+    setSelectedStudentId(rec.studentId || '');
+    setShowModal(true);
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!form.studentName) {
+      setMsg({ type: 'error', text: 'Please select a student from the dropdown.' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload = {
+        ...form,
+        allergies: typeof form.allergies === 'string' ? form.allergies.split(',').map(s => s.trim()).filter(Boolean) : form.allergies,
+        chronicConditions: typeof form.chronicConditions === 'string' ? form.chronicConditions.split(',').map(s => s.trim()).filter(Boolean) : form.chronicConditions
+      };
+
+      if (editingId) {
+        await apiFetch(`/admin/health-records/${editingId}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload)
+        });
+        setMsg({ type: 'success', text: `✅ Health record for ${form.studentName} updated successfully!` });
+      } else {
+        await apiFetch('/admin/health-records', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        setMsg({ type: 'success', text: `✅ Health record for ${form.studentName} created successfully!` });
+      }
+
+      setShowModal(false);
+      loadData();
+      setTimeout(() => setMsg(null), 4000);
+    } catch (err) {
+      setMsg({ type: 'error', text: `Save error: ${err.message}` });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id, name) => {
+    if (!confirm(`Are you sure you want to delete health record for ${name}?`)) return;
+    try {
+      await apiFetch(`/admin/health-records/${id}`, { method: 'DELETE' });
+      setMsg({ type: 'success', text: `Health record deleted` });
+      loadData();
+      setTimeout(() => setMsg(null), 3000);
+    } catch (e) {
+      setMsg({ type: 'error', text: e.message });
+    }
+  };
+
+  const filteredRecords = records.filter(r => {
+    const sName = (r.studentName || '').toLowerCase();
+    const sClass = (r.classId || '').toLowerCase();
+    const matchesSearch = !search || sName.includes(search.toLowerCase()) || sClass.includes(search.toLowerCase());
+    const matchesClass = !filterClass || sClass.includes(filterClass.toLowerCase());
+    return matchesSearch && matchesClass;
+  });
+
+  const uniqueClassNames = Array.from(new Set(classes.map(c => c.className).filter(Boolean)));
+  const defaultClassList = uniqueClassNames.length > 0 ? uniqueClassNames : ['LKG', 'UKG', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+
+  return (
+    <div className="space-y-6 max-w-7xl mx-auto">
+      {msg && (
+        <div className={`p-4 rounded-2xl text-xs font-semibold flex items-center justify-between shadow-sm ${msg.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'}`}>
+          <span className="font-bold">{msg.text}</span>
+          <button onClick={() => setMsg(null)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+        </div>
+      )}
+
+      {/* HEADER BANNER */}
+      <div 
+        className="p-6 rounded-3xl text-white shadow-xl flex flex-wrap items-center justify-between gap-4 transition-all"
+        style={{ background: `linear-gradient(135deg, ${brandColor} 0%, ${brandSecondary} 100%)` }}
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner">
+            <Stethoscope className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-extrabold text-white tracking-tight" style={{ color: '#ffffff' }}>Student Health &amp; Medical Records</h2>
+            <p className="text-xs text-white/90 font-medium mt-1" style={{ color: 'rgba(255,255,255,0.92)' }}>Manage student blood groups, allergies, medical notes, chronic conditions &amp; emergency contacts</p>
+          </div>
+        </div>
+
+        <button
+          onClick={handleOpenAddModal}
+          className="px-5 py-2.5 rounded-2xl bg-white text-xs font-extrabold transition-all transform hover:scale-105 shadow-md flex items-center gap-2 cursor-pointer"
+          style={{ color: brandColor }}
+        >
+          <Plus className="w-4 h-4" style={{ color: brandColor }} />
+          <span>+ Add Health Record</span>
+        </button>
+      </div>
+
+      {/* FILTER BAR WITH LIST & GRID VIEW TOGGLE */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
+        <div className="flex-1 min-w-[240px] relative">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Search student name or class..."
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 transition"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          {/* VIEW MODE SWITCHER */}
+          <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                viewMode === 'list'
+                  ? 'bg-white text-slate-900 shadow-sm font-extrabold'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>List View</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                viewMode === 'grid'
+                  ? 'bg-white text-slate-900 shadow-sm font-extrabold'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Grid View</span>
+            </button>
+          </div>
+
+          <select
+            className="bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none transition"
+            value={filterClass}
+            onChange={e => setFilterClass(e.target.value)}
+          >
+            <option value="">All Classes</option>
+            {defaultClassList.map(c => (
+              <option key={c} value={c}>Class {c}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* HEALTH RECORDS CONTAINER (LIST & GRID VIEWS) */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: brandColor }} />
+          </div>
+        ) : filteredRecords.length === 0 ? (
+          <div className="p-12 text-center space-y-3">
+            <Stethoscope className="w-12 h-12 text-rose-400 mx-auto" />
+            <h3 className="text-base font-extrabold text-slate-900">No Health Records Found</h3>
+            <p className="text-xs text-slate-500 max-w-md mx-auto">
+              No student health records logged yet for the selected filters.
+            </p>
+          </div>
+        ) : viewMode === 'grid' ? (
+          /* GRID VIEW */
+          <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 bg-slate-50/50">
+            {filteredRecords.map(rec => (
+              <div key={rec._id} className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-sm hover:shadow-md transition-all space-y-3 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200">
+                      🩸 Blood Group: {rec.bloodGroup || 'O+'}
+                    </span>
+                    <span className="text-[11px] font-mono text-emerald-700 font-bold">
+                      📞 {rec.emergencyPhone || '—'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-extrabold text-slate-900">{rec.studentName}</h4>
+                    <p className="text-xs text-slate-500 font-semibold mt-0.5">{rec.classId || '—'}</p>
+                  </div>
+
+                  <div className="space-y-2 text-xs">
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/60">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Allergies</span>
+                      <p className="text-xs font-semibold text-slate-700">
+                        {Array.isArray(rec.allergies) ? rec.allergies.join(', ') || 'None Reported' : rec.allergies || 'None Reported'}
+                      </p>
+                    </div>
+
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/60">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Chronic Conditions</span>
+                      <p className="text-xs font-semibold text-slate-700">
+                        {Array.isArray(rec.chronicConditions) ? rec.chronicConditions.join(', ') || 'None Reported' : rec.chronicConditions || 'None Reported'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-1.5 text-xs">
+                  <button
+                    onClick={() => handleOpenEditModal(rec)}
+                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                    title="Edit Record"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(rec._id, rec.studentName)}
+                    className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 transition cursor-pointer"
+                    title="Delete Record"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          /* LIST VIEW TABLE */
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-extrabold uppercase tracking-wider text-[11px]">
+                  <th className="px-4 py-3.5">Student</th>
+                  <th className="px-4 py-3.5">Class</th>
+                  <th className="px-4 py-3.5">Blood Group</th>
+                  <th className="px-4 py-3.5">Allergies</th>
+                  <th className="px-4 py-3.5">Chronic Conditions</th>
+                  <th className="px-4 py-3.5">Emergency Contact</th>
+                  <th className="px-4 py-3.5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
+                {filteredRecords.map(rec => (
+                  <tr key={rec._id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="px-4 py-3.5 font-extrabold text-slate-900">{rec.studentName}</td>
+                    <td className="px-4 py-3.5 font-semibold text-slate-600">{rec.classId || '—'}</td>
+                    <td className="px-4 py-3.5">
+                      <span className="px-2.5 py-1 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200">
+                        {rec.bloodGroup || 'O+'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5 font-medium text-slate-600">
+                      {Array.isArray(rec.allergies) ? rec.allergies.join(', ') || 'None' : rec.allergies || 'None'}
+                    </td>
+                    <td className="px-4 py-3.5 font-medium text-slate-600">
+                      {Array.isArray(rec.chronicConditions) ? rec.chronicConditions.join(', ') || 'None' : rec.chronicConditions || 'None'}
+                    </td>
+                    <td className="px-4 py-3.5 font-mono text-emerald-700 font-bold">{rec.emergencyPhone || '—'}</td>
+                    <td className="px-4 py-3.5 text-right space-x-2">
+                      <button
+                        onClick={() => handleOpenEditModal(rec)}
+                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                        title="Edit Record"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(rec._id, rec.studentName)}
+                        className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 transition cursor-pointer"
+                        title="Delete Record"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* DYNAMIC MODAL DIALOG WITH CLASS & SECTION STUDENT SELECTOR */}
+      {showModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl my-8">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <Stethoscope className="w-5 h-5" style={{ color: brandColor }} />
+                <span>{editingId ? 'Edit Health Record' : 'Add Student Health Record'}</span>
+              </h3>
+              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-lg">✕</button>
+            </div>
+
+            <form onSubmit={handleSave} className="space-y-4 text-xs">
+              
+              {/* CLASS & SECTION SELECTOR STRIP */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/90 space-y-3">
+                <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider block">
+                  Step 1: Filter Student by Class &amp; Section
+                </span>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 block mb-1">Select Class</label>
+                    <select
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none"
+                      value={selectedClass}
+                      onChange={e => {
+                        setSelectedClass(e.target.value);
+                        setSelectedStudentId('');
+                        setForm(f => ({ ...f, studentId: '', studentName: '' }));
+                      }}
+                    >
+                      <option value="">-- All Classes --</option>
+                      {defaultClassList.map(c => (
+                        <option key={c} value={c}>Class {c}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] font-bold text-slate-600 block mb-1">Select Section</label>
+                    <select
+                      className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none"
+                      value={selectedSection}
+                      onChange={e => {
+                        setSelectedSection(e.target.value);
+                        setSelectedStudentId('');
+                        setForm(f => ({ ...f, studentId: '', studentName: '' }));
+                      }}
+                    >
+                      <option value="">-- All Sections --</option>
+                      {['A', 'B', 'C', 'D'].map(s => (
+                        <option key={s} value={s}>Section {s}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* DYNAMIC STUDENT NAME DROPDOWN */}
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 block">
+                  Student Name <span className="text-rose-500">*</span>
+                  <span className="text-[10px] text-slate-400 font-normal ml-2">({filteredStudentsForModal.length} Enrolled Students Available)</span>
+                </label>
+                <select
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:bg-white focus:border-violet-600 transition"
+                  value={selectedStudentId}
+                  onChange={e => handleStudentSelect(e.target.value)}
+                  required
+                >
+                  <option value="">-- Select Student ({filteredStudentsForModal.length} Found) --</option>
+                  {filteredStudentsForModal.map(st => {
+                    const fullName = `${st.firstName} ${st.lastName || ''}`.trim();
+                    const sClass = cleanClassStr(st.classId);
+                    const sSec = cleanSectionStr(st.sectionId);
+                    return (
+                      <option key={st._id} value={st._id}>
+                        {fullName} — Class {sClass}{sSec ? `-${sSec}` : ''} (Roll: {st.rollNo || 'N/A'})
+                      </option>
+                    );
+                  })}
+                </select>
+                {form.studentName && (
+                  <p className="text-[11px] text-emerald-600 font-bold mt-1">
+                    ✓ Selected: {form.studentName} ({form.classId})
+                  </p>
+                )}
+              </div>
+
+              {/* MEDICAL DETAILS */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Blood Group <span className="text-rose-500">*</span></label>
+                  <select
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none"
+                    value={form.bloodGroup}
+                    onChange={e => setForm(f => ({ ...f, bloodGroup: e.target.value }))}
+                    required
+                  >
+                    {['A+', 'A-', 'B+', 'B-', 'O+', 'O-', 'AB+', 'AB-'].map(bg => (
+                      <option key={bg} value={bg}>{bg}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold text-slate-700 block mb-1">Emergency Phone</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. +91 98765 43210"
+                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none font-mono"
+                    value={form.emergencyPhone}
+                    onChange={e => setForm(f => ({ ...f, emergencyPhone: e.target.value }))}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Allergies (comma-separated)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Dust, Peanut, Penicillin"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 focus:outline-none"
+                  value={form.allergies}
+                  onChange={e => setForm(f => ({ ...f, allergies: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Chronic Conditions (comma-separated)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Asthma, Diabetes, Migraine"
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 focus:outline-none"
+                  value={form.chronicConditions}
+                  onChange={e => setForm(f => ({ ...f, chronicConditions: e.target.value }))}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-700 block mb-1">Medical Notes / Special Care Instructions</label>
+                <textarea
+                  rows={2}
+                  placeholder="Notes for class teacher and school infirmary..."
+                  className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs font-medium text-slate-900 focus:outline-none"
+                  value={form.medicalNotes}
+                  onChange={e => setForm(f => ({ ...f, medicalNotes: e.target.value }))}
+                />
+              </div>
+
+              {/* ACTION BUTTONS */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-5 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-6 py-2.5 rounded-xl text-white font-extrabold transition shadow-md flex items-center gap-2 cursor-pointer"
+                  style={{ background: `linear-gradient(135deg, ${brandColor} 0%, ${brandSecondary} 100%)` }}
+                >
+                  {saving && <Loader2 className="w-4 h-4 animate-spin text-white" />}
+                  <span>{editingId ? '✓ Update Health Record' : '✓ Save Health Record'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 100% DYNAMIC DISCIPLINE TRACKER TAB WITH CLASS & SECTION STUDENT SELECTOR
+// ─────────────────────────────────────────────────────────────────────────────
+export function DisciplineTab() {
+  const { currentTheme } = useTheme();
+  const brandColor = currentTheme?.accentPrimary || 'var(--accent-primary, #02563d)';
+  const brandSecondary = currentTheme?.accentSecondary || 'var(--accent-secondary, #02422f)';
+
+  const [records, setRecords] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState(null);
+
+  const handleToggleSolveStatus = async (rec) => {
+    try {
+      setSaving(true);
+      const isClosed = rec.status === 'RESOLVED' || rec.status === 'CLOSED';
+      const newStatus = isClosed ? 'OPEN' : 'RESOLVED';
+      await apiFetch(`/admin/discipline/${rec._id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: newStatus })
+      });
+      setMsg({
+        type: 'success',
+        text: newStatus === 'RESOLVED'
+          ? `✅ Discipline issue for ${rec.studentName} marked as Solved & Closed!`
+          : `ℹ️ Discipline issue for ${rec.studentName} reopened.`
+      });
+      loadData();
+      setTimeout(() => setMsg(null), 3500);
+    } catch (e) {
+      setMsg({ type: 'error', text: e.message });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Filters
+  const [search, setSearch] = useState('');
+  const [filterClass, setFilterClass] = useState('');
+  const [filterSeverity, setFilterSeverity] = useState('ALL');
+  const [viewMode, setViewMode] = useState('list'); // 'list' | 'grid'
+
+  // Modal State
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  
+  // Modal Form State
+  const [selectedClass, setSelectedClass] = useState('');
+  const [selectedSection, setSelectedSection] = useState('');
+  const [selectedStudentId, setSelectedStudentId] = useState('');
+  const [form, setForm] = useState({
+    studentId: '',
+    studentName: '',
+    classId: '',
+    incidentDate: new Date().toISOString().split('T')[0],
+    title: '',
+    description: '',
+    severity: 'MEDIUM',
+    actionTaken: '',
+    status: 'OPEN',
+    parentNotified: false,
+    counsellingRequired: false,
+    reportedBy: 'Class Teacher'
+  });
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [discData, stuData, clsData] = await Promise.all([
+        apiFetch('/admin/discipline').catch(() => []),
+        apiFetch('/admin/students').catch(() => apiFetch('/students').catch(() => [])),
+        apiFetch('/admin/classes').catch(() => [])
+      ]);
+
+      setRecords(Array.isArray(discData) ? discData : []);
+      setStudents(Array.isArray(stuData) ? stuData : []);
+      setClasses(Array.isArray(clsData) ? clsData : []);
+    } catch (e) {
+      setMsg({ type: 'error', text: `Failed to load data: ${e.message}` });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // Helper function to clean class name
+  const cleanClassStr = (c) => String(c || '').replace(/Class\s*/i, '').trim();
+  const cleanSectionStr = (s) => String(s || '').replace(/Section\s*/i, '').trim();
+
+  // Filtered student list for modal based on selectedClass & selectedSection
+  const filteredStudentsForModal = useMemo(() => {
+    if (!students || students.length === 0) return [];
+    return students.filter(s => {
+      const sClass = cleanClassStr(s.classId);
+      const sSec = cleanSectionStr(s.sectionId);
+
+      const matchClass = !selectedClass || sClass.toLowerCase() === cleanClassStr(selectedClass).toLowerCase();
+      const matchSec = !selectedSection || sSec.toLowerCase() === cleanSectionStr(selectedSection).toLowerCase();
+
+      return matchClass && matchSec;
+    });
+  }, [students, selectedClass, selectedSection]);
+
+  // When student dropdown changes in modal
+  const handleStudentSelect = (stId) => {
+    setSelectedStudentId(stId);
+    if (!stId) {
+      setForm(f => ({ ...f, studentId: '', studentName: '' }));
+      return;
+    }
+    const st = students.find(s => String(s._id) === String(stId));
+    if (st) {
+      const name = `${st.firstName} ${st.lastName || ''}`.trim();
+      const sClass = cleanClassStr(st.classId);
+      const sSec = cleanSectionStr(st.sectionId);
+      const combinedClass = `Class ${sClass}${sSec ? ` - Section ${sSec}` : ''}`;
+
+      setForm(f => ({
+        ...f,
+        studentId: st._id,
+        studentName: name,
+        classId: combinedClass
+      }));
+      if (!selectedClass) setSelectedClass(sClass);
+      if (!selectedSection) setSelectedSection(sSec);
+    }
+  };
+
+  const handleOpenAddModal = () => {
+    setEditingId(null);
+    setSelectedClass('');
+    setSelectedSection('');
+    setSelectedStudentId('');
+    setForm({
+      studentId: '',
+      studentName: '',
+      classId: '',
+      incidentDate: new Date().toISOString().split('T')[0],
+      title: '',
+      description: '',
+      severity: 'MEDIUM',
+      actionTaken: '',
+      status: 'OPEN',
+      parentNotified: false,
+      counsellingRequired: false,
+      counselingDate: '',
+      counselingTime: '10:00 AM',
+      counselingTopic: '',
+      counselingStatus: 'NONE',
+      reportedBy: 'Class Teacher'
+    });
+    setShowModal(true);
+  };
+
+  const handleOpenEditModal = (rec) => {
+    setEditingId(rec._id);
+    setForm({
+      studentId: rec.studentId || '',
+      studentName: rec.studentName || '',
+      classId: rec.classId || '',
+      incidentDate: rec.incidentDate ? new Date(rec.incidentDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+      title: rec.title || '',
+      description: rec.description || '',
+      severity: rec.severity || 'MEDIUM',
+      actionTaken: rec.actionTaken || '',
+      status: rec.status || 'OPEN',
+      parentNotified: rec.parentNotified || false,
+      counsellingRequired: rec.counsellingRequired || false,
+      counselingDate: rec.counselingDate ? new Date(rec.counselingDate).toISOString().split('T')[0] : '',
+      counselingTime: rec.counselingTime || '10:00 AM',
+      counselingTopic: rec.counselingTopic || '',
+      counselingStatus: rec.counselingStatus || 'NONE',
+      reportedBy: rec.reportedBy || 'Class Teacher'
+    });
+    setSelectedStudentId(rec.studentId || '');
+    setShowModal(true);
+  };
+
+  const handleApproveReschedule = async (rec) => {
+    try {
+      setSaving(true);
+      const reqDate = rec.requestedCounselingDate ? new Date(rec.requestedCounselingDate).toISOString().split('T')[0] : rec.counselingDate;
+      await apiFetch(`/admin/discipline/${rec._id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          counselingDate: reqDate,
+          counselingTime: rec.requestedCounselingTime || rec.counselingTime || '10:00 AM',
+          counselingStatus: 'ACCEPTED',
+          rescheduleStatus: 'APPROVED'
+        })
+      });
+      setMsg({ type: 'success', text: `✅ Counselling rescheduled to requested date for ${rec.studentName}` });
+      loadData();
+      setTimeout(() => setMsg(null), 4000);
+    } catch (e) {
+      setMsg({ type: 'error', text: `Error approving reschedule: ${e.message}` });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    if (!form.studentName) {
+      setMsg({ type: 'error', text: 'Please select a student from the dropdown.' });
+      return;
+    }
+    if (!form.title) {
+      setMsg({ type: 'error', text: 'Please enter an incident title.' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const payload = { ...form };
+      if ((payload.counselingDate || payload.counsellingRequired) && (payload.counselingStatus === 'NONE' || !payload.counselingStatus)) {
+        payload.counselingStatus = 'SCHEDULED';
+      }
+
+      if (editingId) {
+        await apiFetch(`/admin/discipline/${editingId}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload)
+        });
+        setMsg({ type: 'success', text: `✅ Discipline incident for ${form.studentName} updated successfully!` });
+      } else {
+        await apiFetch('/admin/discipline', {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        setMsg({ type: 'success', text: `✅ Discipline incident for ${form.studentName} logged successfully!` });
+      }
+
+      setShowModal(false);
+      loadData();
+      setTimeout(() => setMsg(null), 4000);
+    } catch (err) {
+      setMsg({ type: 'error', text: `Save error: ${err.message}` });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id, name) => {
+    if (!confirm(`Are you sure you want to delete/archive the discipline record for ${name}?`)) return;
+    try {
+      await apiFetch(`/admin/discipline/${id}`, { method: 'DELETE' });
+      setMsg({ type: 'success', text: `Record archived` });
+      loadData();
+      setTimeout(() => setMsg(null), 3000);
+    } catch (e) {
+      setMsg({ type: 'error', text: e.message });
+    }
+  };
+
+  // Filtered records for display
+  const filteredRecords = records.filter(r => {
+    const sName = (r.studentName || '').toLowerCase();
+    const sClass = (r.classId || '').toLowerCase();
+    const sTitle = (r.title || '').toLowerCase();
+    const matchesSearch = !search || sName.includes(search.toLowerCase()) || sClass.includes(search.toLowerCase()) || sTitle.includes(search.toLowerCase());
+    const matchesClass = !filterClass || sClass.includes(filterClass.toLowerCase());
+    const matchesSev = filterSeverity === 'ALL' || (r.severity || '').toUpperCase() === filterSeverity;
+    return matchesSearch && matchesClass && matchesSev;
+  });
+
+  // Extract unique classes list
+  const uniqueClassNames = Array.from(new Set(classes.map(c => c.className).filter(Boolean)));
+  const defaultClassList = uniqueClassNames.length > 0 ? uniqueClassNames : ['LKG', 'UKG', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+
+  return (
+    <div className="space-y-6 max-w-7xl mx-auto">
+      {msg && (
+        <div className={`p-4 rounded-2xl text-xs font-semibold flex items-center justify-between shadow-sm ${msg.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'}`}>
+          <span className="font-bold">{msg.text}</span>
+          <button onClick={() => setMsg(null)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+        </div>
+      )}
+
+      {/* HEADER BANNER */}
+      <div 
+        className="p-6 rounded-3xl text-white shadow-xl flex flex-wrap items-center justify-between gap-4 transition-all"
+        style={{ background: `linear-gradient(135deg, ${brandColor} 0%, ${brandSecondary} 100%)` }}
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner">
+            <AlertTriangle className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-extrabold text-white tracking-tight" style={{ color: '#ffffff' }}>Discipline Tracker &amp; Incident Log</h2>
+            <p className="text-xs text-white/90 font-medium mt-1" style={{ color: 'rgba(255,255,255,0.92)' }}>Track student behavioral incidents, reprimands, parent notifications &amp; counselling records</p>
+          </div>
+        </div>
+
+        <button
+          onClick={handleOpenAddModal}
+          className="px-5 py-2.5 rounded-2xl bg-white text-xs font-extrabold transition-all transform hover:scale-105 shadow-md flex items-center gap-2 cursor-pointer"
+          style={{ color: brandColor }}
+        >
+          <Plus className="w-4 h-4" style={{ color: brandColor }} />
+          <span>+ Add Incident Record</span>
+        </button>
+      </div>
+
+      {/* STATS STRIP */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm space-y-1">
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Total Incidents</span>
+          <div className="text-3xl font-black text-slate-900">{records.length}</div>
+          <span className="text-[11px] text-slate-400 font-medium">Recorded across all classes</span>
+        </div>
+
+        <div className="p-5 rounded-2xl bg-rose-50/80 border border-rose-200 shadow-sm space-y-1">
+          <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider block">High Severity</span>
+          <div className="text-3xl font-black text-rose-700">{records.filter(r => r.severity === 'HIGH').length}</div>
+          <span className="text-[11px] text-rose-600/90 font-medium">Critical cases</span>
+        </div>
+
+        <div className="p-5 rounded-2xl bg-amber-50/80 border border-amber-200 shadow-sm space-y-1">
+          <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider block">Open Cases</span>
+          <div className="text-3xl font-black text-amber-700">{records.filter(r => r.status === 'OPEN' || !r.status).length}</div>
+          <span className="text-[11px] text-amber-700/90 font-medium">Pending action / counselling</span>
+        </div>
+
+        <div className="p-5 rounded-2xl bg-emerald-50/80 border border-emerald-200 shadow-sm space-y-1">
+          <span className="text-[11px] font-bold text-emerald-800 uppercase tracking-wider block">Resolved</span>
+          <div className="text-3xl font-black text-emerald-700">{records.filter(r => r.status === 'RESOLVED' || r.status === 'CLOSED').length}</div>
+          <span className="text-[11px] text-emerald-700/90 font-medium">Cases closed</span>
+        </div>
+      </div>
+
+      {/* FILTER BAR WITH LIST & GRID VIEW TOGGLE */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
+        <div className="flex-1 min-w-[240px] relative">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Search student name, incident, or class..."
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 transition"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          {/* VIEW MODE SWITCHER */}
+          <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200">
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                viewMode === 'list'
+                  ? 'bg-white text-slate-900 shadow-sm font-extrabold'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>List View</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('grid')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition cursor-pointer ${
+                viewMode === 'grid'
+                  ? 'bg-white text-slate-900 shadow-sm font-extrabold'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <LayoutGrid className="w-3.5 h-3.5" />
+              <span>Grid View</span>
+            </button>
+          </div>
+
+          <select
+            className="bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none transition"
+            value={filterClass}
+            onChange={e => setFilterClass(e.target.value)}
+          >
+            <option value="">All Classes</option>
+            {defaultClassList.map(c => (
+              <option key={c} value={c}>Class {c}</option>
+            ))}
+          </select>
+
+          <select
+            className="bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none transition"
+            value={filterSeverity}
+            onChange={e => setFilterSeverity(e.target.value)}
+          >
+            <option value="ALL">All Severities</option>
+            <option value="HIGH">High Severity</option>
+            <option value="MEDIUM">Medium Severity</option>
+            <option value="LOW">Low Severity</option>
+          </select>
+        </div>
+      </div>
+
+      {/* DISCIPLINE RECORDS CONTAINER (LIST & GRID VIEWS) */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
+        {loading ? (
+          <div className="flex items-center justify-center py-20">
+            <Loader2 className="w-8 h-8 animate-spin" style={{ color: brandColor }} />
+          </div>
+        ) : filteredRecords.length === 0 ? (
+          <div className="p-12 text-center space-y-3">
+            <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
+            <h3 className="text-base font-extrabold text-slate-900">No Incident Records Found</h3>
+            <p className="text-xs text-slate-500 max-w-md mx-auto">
+              No student discipline incidents logged yet for the selected filters.
+            </p>
+          </div>
+        ) : viewMode === 'grid' ? (
+          /* GRID VIEW */
+          <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 bg-slate-50/50">
+            {filteredRecords.map(rec => (
+              <div key={rec._id} className="bg-white rounded-2xl border border-slate-200/90 p-5 shadow-sm hover:shadow-md transition-all space-y-3 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                      rec.severity === 'HIGH' ? 'bg-rose-100 text-rose-800 border border-rose-200' :
+                      rec.severity === 'MEDIUM' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                      'bg-blue-100 text-blue-800 border border-blue-200'
+                    }`}>
+                      {rec.severity} Severity
+                    </span>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                      rec.status === 'RESOLVED' || rec.status === 'CLOSED'
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        : 'bg-amber-100 text-amber-800 border border-amber-200'
+                    }`}>
+                      {rec.status || 'OPEN'}
+                    </span>
+                  </div>
+
+                  <div>
+                    <h4 className="text-sm font-extrabold text-slate-900">{rec.studentName}</h4>
+                    <p className="text-xs text-slate-500 font-semibold mt-0.5">{rec.classId || '—'}</p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/60 space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Incident Title</span>
+                    <p className="text-xs font-bold text-slate-800">{rec.title}</p>
+                    {rec.description && (
+                      <p className="text-[11px] text-slate-600 font-medium line-clamp-2 mt-1">{rec.description}</p>
+                    )}
+                  </div>
+
+                  {rec.actionTaken && (
+                    <div className="text-xs text-slate-600">
+                      <strong className="text-slate-700 font-bold">Action Taken: </strong>
+                      <span>{rec.actionTaken}</span>
+                    </div>
+                  )}
+
+                  {/* COUNSELLING & PARENT RESPONSES */}
+                  {(rec.counsellingRequired || rec.counselingDate || rec.counselingStatus !== 'NONE') && (
+                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs space-y-1">
+                      <div className="flex items-center justify-between font-bold text-amber-900">
+                        <span>📅 Counselling: {rec.counselingDate ? new Date(rec.counselingDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Date TBD'} {rec.counselingTime || ''}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                          rec.counselingStatus === 'ACCEPTED' ? 'bg-emerald-100 text-emerald-800' :
+                          rec.counselingStatus === 'RESCHEDULE_REQUESTED' ? 'bg-purple-100 text-purple-800' :
+                          'bg-amber-100 text-amber-800'
+                        }`}>
+                          {rec.counselingStatus === 'ACCEPTED' ? 'Accepted by Parent' :
+                           rec.counselingStatus === 'RESCHEDULE_REQUESTED' ? 'Reschedule Requested' :
+                           'Scheduled'}
+                        </span>
+                      </div>
+                      {rec.counselingTopic && <div className="text-amber-800 text-[11px]">Topic: {rec.counselingTopic}</div>}
+                    </div>
+                  )}
+
+                  {/* RESCHEDULE REQUEST ALERT */}
+                  {rec.counselingStatus === 'RESCHEDULE_REQUESTED' && (
+                    <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 text-xs space-y-2 text-purple-900">
+                      <div className="font-extrabold flex items-center justify-between">
+                        <span>⚡ Parent Requested Reschedule</span>
+                        <span className="text-[10px] bg-purple-200 px-2 py-0.5 rounded-full font-bold">Action Needed</span>
+                      </div>
+                      <div className="text-[11px]">
+                        Requested Date: <strong className="font-bold">{rec.requestedCounselingDate ? new Date(rec.requestedCounselingDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : 'N/A'}</strong> {rec.requestedCounselingTime || ''}
+                      </div>
+                      {rec.rescheduleReason && <div className="text-[11px] italic">Reason: "{rec.rescheduleReason}"</div>}
+                      <button
+                        type="button"
+                        onClick={() => handleApproveReschedule(rec)}
+                        disabled={saving}
+                        className="w-full py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-extrabold text-[11px] transition shadow-sm"
+                      >
+                        ✅ Approve Requested Date
+                      </button>
+                    </div>
+                  )}
+
+                  {/* PARENT EXPLANATION */}
+                  {rec.parentExplanation && (
+                    <div className="p-3 rounded-xl bg-indigo-50 border border-indigo-100 text-xs space-y-1 text-indigo-900">
+                      <strong className="font-extrabold block">💬 Parent Explanation:</strong>
+                      <p className="italic bg-white/80 p-2 rounded-lg text-[11px]">"{rec.parentExplanation}"</p>
+                    </div>
+                  )}
+
+                  {/* SOLVE / CLOSE ISSUE BUTTON */}
+                  <button
+                    type="button"
+                    onClick={() => handleToggleSolveStatus(rec)}
+                    disabled={saving}
+                    className={`w-full py-2 rounded-xl text-xs font-black transition shadow-sm cursor-pointer flex items-center justify-center gap-1.5 ${
+                      rec.status === 'RESOLVED' || rec.status === 'CLOSED'
+                        ? 'bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{rec.status === 'RESOLVED' || rec.status === 'CLOSED' ? '✅ Issue Closed & Solved (Click to Reopen)' : 'Mark as Solved / Issue Closed'}</span>
+                  </button>
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                  <span className="font-mono text-[11px] text-slate-400">
+                    📅 {rec.incidentDate ? new Date(rec.incidentDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => handleOpenEditModal(rec)}
+                      className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                      title="Edit Record"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(rec._id, rec.studentName)}
+                      className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 transition cursor-pointer"
+                      title="Delete Record"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          /* LIST VIEW TABLE */
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-extrabold uppercase tracking-wider text-[11px]">
+                  <th className="px-4 py-3.5">Student</th>
+                  <th className="px-4 py-3.5">Class &amp; Section</th>
+                  <th className="px-4 py-3.5">Incident Title</th>
+                  <th className="px-4 py-3.5">Severity</th>
+                  <th className="px-4 py-3.5">Incident Date</th>
+                  <th className="px-4 py-3.5">Status</th>
+                  <th className="px-4 py-3.5">Counselling &amp; Parent Response</th>
+                  <th className="px-4 py-3.5 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
+                {filteredRecords.map(rec => (
+                  <tr key={rec._id} className="hover:bg-slate-50/80 transition-colors">
+                    <td className="px-4 py-3.5 font-extrabold text-slate-900">{rec.studentName}</td>
+                    <td className="px-4 py-3.5 font-semibold text-slate-600">{rec.classId || '—'}</td>
+                    <td className="px-4 py-3.5 font-bold text-slate-900">{rec.title}</td>
+                    <td className="px-4 py-3.5">
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
+                        rec.severity === 'HIGH' ? 'bg-rose-100 text-rose-800 border border-rose-200' :
+                        rec.severity === 'MEDIUM' ? 'bg-amber-100 text-amber-800 border border-amber-200' :
+                        'bg-blue-100 text-blue-800 border border-blue-200'
+                      }`}>
+                        {rec.severity}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5 font-mono text-slate-600">
+                      {rec.incidentDate ? new Date(rec.incidentDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase ${
+                        rec.status === 'RESOLVED' || rec.status === 'CLOSED'
+                          ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                          : 'bg-amber-100 text-amber-800 border border-amber-200'
+                      }`}>
+                        {rec.status === 'RESOLVED' || rec.status === 'CLOSED' ? '✅ Issue Closed' : (rec.status || 'OPEN')}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3.5 max-w-[280px] space-y-1.5">
+                      <div>{rec.actionTaken || 'No action notes'}</div>
+                      {rec.counselingStatus === 'RESCHEDULE_REQUESTED' && (
+                        <div className="p-2 rounded-xl bg-purple-50 border border-purple-200 text-[11px] text-purple-900 space-y-1">
+                          <div className="font-bold text-purple-950 flex items-center justify-between">
+                            <span>Reschedule Requested</span>
+                            <span className="text-[9px] bg-purple-200 px-1.5 py-0.2 rounded font-bold">New Date</span>
+                          </div>
+                          <div>New: {rec.requestedCounselingDate ? new Date(rec.requestedCounselingDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' }) : ''} {rec.requestedCounselingTime || ''}</div>
+                          {rec.rescheduleReason && <div className="italic text-[10px]">Reason: "{rec.rescheduleReason}"</div>}
+                          <button
+                            type="button"
+                            onClick={() => handleApproveReschedule(rec)}
+                            disabled={saving}
+                            className="mt-1 px-2.5 py-1 rounded-lg bg-purple-600 text-white font-bold text-[10px] hover:bg-purple-700 transition"
+                          >
+                            ✅ Approve Date
+                          </button>
+                        </div>
+                      )}
+                      {rec.parentExplanation && (
+                        <div className="p-1.5 rounded-lg bg-indigo-50 border border-indigo-100 text-[10px] text-indigo-900">
+                          <span className="font-bold block">Parent Statement:</span>
+                          <span className="italic">"{rec.parentExplanation}"</span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3.5 text-right space-x-1.5">
+                      <button
+                        onClick={() => handleToggleSolveStatus(rec)}
+                        disabled={saving}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-extrabold transition cursor-pointer ${
+                          rec.status === 'RESOLVED' || rec.status === 'CLOSED'
+                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-200'
+                            : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                        }`}
+                        title={rec.status === 'RESOLVED' || rec.status === 'CLOSED' ? 'Reopen Issue' : 'Mark as Solved'}
+                      >
+                        {rec.status === 'RESOLVED' || rec.status === 'CLOSED' ? '✅ Closed' : 'Solve Issue'}
+                      </button>
+                      <button
+                        onClick={() => handleOpenEditModal(rec)}
+                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
+                        title="Edit Record"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(rec._id, rec.studentName)}
+                        className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 transition cursor-pointer"
+                        title="Delete Record"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* 100% DYNAMIC MODAL DIALOG WITH CLASS & SECTION STUDENT SELECTOR */}
+      {showModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 max-w-4xl w-full space-y-5 shadow-2xl my-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5" style={{ color: brandColor }} />
+                <span>{editingId ? 'Edit Incident Record' : 'Add Discipline Tracker'}</span>
+              </h3>
+              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-600 font-bold text-lg cursor-pointer">✕</button>
+            </div>
+
+            <form onSubmit={handleSave} className="space-y-5 text-xs">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-start">
+                
+                {/* LEFT COLUMN: STUDENT SELECTOR & INCIDENT BASIC INFO */}
+                <div className="space-y-4">
+                  {/* 1. CLASS & SECTION FILTER STRIP */}
+                  <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200/90 space-y-2">
+                    <span className="text-[11px] font-extrabold text-slate-700 uppercase tracking-wider block">
+                      Filter Student by Class &amp; Section
+                    </span>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-600 block mb-1">Class</label>
+                        <select
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none"
+                          value={selectedClass}
+                          onChange={e => {
+                            setSelectedClass(e.target.value);
+                            setSelectedStudentId('');
+                            setForm(f => ({ ...f, studentId: '', studentName: '' }));
+                          }}
+                        >
+                          <option value="">-- All Classes --</option>
+                          {defaultClassList.map(c => (
+                            <option key={c} value={c}>Class {c}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-[11px] font-bold text-slate-600 block mb-1">Section</label>
+                        <select
+                          className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none"
+                          value={selectedSection}
+                          onChange={e => {
+                            setSelectedSection(e.target.value);
+                            setSelectedStudentId('');
+                            setForm(f => ({ ...f, studentId: '', studentName: '' }));
+                          }}
+                        >
+                          <option value="">-- All Sections --</option>
+                          {['A', 'B', 'C', 'D'].map(s => (
+                            <option key={s} value={s}>Section {s}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 2. STUDENT SELECTOR */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-700 block">
+                      Student Name <span className="text-rose-500">*</span>
+                      <span className="text-[10px] text-slate-400 font-normal ml-2">({filteredStudentsForModal.length} Available)</span>
+                    </label>
+                    <select
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:outline-none focus:bg-white focus:border-violet-600 transition"
+                      value={selectedStudentId}
+                      onChange={e => handleStudentSelect(e.target.value)}
+                      required
+                    >
+                      <option value="">-- Select Student ({filteredStudentsForModal.length} Found) --</option>
+                      {filteredStudentsForModal.map(st => {
+                        const fullName = `${st.firstName} ${st.lastName || ''}`.trim();
+                        const sClass = cleanClassStr(st.classId);
+                        const sSec = cleanSectionStr(st.sectionId);
+                        return (
+                          <option key={st._id} value={st._id}>
+                            {fullName} — Class {sClass}{sSec ? `-${sSec}` : ''} (Roll: {st.rollNo || 'N/A'})
+                          </option>
+                        );
+                      })}
+                    </select>
+                    {form.studentName && (
+                      <p className="text-[11px] text-emerald-600 font-bold mt-1">
+                        ✓ Selected: {form.studentName} ({form.classId})
+                      </p>
+                    )}
+                  </div>
+
+                  {/* 3. INCIDENT TITLE */}
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">Incident Title <span className="text-rose-500">*</span></label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Unexcused absence / Classroom disruption"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 focus:outline-none"
+                      value={form.title}
+                      onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                      required
+                    />
+                  </div>
+
+                  {/* 4. DATE & SEVERITY */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 block mb-1">Incident Date <span className="text-rose-500">*</span></label>
+                      <input
+                        type="date"
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none"
+                        value={form.incidentDate}
+                        onChange={e => setForm(f => ({ ...f, incidentDate: e.target.value }))}
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-xs font-bold text-slate-700 block mb-1">Severity <span className="text-rose-500">*</span></label>
+                      <select
+                        className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none"
+                        value={form.severity}
+                        onChange={e => setForm(f => ({ ...f, severity: e.target.value }))}
+                        required
+                      >
+                        <option value="LOW">LOW</option>
+                        <option value="MEDIUM">MEDIUM</option>
+                        <option value="HIGH">HIGH</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* RIGHT COLUMN: DESCRIPTION, ACTIONS & COUNSELLING */}
+                <div className="space-y-4">
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">Description</label>
+                    <textarea
+                      rows={2}
+                      placeholder="Detailed description of the behavioral incident..."
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs font-medium text-slate-900 focus:outline-none"
+                      value={form.description}
+                      onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-bold text-slate-700 block mb-1">Action Taken</label>
+                    <textarea
+                      rows={2}
+                      placeholder="Action taken (e.g. Parent meeting scheduled / Warning letter issued)"
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs font-medium text-slate-900 focus:outline-none"
+                      value={form.actionTaken}
+                      onChange={e => setForm(f => ({ ...f, actionTaken: e.target.value }))}
+                    />
+                  </div>
+
+                  {/* CHECKBOXES */}
+                  <div className="grid grid-cols-2 gap-3 pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <input
+                        type="checkbox"
+                        checked={form.parentNotified}
+                        onChange={e => setForm(f => ({ ...f, parentNotified: e.target.checked }))}
+                        className="rounded border-slate-300 text-violet-600"
+                      />
+                      <span className="text-xs font-bold text-slate-700">Parent Notified</span>
+                    </label>
+
+                    <label className="flex items-center gap-2 cursor-pointer p-2.5 rounded-xl bg-slate-50 border border-slate-200">
+                      <input
+                        type="checkbox"
+                        checked={form.counsellingRequired}
+                        onChange={e => setForm(f => ({ ...f, counsellingRequired: e.target.checked }))}
+                        className="rounded border-slate-300 text-violet-600"
+                      />
+                      <span className="text-xs font-bold text-slate-700">Counselling Required</span>
+                    </label>
+                  </div>
+
+                  {/* COUNSELLING SCHEDULING FIELDS */}
+                  {form.counsellingRequired && (
+                    <div className="p-3.5 bg-amber-50/80 rounded-2xl border border-amber-200 space-y-2.5">
+                      <span className="text-[11px] font-extrabold text-amber-900 uppercase tracking-wider block">
+                        📅 Schedule Counselling Session
+                      </span>
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="text-[11px] font-bold text-amber-800 block mb-1">Session Date</label>
+                          <input
+                            type="date"
+                            className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none"
+                            value={form.counselingDate}
+                            onChange={e => setForm(f => ({ ...f, counselingDate: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-[11px] font-bold text-amber-800 block mb-1">Session Time</label>
+                          <input
+                            type="text"
+                            placeholder="e.g. 10:30 AM"
+                            className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none"
+                            value={form.counselingTime}
+                            onChange={e => setForm(f => ({ ...f, counselingTime: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-[11px] font-bold text-amber-800 block mb-1">Counselling Topic / Admin Note</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. Behavioral guidance & academic counseling with parents"
+                          className="w-full bg-white border border-amber-300 rounded-xl px-3 py-2 text-xs font-medium text-slate-900 focus:outline-none"
+                          value={form.counselingTopic}
+                          onChange={e => setForm(f => ({ ...f, counselingTopic: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-6 py-2.5 rounded-xl text-white text-xs font-bold flex items-center gap-2 shadow-md hover:scale-105 transition cursor-pointer"
+                  style={{ background: brandColor, color: '#ffffff' }}
+                >
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <Check className="w-4 h-4 text-white" />}
+                  <span className="text-white">Save Record</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const AnnouncementsTab = makeSimpleCRUDTab({
   title: 'Announcements', icon: Megaphone, color: 'indigo', endpoint: '/admin/announcements',
@@ -10963,6 +12419,413 @@ function TimetableTab() {
 }
 
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 100% DYNAMIC & SYSTEM THEME-MATCHED AI EARLY RISK DETECTOR TAB
+// ─────────────────────────────────────────────────────────────────────────────
+function AIRiskDetectorTab() {
+  const { currentTheme } = useTheme();
+  const brandColor = currentTheme?.accentPrimary || 'var(--accent-primary, #02563d)';
+  const brandSecondary = currentTheme?.accentSecondary || 'var(--accent-secondary, #02422f)';
+
+  const [alerts, setAlerts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [scanning, setScanning] = useState(false);
+  const [search, setSearch] = useState('');
+  const [riskFilter, setRiskFilter] = useState('ALL');
+  const [classFilter, setClassFilter] = useState('ALL');
+  const [msg, setMsg] = useState(null);
+  const [actionInProgress, setActionInProgress] = useState(null);
+  const [actionModalItem, setActionModalItem] = useState(null);
+  const [actionNote, setActionNote] = useState('');
+  const [selectedActionType, setSelectedActionType] = useState('Counsel Parent');
+
+  const fetchAlerts = async (isScan = false) => {
+    if (isScan) setScanning(true);
+    else setLoading(true);
+    try {
+      const data = await apiFetch('/ai/early-warning');
+      setAlerts(Array.isArray(data) ? data : []);
+      if (isScan) {
+        setMsg({ type: 'success', text: `✨ AI Early Risk Detector scanned ${Array.isArray(data) ? data.length : 0} risk flag(s) in real-time!` });
+        setTimeout(() => setMsg(null), 4000);
+      }
+    } catch (e) {
+      setMsg({ type: 'error', text: `Failed to load AI risk alerts: ${e.message}` });
+    } finally {
+      setLoading(false);
+      setScanning(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchAlerts();
+  }, []);
+
+  const handleTakeAction = async (item, actionType) => {
+    setActionInProgress(item.id || item.studentName);
+    try {
+      await apiFetch('/ai/early-warning/action', {
+        method: 'POST',
+        body: JSON.stringify({
+          studentName: item.studentName || item.name,
+          actionType: actionType || item.action || 'Counsel Parent',
+          notes: actionNote || `Initiated ${actionType} for student ${item.studentName || item.name}`,
+          parentPhone: item.parentPhone
+        })
+      });
+
+      setMsg({
+        type: 'success',
+        text: `✅ Action [${actionType}] successfully initiated for ${item.studentName || item.name}! Parent notified.`
+      });
+      setTimeout(() => setMsg(null), 4000);
+      setActionModalItem(null);
+      setActionNote('');
+    } catch (e) {
+      setMsg({ type: 'error', text: `Action error: ${e.message}` });
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  // Filter logic
+  const filteredAlerts = alerts.filter(a => {
+    const name = (a.studentName || a.name || '').toLowerCase();
+    const cls = (a.class || a.classId || '').toLowerCase();
+    const matchesSearch = !search || name.includes(search.toLowerCase()) || cls.includes(search.toLowerCase());
+    const matchesRisk = riskFilter === 'ALL' || (a.risk || a.riskLevel || '').toUpperCase() === riskFilter;
+    const matchesClass = classFilter === 'ALL' || cls.includes(classFilter.toLowerCase());
+    return matchesSearch && matchesRisk && matchesClass;
+  });
+
+  const highRiskCount = alerts.filter(a => (a.risk || a.riskLevel) === 'HIGH').length;
+  const mediumRiskCount = alerts.filter(a => (a.risk || a.riskLevel) === 'MEDIUM').length;
+  const lowRiskCount = alerts.filter(a => (a.risk || a.riskLevel) === 'LOW').length;
+
+  const uniqueClasses = Array.from(new Set(alerts.map(a => a.class || a.classId).filter(Boolean)));
+
+  return (
+    <div className="space-y-6 max-w-7xl mx-auto">
+      {msg && (
+        <div className={`p-4 rounded-2xl text-xs font-semibold flex items-center justify-between shadow-sm ${msg.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'}`}>
+          <span className="font-bold flex items-center gap-2">{msg.text}</span>
+          <button onClick={() => setMsg(null)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+        </div>
+      )}
+
+      {/* DYNAMIC SYSTEM BRAND THEME HEADER BANNER */}
+      <div
+        className="p-6 rounded-3xl text-white shadow-xl flex flex-wrap items-center justify-between gap-4 transition-all"
+        style={{
+          background: `linear-gradient(135deg, ${brandColor} 0%, ${brandSecondary} 100%)`
+        }}
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center border border-white/30 shadow-inner">
+            <Sparkles className="w-6 h-6 text-white" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2.5">
+              <h2 className="text-lg font-extrabold text-white tracking-tight" style={{ color: '#ffffff' }}>AI Early Risk Detector</h2>
+              <span className="px-3 py-0.5 rounded-full text-[10px] font-extrabold bg-white/20 backdrop-blur-md text-white border border-white/30 uppercase tracking-wider" style={{ color: '#ffffff' }}>
+                Live AI Model
+              </span>
+            </div>
+            <p className="text-xs text-white/90 font-medium mt-1" style={{ color: 'rgba(255,255,255,0.92)' }}>Students flagged by the AI predictive model based on attendance, exam scores & behavioral trends</p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => fetchAlerts(true)}
+          disabled={scanning || loading}
+          className="px-5 py-2.5 rounded-2xl bg-white text-xs font-extrabold transition-all transform hover:scale-105 shadow-md flex items-center gap-2 disabled:opacity-60 cursor-pointer"
+          style={{ color: brandColor }}
+        >
+          <RefreshCw className={`w-4 h-4 ${scanning ? 'animate-spin' : ''}`} style={{ color: brandColor }} />
+          <span>{scanning ? 'Running AI Rescan...' : 'Trigger AI Risk Rescan'}</span>
+        </button>
+      </div>
+
+      {/* STATS METRIC CARDS */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="p-5 rounded-2xl bg-white border border-slate-200/90 shadow-sm space-y-1.5">
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider block">Total Risk Flags</span>
+          <div className="text-3xl font-black text-slate-900">{alerts.length}</div>
+          <span className="text-[11px] text-slate-400 font-medium">Scanned across all school classes</span>
+        </div>
+
+        <div className="p-5 rounded-2xl bg-rose-50/80 border border-rose-200 shadow-sm space-y-1.5">
+          <span className="text-[11px] font-bold text-rose-700 uppercase tracking-wider block flex items-center gap-1.5">
+            <AlertTriangle className="w-4 h-4 text-rose-600" /> High Risk Students
+          </span>
+          <div className="text-3xl font-black text-rose-700">{highRiskCount}</div>
+          <span className="text-[11px] text-rose-600/90 font-medium">Requires immediate intervention</span>
+        </div>
+
+        <div className="p-5 rounded-2xl bg-amber-50/80 border border-amber-200 shadow-sm space-y-1.5">
+          <span className="text-[11px] font-bold text-amber-800 uppercase tracking-wider block">Medium Risk</span>
+          <div className="text-3xl font-black text-amber-700">{mediumRiskCount}</div>
+          <span className="text-[11px] text-amber-700/90 font-medium">Academic / attendance warning</span>
+        </div>
+
+        <div className="p-5 rounded-2xl bg-sky-50/80 border border-sky-200 shadow-sm space-y-1.5">
+          <span className="text-[11px] font-bold text-sky-800 uppercase tracking-wider block">Low Risk</span>
+          <div className="text-3xl font-black text-sky-700">{lowRiskCount}</div>
+          <span className="text-[11px] text-sky-700/90 font-medium">Under active observation</span>
+        </div>
+      </div>
+
+      {/* CONTROLS & SEARCH BAR */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-2xl bg-white border border-slate-200/90 shadow-sm">
+        <div className="flex-1 min-w-[240px] relative">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+          <input
+            type="text"
+            placeholder="Search student name, class, or roll number..."
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2.5 text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:ring-2 transition"
+            style={{ focusRingColor: brandColor }}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div>
+            <select
+              className="bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none transition"
+              value={riskFilter}
+              onChange={e => setRiskFilter(e.target.value)}
+            >
+              <option value="ALL">All Risk Levels</option>
+              <option value="HIGH">High Risk Only</option>
+              <option value="MEDIUM">Medium Risk Only</option>
+              <option value="LOW">Low Risk Only</option>
+            </select>
+          </div>
+
+          {uniqueClasses.length > 0 && (
+            <div>
+              <select
+                className="bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-3.5 py-2.5 text-xs font-semibold focus:outline-none transition"
+                value={classFilter}
+                onChange={e => setClassFilter(e.target.value)}
+              >
+                <option value="ALL">All Classes</option>
+                {uniqueClasses.map(c => (
+                  <option key={c} value={c}>Class {c}</option>
+                ))}
+              </select>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ALERT CARDS LIST */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20 bg-white rounded-2xl border border-slate-200 shadow-sm">
+          <Loader2 className="w-8 h-8 animate-spin" style={{ color: brandColor }} />
+        </div>
+      ) : filteredAlerts.length === 0 ? (
+        <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-sm space-y-3">
+          <CheckCircle2 className="w-12 h-12 text-emerald-500 mx-auto" />
+          <h3 className="text-base font-extrabold text-slate-900">No At-Risk Students Found</h3>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">
+            All students are currently maintaining healthy attendance and academic performance standards.
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 space-y-4">
+          {filteredAlerts.map(s => {
+            const isHigh = (s.risk || s.riskLevel) === 'HIGH';
+            const isMed = (s.risk || s.riskLevel) === 'MEDIUM';
+            const riskName = s.risk || s.riskLevel || 'MEDIUM';
+            const name = s.studentName || s.name || 'Student';
+            const cls = s.class || `${s.classId || ''}-${s.sectionId || ''}`;
+            const reasonText = s.reason || (Array.isArray(s.reasons) ? s.reasons.join(' • ') : '');
+            const actionText = s.action || s.aiRecommendation || 'Counsel parent & review academic performance';
+
+            return (
+              <div
+                key={s.id || name}
+                className={`p-5 rounded-2xl border transition-all space-y-4 ${
+                  isHigh
+                    ? 'bg-rose-50/50 border-rose-200 hover:border-rose-300'
+                    : isMed
+                    ? 'bg-amber-50/50 border-amber-200 hover:border-amber-300'
+                    : 'bg-sky-50/50 border-sky-200 hover:border-sky-300'
+                }`}
+              >
+                {/* CARD HEADER */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className={`w-11 h-11 rounded-xl font-extrabold text-sm flex items-center justify-center shadow-sm text-white ${
+                      isHigh ? 'bg-rose-600' : isMed ? 'bg-amber-500' : 'bg-sky-500'
+                    }`}>
+                      {name.charAt(0).toUpperCase()}
+                    </div>
+                    <div>
+                      <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                        {name}
+                        {s.rollNo && (
+                          <span className="px-2 py-0.5 bg-white border border-slate-200 text-slate-600 text-[10px] font-bold rounded-lg font-mono">
+                            Roll: {s.rollNo}
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-xs text-slate-500 font-medium mt-0.5">
+                        Class: <strong className="text-slate-800 font-bold">{cls}</strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className={`px-3.5 py-1 rounded-full text-xs font-extrabold uppercase tracking-wider shadow-xs ${
+                    isHigh
+                      ? 'bg-rose-600 text-white'
+                      : isMed
+                      ? 'bg-amber-500 text-white'
+                      : 'bg-sky-500 text-white'
+                  }`}>
+                    {riskName} RISK
+                  </span>
+                </div>
+
+                {/* REASON & METRICS BOX */}
+                <div className="bg-white border border-slate-200/90 rounded-xl p-4 space-y-2.5 shadow-2xs">
+                  <div className="flex items-start gap-2">
+                    <span className="w-2 h-2 rounded-full mt-1.5 flex-shrink-0" style={{ background: brandColor }} />
+                    <p className="text-xs text-slate-800 font-semibold leading-relaxed">
+                      <strong className="text-slate-900 font-extrabold">AI Risk Reason:</strong> {reasonText}
+                    </p>
+                  </div>
+
+                  {(s.attendancePct !== undefined || s.avgMark !== undefined || s.parentPhone) && (
+                    <div className="flex flex-wrap items-center gap-3 pt-1 border-t border-slate-100">
+                      {s.attendancePct !== undefined && (
+                        <div className={`px-3 py-1 rounded-xl text-xs font-extrabold border ${
+                          s.attendancePct < 75 ? 'bg-rose-100/80 text-rose-800 border-rose-200' : 'bg-emerald-100/80 text-emerald-800 border-emerald-200'
+                        }`}>
+                          Attendance: {s.attendancePct}%
+                        </div>
+                      )}
+                      {s.avgMark !== undefined && (
+                        <div className={`px-3 py-1 rounded-xl text-xs font-extrabold border ${
+                          s.avgMark < 60 ? 'bg-amber-100/80 text-amber-800 border-amber-200' : 'bg-emerald-100/80 text-emerald-800 border-emerald-200'
+                        }`}>
+                          Avg Marks: {s.avgMark}%
+                        </div>
+                      )}
+                      {s.parentPhone && (
+                        <div className="px-3 py-1 rounded-xl text-xs font-extrabold bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1.5">
+                          <Phone className="w-3 h-3 text-slate-600" />
+                          <span>Parent: {s.parentPhone}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* SUGGESTED ACTION & BUTTONS */}
+                <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                  <p className="text-xs text-slate-800 font-bold flex items-center gap-2">
+                    <span className="text-amber-500">💡</span>
+                    <span>Suggested action:</span>
+                    <span className="font-extrabold" style={{ color: brandColor }}>{actionText}</span>
+                  </p>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      onClick={() => {
+                        setActionModalItem(s);
+                        setSelectedActionType(actionText.includes('Counsel') ? 'Counsel Parent' : actionText.includes('Remedial') ? 'Assign Remedial' : 'Warning Notice');
+                      }}
+                      className="px-4 py-2 rounded-xl text-white text-xs font-extrabold transition shadow-md hover:scale-105 flex items-center gap-1.5 cursor-pointer"
+                      style={{ background: brandColor, color: '#ffffff' }}
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-white" />
+                      <span>Take Action</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleTakeAction(s, 'Resolve Risk Alert')}
+                      disabled={actionInProgress === (s.id || s.studentName)}
+                      className="px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>Resolve</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ACTION DIALOG MODAL */}
+      {actionModalItem && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
+                <Sparkles className="w-5 h-5" style={{ color: brandColor }} /> Dispatch Risk Action
+              </h3>
+              <button onClick={() => setActionModalItem(null)} className="text-slate-400 hover:text-slate-600 font-bold">✕</button>
+            </div>
+
+            <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 text-xs text-slate-700 space-y-1">
+              <p>Student: <strong className="text-slate-900 font-extrabold">{actionModalItem.studentName || actionModalItem.name}</strong> ({actionModalItem.class || actionModalItem.classId})</p>
+              <p>Parent: <strong className="font-bold" style={{ color: brandColor }}>{actionModalItem.parentName || 'Parent'} ({actionModalItem.parentPhone || '+919876543210'})</strong></p>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 block">Select Action Type</label>
+              <select
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs font-medium text-slate-900 focus:outline-none transition"
+                value={selectedActionType}
+                onChange={e => setSelectedActionType(e.target.value)}
+              >
+                <option value="Counsel Parent">Counsel Parent (Call & Meeting Request)</option>
+                <option value="Warning Notice">Send Formal Attendance Warning SMS/Notice</option>
+                <option value="Assign Remedial">Assign After-School Remedial Support</option>
+                <option value="Behavioral Review">Principal Behavioral Review</option>
+              </select>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-slate-700 block">Notes / Action Details</label>
+              <textarea
+                rows={3}
+                className="w-full bg-slate-50 border border-slate-300 rounded-xl p-3 text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none transition"
+                placeholder="Enter counseling notes or specific instructions..."
+                value={actionNote}
+                onChange={e => setActionNote(e.target.value)}
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={() => setActionModalItem(null)}
+                className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleTakeAction(actionModalItem, selectedActionType)}
+                disabled={actionInProgress}
+                className="px-5 py-2.5 rounded-xl text-white text-xs font-bold flex items-center gap-2 shadow-md hover:scale-105 transition cursor-pointer"
+                style={{ background: brandColor, color: '#ffffff' }}
+              >
+                {actionInProgress ? <Loader2 className="w-4 h-4 animate-spin text-white" /> : <Send className="w-4 h-4 text-white" />}
+                <span className="text-white">Dispatch & Notify Parent</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // School Settings Tab
 function SchoolSettingsTab() {
   const [form, setForm] = useState({
@@ -11136,34 +12999,7 @@ function DashboardContent({ initialTab }) {
     reports: ReportsTab,
     users: UsersTab,
     parents: ParentsTab,
-    'ai-risk': () => (
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-xl bg-violet-500/20 flex items-center justify-center"><Sparkles className="w-4 h-4 text-violet-400" /></div>
-          <div>
-            <h2 className="text-sm font-bold text-white">AI Early Risk Detector</h2>
-            <p className="text-[11px] text-slate-500">Students flagged by the AI model based on attendance, marks & behaviour patterns</p>
-          </div>
-        </div>
-        <div className="bg-[#0d1117] rounded-2xl border border-slate-800 p-5 space-y-3">
-          {[
-            { name: 'Rahul Mishra', class: '10-A', risk: 'HIGH', reason: 'Attendance dropped to 61% (3 consecutive weeks)', action: 'Counsel parent' },
-            { name: 'Priya Sharma', class: '9-B', risk: 'MEDIUM', reason: 'Average marks fell from 78% to 52% this term', action: 'Academic support' },
-            { name: 'Aryan Patel', class: '11-A', risk: 'HIGH', reason: '3 discipline incidents in last 30 days', action: 'Counselling required' },
-            { name: 'Sneha Verma', class: '8-C', risk: 'LOW', reason: 'Declining homework submission rate (60%)', action: 'Monitor closely' },
-          ].map(s => (
-            <div key={s.name} className={`p-4 rounded-xl border ${s.risk === 'HIGH' ? 'bg-rose-500/10 border-rose-500/20' : s.risk === 'MEDIUM' ? 'bg-amber-500/10 border-amber-500/20' : 'bg-blue-500/10 border-blue-500/20'}`}>
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm font-bold text-white">{s.name}</span>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${statusColor(s.risk)}`}>{s.risk} RISK</span>
-              </div>
-              <p className="text-[11px] text-slate-400">{s.class} · {s.reason}</p>
-              <p className="text-[11px] text-indigo-300 mt-1">Suggested action: {s.action}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    ),
+    'ai-risk': AIRiskDetectorTab,
     services: AllServicesTab,
     'all-services': AllServicesTab,
     enquiry: AdmissionsTab,

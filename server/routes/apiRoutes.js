@@ -414,6 +414,7 @@ router.get('/admin/audit-logs', authMiddleware, admin.getAuditLogs);
 // 22. AI ENGINE
 // ─────────────────────────────────────────────────────────────────────────────
 router.get('/ai/early-warning', authMiddleware, ai.getEarlyWarningAlerts);
+router.post('/ai/early-warning/action', authMiddleware, ai.takeRiskAction);
 router.post('/ai/chat', authMiddleware, ai.askAIAssistant);
 
 module.exports = router;
