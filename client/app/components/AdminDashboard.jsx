@@ -4747,7 +4747,8 @@ function ExamsTab() {
       title: '',
       examType: 'Mid-Term',
       customExamType: '',
-      targetClass: availableClassOptions[0] || '',
+      targetClass: 'All Classes',
+      selectedClasses: ['All Classes'],
       customTargetClass: '',
       academicYear: '2026-2027',
       startDate: '',
@@ -4765,14 +4766,21 @@ function ExamsTab() {
     setEditingExam(exam);
     const standardTypes = ['Unit Test', 'Periodic Test', 'Mid-Term', 'Final Exam', 'Practical', 'Internal Assessment'];
     const isCustomType = exam.examType && !standardTypes.includes(exam.examType);
-    const isCustomClass = exam.targetClass && !availableClassOptions.includes(exam.targetClass);
+    const targetStr = exam.targetClass || 'All Classes';
+    let initialSelectedClasses = ['All Classes'];
+    if (targetStr.toLowerCase().includes('all')) {
+      initialSelectedClasses = ['All Classes'];
+    } else {
+      initialSelectedClasses = targetStr.split(',').map(s => s.trim()).filter(Boolean);
+    }
 
     setForm({
       title: exam.title || '',
       examType: isCustomType ? 'CUSTOM' : (exam.examType || 'Mid-Term'),
       customExamType: isCustomType ? exam.examType : '',
-      targetClass: isCustomClass ? 'CUSTOM' : (exam.targetClass || ''),
-      customTargetClass: isCustomClass ? exam.targetClass : '',
+      targetClass: targetStr,
+      selectedClasses: initialSelectedClasses,
+      customTargetClass: '',
       academicYear: exam.academicYear || '2026-2027',
       startDate: exam.startDate ? new Date(exam.startDate).toISOString().split('T')[0] : '',
       endDate: exam.endDate ? new Date(exam.endDate).toISOString().split('T')[0] : '',
@@ -4859,17 +4867,69 @@ function ExamsTab() {
   const handleSave = async (e) => {
     e.preventDefault();
     if (!form.title.trim()) {
-      alert('Please enter an Exam Title');
+      alert('⚠️ Exam Title is mandatory!');
       return;
     }
 
     const finalExamType = form.examType === 'CUSTOM' ? form.customExamType.trim() : form.examType;
     if (form.examType === 'CUSTOM' && !finalExamType) {
-      alert('Please specify your Custom Exam Type');
+      alert('⚠️ Custom Exam Type is mandatory!');
       return;
     }
 
-    const finalTargetClass = form.targetClass === 'CUSTOM' ? form.customTargetClass.trim() : form.targetClass;
+    if (!form.startDate) {
+      alert('⚠️ Exam Start Date is mandatory!');
+      return;
+    }
+
+    if (!form.endDate) {
+      alert('⚠️ Exam End Date is mandatory!');
+      return;
+    }
+
+    if (!form.subjectSchedules || form.subjectSchedules.length === 0) {
+      alert('⚠️ At least one Subject Schedule row is required!');
+      return;
+    }
+
+    // Validate every subject schedule row
+    for (let i = 0; i < form.subjectSchedules.length; i++) {
+      const row = form.subjectSchedules[i];
+      const rowNum = i + 1;
+      if (!row.subjectName || !row.subjectName.trim()) {
+        alert(`⚠️ Subject Name is mandatory for Row #${rowNum}!`);
+        return;
+      }
+      if (!row.examDate) {
+        alert(`⚠️ Exam Date is mandatory for "${row.subjectName || 'Row #' + rowNum}"!`);
+        return;
+      }
+      if (!row.startTime || !row.startTime.trim()) {
+        alert(`⚠️ Start Time is mandatory for "${row.subjectName}" (Row #${rowNum})!`);
+        return;
+      }
+      if (!row.endTime || !row.endTime.trim()) {
+        alert(`⚠️ End Time is mandatory for "${row.subjectName}" (Row #${rowNum})!`);
+        return;
+      }
+      if (row.totalMarks === undefined || row.totalMarks === null || isNaN(row.totalMarks) || row.totalMarks <= 0) {
+        alert(`⚠️ Valid Total Marks is mandatory for "${row.subjectName}" (Row #${rowNum})!`);
+        return;
+      }
+      if (row.passingMarks === undefined || row.passingMarks === null || isNaN(row.passingMarks) || row.passingMarks <= 0) {
+        alert(`⚠️ Valid Pass Marks is mandatory for "${row.subjectName}" (Row #${rowNum})!`);
+        return;
+      }
+    }
+
+    const sel = form.selectedClasses || [];
+    let finalTargetClass = 'All Classes';
+    if (sel.includes('All Classes') || sel.length === 0) {
+      finalTargetClass = 'All Classes';
+    } else {
+      const items = sel.map(c => c === 'CUSTOM' ? (form.customTargetClass?.trim() || '') : c).filter(Boolean);
+      finalTargetClass = items.length > 0 ? items.join(', ') : 'All Classes';
+    }
 
     setSaving(true);
     try {
@@ -5338,36 +5398,138 @@ function ExamsTab() {
                   )}
                 </div>
 
-                {/* Target Class with Dynamic DB Dropdown */}
-                <div>
-                  <label className="block text-slate-300 font-bold mb-1">Target Class (Dynamic)</label>
-                  <select
-                    value={form.targetClass}
-                    onChange={e => setForm({ ...form, targetClass: e.target.value })}
-                    className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-indigo-500"
-                  >
-                    <option value="">-- Select Class --</option>
-                    {availableClassOptions.map(cls => (
-                      <option key={cls} value={cls}>{cls}</option>
-                    ))}
-                    <option value="CUSTOM">✏️ + Enter Custom Class...</option>
-                  </select>
-                  {form.targetClass === 'CUSTOM' && (
-                    <input
-                      type="text"
-                      required
-                      placeholder="Type custom class name (e.g. Class 12-A)..."
-                      value={form.customTargetClass}
-                      onChange={e => setForm({ ...form, customTargetClass: e.target.value })}
-                      className="mt-2 w-full bg-slate-900 border border-indigo-500 rounded-xl p-2.5 text-white text-xs focus:outline-none"
-                    />
-                  )}
+                {/* Target Class (Dynamic Multi-Select with All Classes) */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-slate-300 font-bold">Target Class (Multi-Select)</label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, selectedClasses: ['All Classes'] }))}
+                        className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 hover:underline cursor-pointer"
+                      >
+                        Select All Classes
+                      </button>
+                      <span className="text-slate-600">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setForm(f => ({ ...f, selectedClasses: [] }))}
+                        className="text-[10px] font-bold text-rose-400 hover:text-rose-300 hover:underline cursor-pointer"
+                      >
+                        Clear Selection
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="bg-slate-900 border border-slate-700 rounded-xl p-3 max-h-48 overflow-y-auto space-y-2">
+                    {/* All Classes Option */}
+                    <label className="flex items-center gap-2.5 p-2 rounded-lg bg-indigo-500/10 border border-indigo-500/30 hover:bg-indigo-500/20 cursor-pointer transition">
+                      <input
+                        type="checkbox"
+                        checked={form.selectedClasses?.includes('All Classes')}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setForm(f => ({ ...f, selectedClasses: ['All Classes'] }));
+                          } else {
+                            setForm(f => ({ ...f, selectedClasses: [] }));
+                          }
+                        }}
+                        className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-950 border-slate-700"
+                      />
+                      <span className="font-extrabold text-indigo-300 text-xs">🏫 All Classes (School-Wide Exam)</span>
+                    </label>
+
+                    <div className="border-t border-slate-800 my-1"></div>
+
+                    {/* Individual DB Classes List */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {availableClassOptions.map(cls => {
+                        const isChecked = form.selectedClasses?.includes('All Classes') || form.selectedClasses?.includes(cls);
+                        return (
+                          <label key={cls} className={`flex items-center gap-2 p-1.5 rounded-lg border text-xs cursor-pointer transition ${isChecked ? 'bg-slate-800 border-indigo-500/50 text-white font-bold' : 'bg-slate-950/40 border-slate-800 text-slate-400 hover:text-white'}`}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                let current = form.selectedClasses || [];
+                                if (current.includes('All Classes')) {
+                                  current = [...availableClassOptions];
+                                }
+                                if (e.target.checked) {
+                                  current = [...new Set([...current, cls])];
+                                } else {
+                                  current = current.filter(c => c !== cls && c !== 'All Classes');
+                                }
+                                setForm(f => ({ ...f, selectedClasses: current }));
+                              }}
+                              className="w-3.5 h-3.5 rounded text-indigo-600 focus:ring-indigo-500 bg-slate-950 border-slate-700"
+                            />
+                            <span>{cls}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+
+                    {/* Custom Class Option */}
+                    <div className="pt-1 border-t border-slate-800">
+                      <label className="flex items-center gap-2 p-1.5 text-xs text-amber-300 font-bold cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={form.selectedClasses?.includes('CUSTOM')}
+                          onChange={(e) => {
+                            let current = form.selectedClasses || [];
+                            if (e.target.checked) current = [...current, 'CUSTOM'];
+                            else current = current.filter(c => c !== 'CUSTOM');
+                            setForm(f => ({ ...f, selectedClasses: current }));
+                          }}
+                          className="w-3.5 h-3.5 rounded text-amber-500 focus:ring-amber-500 bg-slate-950 border-slate-700"
+                        />
+                        <span>✏️ + Custom Class...</span>
+                      </label>
+                      {form.selectedClasses?.includes('CUSTOM') && (
+                        <input
+                          type="text"
+                          placeholder="Type custom target class..."
+                          value={form.customTargetClass || ''}
+                          onChange={e => setForm(f => ({ ...f, customTargetClass: e.target.value }))}
+                          className="mt-1 w-full bg-slate-950 border border-amber-500/50 rounded-lg p-2 text-white text-xs focus:outline-none"
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Selected Classes Badges */}
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {form.selectedClasses?.length > 0 ? (
+                      form.selectedClasses.includes('All Classes') ? (
+                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-extrabold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">
+                          🏫 All Classes Selected
+                        </span>
+                      ) : (
+                        form.selectedClasses.map(c => (
+                          <span key={c} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-800 text-slate-300 border border-slate-700">
+                            <span>{c === 'CUSTOM' ? (form.customTargetClass || 'Custom Class') : c}</span>
+                            <button
+                              type="button"
+                              onClick={() => setForm(f => ({ ...f, selectedClasses: f.selectedClasses.filter(x => x !== c) }))}
+                              className="hover:text-rose-400"
+                            >
+                              ✕
+                            </button>
+                          </span>
+                        ))
+                      )
+                    ) : (
+                      <span className="text-[11px] text-amber-400 font-semibold">⚠️ No target class selected (Will default to All Classes)</span>
+                    )}
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-bold mb-1">Academic Year</label>
+                  <label className="block text-slate-300 font-bold mb-1">Academic Year <span className="text-rose-400">*</span></label>
                   <input
                     type="text"
+                    required
                     value={form.academicYear}
                     onChange={e => setForm({ ...form, academicYear: e.target.value })}
                     className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-indigo-500"
@@ -5375,9 +5537,10 @@ function ExamsTab() {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-bold mb-1">Start Date</label>
+                  <label className="block text-slate-300 font-bold mb-1">Start Date <span className="text-rose-400">*</span></label>
                   <input
                     type="date"
+                    required
                     value={form.startDate}
                     onChange={e => setForm({ ...form, startDate: e.target.value })}
                     className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-indigo-500"
@@ -5385,9 +5548,10 @@ function ExamsTab() {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-bold mb-1">End Date</label>
+                  <label className="block text-slate-300 font-bold mb-1">End Date <span className="text-rose-400">*</span></label>
                   <input
                     type="date"
+                    required
                     value={form.endDate}
                     onChange={e => setForm({ ...form, endDate: e.target.value })}
                     className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-indigo-500"
@@ -5395,9 +5559,11 @@ function ExamsTab() {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-bold mb-1">Default Total Marks</label>
+                  <label className="block text-slate-300 font-bold mb-1">Default Total Marks <span className="text-rose-400">*</span></label>
                   <input
                     type="number"
+                    required
+                    min="1"
                     value={form.totalMarks}
                     onChange={e => setForm({ ...form, totalMarks: Number(e.target.value) })}
                     className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-indigo-500"
@@ -5405,9 +5571,11 @@ function ExamsTab() {
                 </div>
 
                 <div>
-                  <label className="block text-slate-300 font-bold mb-1">Default Passing Marks</label>
+                  <label className="block text-slate-300 font-bold mb-1">Default Passing Marks <span className="text-rose-400">*</span></label>
                   <input
                     type="number"
+                    required
+                    min="1"
                     value={form.passingMarks}
                     onChange={e => setForm({ ...form, passingMarks: Number(e.target.value) })}
                     className="w-full bg-slate-900 border border-slate-700 rounded-xl p-2.5 text-white focus:outline-none focus:border-indigo-500"
@@ -5452,8 +5620,9 @@ function ExamsTab() {
                     form.subjectSchedules.map((row, idx) => (
                       <div key={idx} className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex flex-wrap lg:flex-nowrap items-center gap-2.5">
                         <div className="w-full lg:w-44">
-                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Subject (Dynamic)</label>
+                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Subject (Dynamic) <span className="text-rose-400">*</span></label>
                           <select
+                            required
                             value={availableSubjectOptions.includes(row.subjectName) ? row.subjectName : (row.subjectName ? row.subjectName : '')}
                             onChange={e => {
                               const val = e.target.value;
@@ -5489,9 +5658,10 @@ function ExamsTab() {
                         </div>
 
                         <div className="w-1/2 lg:w-32">
-                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Exam Date</label>
+                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Exam Date <span className="text-rose-400">*</span></label>
                           <input
                             type="date"
+                            required
                             value={row.examDate}
                             onChange={e => handleSubjectRowChange(idx, 'examDate', e.target.value)}
                             className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-white focus:border-indigo-500 text-xs"
@@ -5499,9 +5669,10 @@ function ExamsTab() {
                         </div>
 
                         <div className="w-1/2 lg:w-28">
-                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Start Time</label>
+                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">Start Time <span className="text-rose-400">*</span></label>
                           <input
                             type="text"
+                            required
                             placeholder="09:00 AM"
                             value={row.startTime}
                             onChange={e => handleSubjectRowChange(idx, 'startTime', e.target.value)}
@@ -5510,9 +5681,10 @@ function ExamsTab() {
                         </div>
 
                         <div className="w-1/2 lg:w-28">
-                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">End Time</label>
+                          <label className="text-[9px] uppercase font-bold text-slate-400 block mb-0.5">End Time <span className="text-rose-400">*</span></label>
                           <input
                             type="text"
+                            required
                             placeholder="12:00 PM"
                             value={row.endTime}
                             onChange={e => handleSubjectRowChange(idx, 'endTime', e.target.value)}
@@ -5521,9 +5693,11 @@ function ExamsTab() {
                         </div>
 
                         <div className="w-1/4 lg:w-24">
-                          <label className="text-[9px] uppercase font-bold text-emerald-400 block mb-0.5">Total Marks</label>
+                          <label className="text-[9px] uppercase font-bold text-emerald-400 block mb-0.5">Total Marks <span className="text-rose-400">*</span></label>
                           <input
                             type="number"
+                            required
+                            min="1"
                             value={row.totalMarks}
                             onChange={e => handleSubjectRowChange(idx, 'totalMarks', Number(e.target.value))}
                             className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-emerald-300 font-bold focus:border-indigo-500 text-xs"
@@ -5531,9 +5705,11 @@ function ExamsTab() {
                         </div>
 
                         <div className="w-1/4 lg:w-24">
-                          <label className="text-[9px] uppercase font-bold text-amber-400 block mb-0.5">Pass Marks</label>
+                          <label className="text-[9px] uppercase font-bold text-amber-400 block mb-0.5">Pass Marks <span className="text-rose-400">*</span></label>
                           <input
                             type="number"
+                            required
+                            min="1"
                             value={row.passingMarks}
                             onChange={e => handleSubjectRowChange(idx, 'passingMarks', Number(e.target.value))}
                             className="w-full bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-amber-300 font-bold focus:border-indigo-500 text-xs"
