@@ -353,15 +353,23 @@ const getStudentList = async (req, res) => {
     const { classId, sectionId, search, status } = req.query;
     const query = {};
     const schoolId = getSchoolId(req);
-    if (schoolId) query.schoolId = schoolId;
+    // Auto-sync existing GRADUATED status records to classId: 'GRADUATED'
+    await Student.updateMany(
+      { schoolId, status: { $in: ['GRADUATED', 'ALUMNI'] }, classId: { $ne: 'GRADUATED' } },
+      { $set: { classId: 'GRADUATED', sectionId: '-' } }
+    ).catch(() => {});
 
-    if (classId && classId !== 'ALL') {
-      const normClass = normalizeClassName(classId);
-      query.classId = { $regex: new RegExp(`^(${normClass}|Class\\s*${normClass})$`, 'i') };
-    }
-    if (sectionId && sectionId !== 'ALL') {
-      const normSec = String(sectionId).replace(/^Section\s+/i, '').trim();
-      query.sectionId = { $regex: new RegExp(`^(${normSec}|Section\\s*${normSec})$`, 'i') };
+    if (classId === 'GRADUATED' || classId === 'ALUMNI' || status === 'GRADUATED' || status === 'ALUMNI') {
+      query.$or = [
+        { status: { $in: ['GRADUATED', 'ALUMNI'] } },
+        { classId: { $in: ['GRADUATED', 'ALUMNI'] } }
+      ];
+    } else {
+      if (classId && classId !== 'ALL') {
+        const normClass = normalizeClassName(classId);
+        query.classId = { $regex: new RegExp(`^(${normClass}|Class\\s*${normClass})$`, 'i') };
+      }
+      query.status = { $nin: ['GRADUATED', 'ALUMNI', 'INACTIVE', 'ARCHIVED', 'TRANSFERRED'] };
     }
     if (search) {
       query.$or = [
@@ -431,12 +439,97 @@ const deleteStudentRecord = async (req, res) => {
 
 const promoteStudents = async (req, res) => {
   try {
-    const { studentIds, newClass, newSection, newAcademicYear } = req.body;
-    await Student.updateMany(
-      { _id: { $in: studentIds } },
-      { $set: { classId: newClass, sectionId: newSection } }
-    );
-    ok(res, { message: `${studentIds.length} students promoted to ${newClass} - ${newSection}` });
+    if (!isSchoolAdminReq(req)) return err(res, 'Access denied. Only School Administrators can promote students.', 403);
+    const schoolId = getSchoolId(req);
+    const { 
+      studentIds, 
+      newClass, 
+      newSection, 
+      newAcademicYear, 
+      autoRegenerateRollNo = true, 
+      isGraduating = false,
+      remarks = '' 
+    } = req.body;
+
+    if (!Array.isArray(studentIds) || studentIds.length === 0) {
+      return err(res, 'Array of student IDs is required', 400);
+    }
+
+    const students = await Student.find({ _id: { $in: studentIds } });
+    if (!students || students.length === 0) {
+      return err(res, 'No matching students found to promote', 404);
+    }
+
+    const targetClassClean = normalizeClassName(newClass || '');
+    const targetSectionClean = (newSection || 'A').replace(/^Section\s+/i, '').trim();
+    const isGrad = isGraduating || targetClassClean.toUpperCase() === 'GRADUATED' || targetClassClean.toUpperCase() === 'ALUMNI';
+
+    let promotedCount = 0;
+    let graduatedCount = 0;
+    const updatedStudents = [];
+
+    for (const student of students) {
+      // Snapshot current academic state into history array
+      const historyEntry = {
+        academicYear: student.academicYear || '2025-2026',
+        classId: student.classId,
+        sectionId: student.sectionId,
+        rollNo: student.rollNo,
+        promotedAt: new Date(),
+        remarks: remarks || (isGrad ? 'Graduated / Alumni' : `Promoted to Class ${targetClassClean}-${targetSectionClean}`)
+      };
+
+      if (!Array.isArray(student.academicHistory)) {
+        student.academicHistory = [];
+      }
+      student.academicHistory.push(historyEntry);
+
+      if (isGrad) {
+        student.status = 'GRADUATED';
+        student.classId = 'GRADUATED';
+        student.sectionId = '-';
+        graduatedCount++;
+      } else {
+        student.classId = targetClassClean;
+        student.sectionId = targetSectionClean;
+        if (newAcademicYear) student.academicYear = newAcademicYear;
+
+        // Auto-regenerate Roll Number for new class roster if requested
+        if (autoRegenerateRollNo) {
+          student.rollNo = await generateRollNo(targetClassClean, targetSectionClean, schoolId);
+        }
+        promotedCount++;
+      }
+
+      await student.save();
+      updatedStudents.push({
+        studentId: student._id,
+        name: `${student.firstName} ${student.lastName}`,
+        classId: student.classId,
+        sectionId: student.sectionId,
+        rollNo: student.rollNo,
+        status: student.status
+      });
+    }
+
+    await logAudit(req, isGrad ? 'GRADUATE' : 'PROMOTE', 'Student', null, null, {
+      studentCount: students.length,
+      targetClass: targetClassClean,
+      targetSection: targetSectionClean,
+      newAcademicYear,
+      isGraduating: isGrad
+    });
+
+    const msg = isGrad
+      ? `${students.length} student(s) marked as GRADUATED / ALUMNI successfully!`
+      : `${promotedCount} student(s) promoted to Class ${targetClassClean}-${targetSectionClean} (${newAcademicYear || 'Next Session'}) successfully!`;
+
+    ok(res, {
+      message: msg,
+      promotedCount,
+      graduatedCount,
+      students: updatedStudents
+    });
   } catch (e) { err(res, e.message); }
 };
 
@@ -2574,6 +2667,114 @@ const seedHolidayPresets = async (req, res) => {
   } catch (e) { err(res, e.message); }
 };
 
+const promoteSchoolWide = async (req, res) => {
+  try {
+    if (!isSchoolAdminReq(req)) return err(res, 'Access denied. Only School Administrators can execute school-wide promotion.', 403);
+    const schoolId = getSchoolId(req);
+    const { 
+      newAcademicYear = '2027-2028', 
+      highestGraduatingClass = '10', 
+      autoRegenerateRollNo = true,
+      remarks = 'School-Wide Session Transition'
+    } = req.body;
+
+    const activeStudents = await Student.find({
+      schoolId,
+      status: { $nin: ['GRADUATED', 'ALUMNI', 'INACTIVE', 'ARCHIVED', 'TRANSFERRED'] }
+    });
+
+    if (activeStudents.length === 0) {
+      return err(res, 'No active students found in the school to promote.', 404);
+    }
+
+    const GRADE_ORDER = ['Nursery', 'LKG', 'UKG', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+
+    const getGradeIndex = (cId) => {
+      const clean = String(cId || '').replace(/^Class\s+/i, '').trim();
+      const idx = GRADE_ORDER.findIndex(g => g.toUpperCase() === clean.toUpperCase());
+      if (idx !== -1) return idx;
+      const num = parseInt(clean, 10);
+      return !isNaN(num) ? num + 3 : 0;
+    };
+
+    const getNextGradeName = (currentCls) => {
+      const clean = String(currentCls || '').replace(/^Class\s+/i, '').trim();
+      const idx = GRADE_ORDER.findIndex(g => g.toUpperCase() === clean.toUpperCase());
+      if (idx !== -1 && idx + 1 < GRADE_ORDER.length) {
+        return GRADE_ORDER[idx + 1];
+      }
+      const num = parseInt(clean, 10);
+      if (!isNaN(num)) {
+        return String(num + 1);
+      }
+      return 'GRADUATED';
+    };
+
+    const sortedStudents = [...activeStudents].sort((a, b) => getGradeIndex(b.classId) - getGradeIndex(a.classId));
+
+    let promotedCount = 0;
+    let graduatedCount = 0;
+    const summaryByClass = {};
+
+    for (const student of sortedStudents) {
+      const currentClassClean = normalizeClassName(student.classId || '');
+      const nextGrade = getNextGradeName(currentClassClean);
+      const isGrad = (currentClassClean === normalizeClassName(highestGraduatingClass)) || nextGrade === 'GRADUATED';
+
+      const historyEntry = {
+        academicYear: student.academicYear || '2025-2026',
+        classId: student.classId,
+        sectionId: student.sectionId,
+        rollNo: student.rollNo,
+        promotedAt: new Date(),
+        remarks: remarks || (isGrad ? 'Graduated School / Alumni' : `School-Wide Shift to Class ${nextGrade}-${student.sectionId || 'A'}`)
+      };
+
+      if (!Array.isArray(student.academicHistory)) {
+        student.academicHistory = [];
+      }
+      student.academicHistory.push(historyEntry);
+
+      if (isGrad) {
+        student.status = 'GRADUATED';
+        student.classId = 'GRADUATED';
+        student.sectionId = '-';
+        graduatedCount++;
+        summaryByClass[`Class ${currentClassClean} 🎓 Graduated`] = (summaryByClass[`Class ${currentClassClean} 🎓 Graduated`] || 0) + 1;
+      } else {
+        student.classId = nextGrade;
+        student.academicYear = newAcademicYear;
+
+        if (autoRegenerateRollNo) {
+          student.rollNo = await generateRollNo(nextGrade, student.sectionId || 'A', schoolId);
+        }
+
+        promotedCount++;
+        const key = `Class ${currentClassClean} ➔ Class ${nextGrade}`;
+        summaryByClass[key] = (summaryByClass[key] || 0) + 1;
+      }
+
+      await student.save();
+    }
+
+    await logAudit(req, 'SCHOOL_WIDE_PROMOTION', 'Student', null, null, {
+      totalStudents: activeStudents.length,
+      promotedCount,
+      graduatedCount,
+      newAcademicYear
+    });
+
+    ok(res, {
+      message: `🎉 School-Wide Session Rollover Complete! ${promotedCount} students shifted to next class, ${graduatedCount} graduated.`,
+      totalStudents: activeStudents.length,
+      promotedCount,
+      graduatedCount,
+      newAcademicYear,
+      summaryByClass
+    });
+  } catch (e) { err(res, e.message); }
+};
+
 // ─────────────────────────────────────────────────────────
 // EXPORTS
 // ─────────────────────────────────────────────────────────
@@ -2628,4 +2829,5 @@ module.exports = {
   getCertificates, createCertificate, updateCertificate, deleteCertificate,
   getAuditLogs,
   getReportsDashboard,
+  promoteSchoolWide,
 };

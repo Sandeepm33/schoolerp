@@ -110,6 +110,7 @@ router.post('/admin/students', authMiddleware, admin.createStudentRecord);
 router.put('/admin/students/:id', authMiddleware, admin.updateStudentRecord);
 router.delete('/admin/students/:id', authMiddleware, admin.deleteStudentRecord);
 router.post('/admin/students/promote', authMiddleware, admin.promoteStudents);
+router.post('/admin/students/promote-all', authMiddleware, admin.promoteSchoolWide);
 
 
 // ─────────────────────────────────────────────────────────────────────────────

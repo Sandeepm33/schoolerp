@@ -83,6 +83,16 @@ const StudentSchema = new mongoose.Schema({
   transportRoute: { type: String },
   pickupStop: { type: String },
   transportFee: { type: Number, default: 0 },
+  academicYear: { type: String, default: '2026-2027' },
+  status: { type: String, enum: ['ACTIVE', 'GRADUATED', 'ALUMNI', 'TRANSFERRED', 'ARCHIVED'], default: 'ACTIVE' },
+  academicHistory: [{
+    academicYear: String,
+    classId: String,
+    sectionId: String,
+    rollNo: String,
+    promotedAt: { type: Date, default: Date.now },
+    remarks: String
+  }],
   createdAt: { type: Date, default: Date.now }
 });
 
