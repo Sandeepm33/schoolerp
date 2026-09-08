@@ -63,13 +63,14 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
     setLoading(true);
     try {
       const headers = token ? { 'Authorization': `Bearer ${token}` } : {};
+      const loggedInStId = user?.mappedStudentId || user?.studentId || user?.linkedStudentId || user?._id;
       
       let marksEndpoint = `${API_BASE}/marks`;
       if (isPrincipal || isHeadmaster || isTeacher) {
         marksEndpoint = `${API_BASE}/admin/marks`;
       }
       if (isParent || isStudent) {
-        marksEndpoint = `${API_BASE}/marks`;
+        marksEndpoint = loggedInStId ? `${API_BASE}/marks?studentId=${encodeURIComponent(loggedInStId)}` : `${API_BASE}/marks`;
       }
 
       const [marksRes, studentsRes, classesRes, examsRes] = await Promise.all([
@@ -264,7 +265,10 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
       const failed = groupList.filter(s => !s.overallPass).sort((a, b) => b.overallPct - a.overallPct);
 
       passed.forEach((s, idx) => {
-        s.rank = idx + 1;
+        const backendClassRank = s.rawRecords?.find(r => r.classRank !== undefined && r.classRank !== null)?.classRank;
+        s.rank = (backendClassRank !== undefined && backendClassRank !== null) 
+          ? backendClassRank 
+          : (groupList.length > 1 ? idx + 1 : 1);
       });
       failed.forEach((s) => {
         s.rank = null; // Failed students do not receive a passing class rank
@@ -302,7 +306,19 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
 
   // Apply Smart Filter Bar to Roster
   const filteredRoster = useMemo(() => {
-    return processedStudentRecords.filter(s => {
+    let sourceList = processedStudentRecords;
+
+    if (isParentOrStudentView) {
+      if (myStudentProfile) {
+        sourceList = [myStudentProfile];
+      } else if (processedStudentRecords.length > 0) {
+        sourceList = [processedStudentRecords[0]];
+      } else {
+        sourceList = [];
+      }
+    }
+
+    return sourceList.filter(s => {
       if (selectedExam && s.examTitle !== selectedExam) return false;
       if (selectedClass && s.classId !== selectedClass) return false;
       if (selectedSection && s.sectionId !== selectedSection) return false;
@@ -333,11 +349,12 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
 
       return true;
     });
-  }, [processedStudentRecords, selectedExam, selectedClass, selectedSection, selectedSubject, selectedResultStatus, selectedGrade, selectedRiskTier, selectedScoreRange, searchQuery]);
+  }, [processedStudentRecords, isParentOrStudentView, myStudentProfile, selectedExam, selectedClass, selectedSection, selectedSubject, selectedResultStatus, selectedGrade, selectedRiskTier, selectedScoreRange, searchQuery]);
+
   // Tier Count Calculator (Counts Subjects for Parent/Student, Counts Students for Admin/Teacher)
   const getTierCount = useCallback((tierKey) => {
     if (isParentOrStudentView) {
-      const child = processedStudentRecords[0];
+      const child = myStudentProfile || processedStudentRecords[0];
       if (!child || !child.subjects) return 0;
       return child.subjects.filter(sub => {
         const pct = sub.percentage;
@@ -350,7 +367,7 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
       }).length;
     }
     return processedStudentRecords.filter(s => s.riskTier === tierKey).length;
-  }, [isParentOrStudentView, processedStudentRecords]);
+  }, [isParentOrStudentView, myStudentProfile, processedStudentRecords]);
 
   const getUnitText = useCallback((count) => {
     if (isParentOrStudentView) {
@@ -360,7 +377,7 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
   }, [isParentOrStudentView]);
 
   const childSubjectsToDisplay = useMemo(() => {
-    const child = processedStudentRecords[0];
+    const child = myStudentProfile || processedStudentRecords[0];
     if (!child || !child.subjects) return [];
     
     // Initially (no tier card clicked): Do NOT show any subjects by default until a tier card is clicked
@@ -375,7 +392,7 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
       if (selectedRiskTier === 'CRITICAL') return !sub.isPass || pct < 35;
       return false;
     });
-  }, [processedStudentRecords, selectedRiskTier]);
+  }, [myStudentProfile, processedStudentRecords, selectedRiskTier]);
 
   // Aggregate Metrics & Subject Analytics
   const analyticsSummary = useMemo(() => {
@@ -383,6 +400,7 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
     if (totalCount === 0) {
       return {
         totalStudents: 0,
+        totalSubjects: 0,
         passCount: 0,
         failCount: 0,
         passRate: 0,
@@ -395,6 +413,83 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
         subjectStats: [],
         aiInsightText: 'No student exam mark records found matching the active filters.',
         recommendedActions: []
+      };
+    }
+
+    if (isParentOrStudentView && filteredRoster.length > 0) {
+      const myProfile = filteredRoster[0];
+      const subs = myProfile.subjects || [];
+      const totalSubjects = subs.length;
+      let pCount = 0;
+      let fCount = 0;
+      let hiScore = 0;
+      let loScore = 100;
+      const subGradeCounts = { 'A+': 0, 'A': 0, 'B+': 0, 'B': 0, 'C': 0, 'D': 0, 'F': 0 };
+
+      subs.forEach(sub => {
+        if (sub.isPass) pCount++;
+        else fCount++;
+
+        if (sub.percentage > hiScore) hiScore = sub.percentage;
+        if (sub.percentage < loScore) loScore = sub.percentage;
+
+        if (subGradeCounts[sub.grade] !== undefined) {
+          subGradeCounts[sub.grade]++;
+        }
+      });
+
+      const pRate = totalSubjects > 0 ? Math.round((pCount / totalSubjects) * 100) : 0;
+      const aScore = myProfile.overallPct;
+
+      const subStats = subs.map(sub => ({
+        subjectName: sub.subjectName,
+        avgPct: sub.percentage,
+        passRate: sub.isPass ? 100 : 0,
+        marksObtained: sub.marksObtained,
+        maxMarks: sub.maxMarks,
+        isPass: sub.isPass,
+        grade: sub.grade,
+        failCount: sub.isPass ? 0 : 1
+      })).sort((a, b) => a.avgPct - b.avgPct);
+
+      const weakSub = subStats[0] || null;
+      const strongSub = subStats[subStats.length - 1] || null;
+
+      const studentRecActions = [];
+      if (fCount > 0) {
+        studentRecActions.push({
+          title: `Targeted Revision for ${weakSub?.subjectName || 'Failed Subject'}`,
+          desc: `Score is below passing threshold (${weakSub?.marksObtained || 0} marks). Schedule daily practice modules.`
+        });
+      }
+      if (subGradeCounts['A+'] > 0 || subGradeCounts['A'] > 0) {
+        studentRecActions.push({
+          title: `Advanced Enrichment for ${strongSub?.subjectName || 'Top Subject'}`,
+          desc: `High subject score (${strongSub?.avgPct}%). Continue practicing advanced problem sets.`
+        });
+      }
+      studentRecActions.push({
+        title: 'Parent-Teacher Progress Check',
+        desc: 'Review upcoming exam syllabus and verify homework submission completion status regularly.'
+      });
+
+      return {
+        totalStudents: 1,
+        totalSubjects,
+        passCount: pCount,
+        failCount: fCount,
+        passRate: pRate,
+        avgScore: aScore,
+        highestScore: hiScore,
+        lowestScore: loScore === 100 ? 0 : loScore,
+        riskCount: fCount,
+        criticalCount: fCount,
+        gradeCounts: subGradeCounts,
+        subjectStats: subStats,
+        weakestSubject: weakSub,
+        strongestSubject: strongSub,
+        aiInsightText: `📊 Academic Performance Insight for ${myProfile.studentName}:\n• Passed ${pCount} of ${totalSubjects} evaluated subjects (${pRate}% subject pass rate).\n• Overall Cumulative Average: ${aScore}% (Status: ${myProfile.overallPass ? 'Passed All' : `${fCount} Subject Backlog`}).`,
+        recommendedActions: studentRecActions
       };
     }
 
@@ -496,6 +591,7 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
 
     return {
       totalStudents: totalCount,
+      totalSubjects: subjectStats.length,
       passCount,
       failCount,
       passRate,
@@ -511,7 +607,7 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
       aiInsightText,
       recommendedActions
     };
-  }, [filteredRoster, selectedClass]);
+  }, [filteredRoster, isParentOrStudentView, selectedClass]);
 
   // Reset Filters Handler
   const resetFilters = () => {
@@ -605,13 +701,17 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
 
         {/* NAVIGATION SUB-TABS */}
         <div className="flex items-center gap-2 pt-3 border-t border-white/20 flex-wrap">
-          {[
+          {(isParentOrStudentView ? [
+            { id: 'overview', label: '📊 Overview & AI Insights', icon: BarChart3 },
+            { id: 'risk_detector', label: '🚨 Subject Performance & Risk', icon: ShieldAlert },
+            { id: 'student_roster', label: '🔍 My Performance Summary', icon: Users }
+          ] : [
             { id: 'overview', label: '📊 Overview & AI Insights', icon: BarChart3 },
             { id: 'heatmap', label: '🔥 Result Heatmap Matrix', icon: Grid },
             { id: 'risk_detector', label: '🚨 Student Risk Detector', icon: ShieldAlert },
             { id: 'comparison', label: '⚡ Comparison Engine', icon: Layers },
             { id: 'student_roster', label: '🔍 Student Evaluation Roster', icon: Users }
-          ].map(tab => {
+          ]).map(tab => {
             const isSel = activeTab === tab.id;
             return (
               <button
@@ -918,12 +1018,18 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-md space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold uppercase text-slate-500">Evaluated Candidates</span>
+                <span className="text-[11px] font-extrabold uppercase text-slate-500">
+                  {isParentOrStudentView ? 'Evaluated Subjects' : 'Evaluated Candidates'}
+                </span>
                 <Users className="w-4 h-4 text-indigo-600" />
               </div>
               <div className="flex items-baseline justify-between">
-                <h3 className="text-3xl font-black text-slate-900">{analyticsSummary.totalStudents}</h3>
-                <span className="text-xs font-bold text-slate-500">Students</span>
+                <h3 className="text-3xl font-black text-slate-900">
+                  {isParentOrStudentView ? (analyticsSummary.totalSubjects || 0) : analyticsSummary.totalStudents}
+                </h3>
+                <span className="text-xs font-bold text-slate-500">
+                  {isParentOrStudentView ? 'Subjects' : 'Students'}
+                </span>
               </div>
               <p className="text-[11px] text-slate-500 font-medium pt-1 border-t border-slate-100">
                 {analyticsSummary.passCount} Passed • {analyticsSummary.failCount} Failed
@@ -932,7 +1038,9 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
 
             <div className="p-5 rounded-3xl bg-white border border-emerald-200/80 shadow-md space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold uppercase text-slate-500">Overall Pass Rate</span>
+                <span className="text-[11px] font-extrabold uppercase text-slate-500">
+                  {isParentOrStudentView ? 'Subject Pass Rate' : 'Overall Pass Rate'}
+                </span>
                 <CheckCircle className="w-4 h-4 text-emerald-600" />
               </div>
               <div className="flex items-baseline justify-between">
@@ -948,7 +1056,9 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
 
             <div className="p-5 rounded-3xl bg-white border border-amber-200/80 shadow-md space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold uppercase text-slate-500">Class Average Score</span>
+                <span className="text-[11px] font-extrabold uppercase text-slate-500">
+                  {isParentOrStudentView ? 'Student Score Average' : 'Class Average Score'}
+                </span>
                 <TrendingUp className="w-4 h-4 text-amber-600" />
               </div>
               <div className="flex items-baseline justify-between">
@@ -956,26 +1066,30 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
                 <span className="text-xs font-bold text-slate-500">High: {analyticsSummary.highestScore}%</span>
               </div>
               <p className="text-[11px] text-amber-700 font-medium pt-1 border-t border-slate-100">
-                Lowest Student Score: {analyticsSummary.lowestScore}%
+                {isParentOrStudentView ? `Lowest Subject Score: ${analyticsSummary.lowestScore}%` : `Lowest Student Score: ${analyticsSummary.lowestScore}%`}
               </p>
             </div>
 
             <div className="p-5 rounded-3xl bg-white border border-rose-200/80 shadow-md space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-extrabold uppercase text-slate-500">At Risk Candidates</span>
+                <span className="text-[11px] font-extrabold uppercase text-slate-500">
+                  {isParentOrStudentView ? 'Subject Backlogs' : 'At Risk Candidates'}
+                </span>
                 <ShieldAlert className="w-4 h-4 text-rose-600" />
               </div>
               <div className="flex items-baseline justify-between">
-                <h3 className="text-3xl font-black text-rose-600">{analyticsSummary.riskCount}</h3>
+                <h3 className="text-3xl font-black text-rose-600">
+                  {isParentOrStudentView ? analyticsSummary.failCount : analyticsSummary.riskCount}
+                </h3>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
-                  {analyticsSummary.criticalCount} Critical
+                  {isParentOrStudentView ? (analyticsSummary.failCount > 0 ? 'Requires Action' : 'All Passed') : `${analyticsSummary.criticalCount} Critical`}
                 </span>
               </div>
               <button
                 onClick={() => { setActiveTab('risk_detector'); }}
                 className="text-[11px] text-rose-600 font-extrabold hover:underline pt-1 border-t border-slate-100 flex items-center justify-between w-full cursor-pointer"
               >
-                <span>View At-Risk Roster</span>
+                <span>{isParentOrStudentView ? 'Inspect Subject Risk' : 'View At-Risk Roster'}</span>
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -988,14 +1102,20 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
             <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xl space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <PieChart className="w-4 h-4 text-indigo-600" /> Grade Distribution Spectrum
+                  <PieChart className="w-4 h-4 text-indigo-600" /> {isParentOrStudentView ? 'Subject Grade Distribution Spectrum' : 'Grade Distribution Spectrum'}
                 </h3>
-                <span className="text-xs text-slate-500 font-mono font-bold">Total: {analyticsSummary.totalStudents} Candidates</span>
+                <span className="text-xs text-slate-500 font-mono font-bold">
+                  {isParentOrStudentView 
+                    ? `Total: ${analyticsSummary.totalSubjects || 0} Subjects` 
+                    : `Total: ${analyticsSummary.totalStudents} Candidates`
+                  }
+                </span>
               </div>
 
               <div className="grid grid-cols-7 gap-2">
                 {Object.entries(analyticsSummary.gradeCounts).map(([grade, count]) => {
-                  const pct = analyticsSummary.totalStudents > 0 ? Math.round((count / analyticsSummary.totalStudents) * 100) : 0;
+                  const denom = isParentOrStudentView ? (analyticsSummary.totalSubjects || 1) : (analyticsSummary.totalStudents || 1);
+                  const pct = Math.round((count / denom) * 100);
                   const isFail = grade === 'F';
                   return (
                     <div key={grade} className={`p-3 rounded-2xl border text-center space-y-1 ${isFail ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'}`}>
@@ -1012,7 +1132,7 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
             <div className="p-6 rounded-3xl bg-white border border-slate-200/80 shadow-xl space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
                 <h3 className="text-sm font-extrabold text-slate-900 uppercase tracking-wider flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-indigo-600" /> Subject Averages &amp; Pass Rates
+                  <BookOpen className="w-4 h-4 text-indigo-600" /> {isParentOrStudentView ? 'My Subject Performance & Pass Status' : 'Subject Averages & Pass Rates'}
                 </h3>
                 <span className="text-xs text-indigo-600 font-bold">{analyticsSummary.subjectStats.length} Subjects Evaluated</span>
               </div>
@@ -1022,7 +1142,13 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
                   <div key={sub.subjectName} className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-1.5">
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-extrabold text-slate-900">{sub.subjectName}</span>
-                      <span className="font-mono font-bold text-slate-700">Avg: <strong className="text-indigo-600">{sub.avgPct}%</strong> • Pass: <strong className="text-emerald-600">{sub.passRate}%</strong></span>
+                      <span className="font-mono font-bold text-slate-700">
+                        {isParentOrStudentView ? (
+                          <>Score: <strong className="text-indigo-600">{sub.avgPct}% ({sub.grade || (sub.isPass ? 'PASS' : 'FAIL')})</strong> • Status: <strong className={sub.isPass ? 'text-emerald-600' : 'text-rose-600'}>{sub.isPass ? 'PASS ✓' : 'FAIL ✕'}</strong></>
+                        ) : (
+                          <>Avg: <strong className="text-indigo-600">{sub.avgPct}%</strong> • Pass: <strong className="text-emerald-600">{sub.passRate}%</strong></>
+                        )}
+                      </span>
                     </div>
                     <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
                       <div className={`h-full rounded-full transition-all duration-500 ${sub.avgPct >= 75 ? 'bg-emerald-500' : sub.avgPct >= 50 ? 'bg-amber-500' : 'bg-rose-500'}`} style={{ width: `${sub.avgPct}%` }} />
@@ -1358,9 +1484,11 @@ export default function AIResultIntelligence({ activeRoleProp, embeddedInParent 
           <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
             <div>
               <h3 className="text-base font-extrabold text-slate-900 flex items-center gap-2">
-                <Users className="w-5 h-5 text-indigo-600" /> Complete Student Result Intelligence Roster
+                <Users className="w-5 h-5 text-indigo-600" /> {isParentOrStudentView ? 'My Result Intelligence Summary' : 'Complete Student Result Intelligence Roster'}
               </h3>
-              <p className="text-xs text-slate-500">Showing {filteredRoster.length} evaluated student profiles</p>
+              <p className="text-xs text-slate-500">
+                {isParentOrStudentView ? 'Showing official evaluated result profile' : `Showing ${filteredRoster.length} evaluated student profiles`}
+              </p>
             </div>
           </div>
 

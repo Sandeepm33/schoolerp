@@ -144,7 +144,7 @@ const getStudentMarks = async (req, res) => {
 
     let query = { $or: [{ isPublished: true }, { approvalStatus: 'PUBLISHED' }] };
 
-    if ((role === 'STUDENT' || role === 'PARENT') && req.query.studentId) {
+    if (role === 'STUDENT' || role === 'PARENT') {
       const { User, Student } = require('../models/coreModels');
       let targetStudentId = studentId || req.user?.mappedStudentId || req.user?.studentId || req.user?.linkedStudentId;
       let targetStudentNames = [];
@@ -203,7 +203,7 @@ const getStudentMarks = async (req, res) => {
       }
       targetStudentNames.forEach(name => {
         if (name) {
-          filters.push({ studentName: new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') });
+          filters.push({ studentName: new RegExp('^' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') });
         }
       });
 
@@ -214,15 +214,123 @@ const getStudentMarks = async (req, res) => {
             { $or: filters }
           ]
         };
+      } else {
+        return res.json([]);
       }
     } else if (studentId) {
       query.studentId = studentId;
     }
 
     const marks = await Mark.find(query).sort({ createdAt: -1 });
-    res.json(marks);
+    const formattedMarks = await attachClassRanksToMarks(marks);
+    res.json(formattedMarks);
   } catch (error) {
     res.status(500).json({ message: error.message });
+  }
+};
+
+const attachClassRanksToMarks = async (marksList) => {
+  if (!Array.isArray(marksList) || marksList.length === 0) return [];
+
+  try {
+    const allPublishedMarks = await Mark.find({
+      $or: [{ isPublished: true }, { approvalStatus: 'PUBLISHED' }]
+    }).lean();
+
+    if (!allPublishedMarks || allPublishedMarks.length === 0) {
+      return marksList.map(m => typeof m.toObject === 'function' ? m.toObject() : { ...m });
+    }
+
+    const classGroups = new Map();
+
+    allPublishedMarks.forEach(m => {
+      const classId = (m.classId || 'ALL').trim().toUpperCase();
+      const sectionId = (m.sectionId || 'ALL').trim().toUpperCase();
+      const gKey = `${classId}_${sectionId}`;
+
+      if (!classGroups.has(gKey)) classGroups.set(gKey, new Map());
+      const studentMap = classGroups.get(gKey);
+
+      const stKey = String(m.studentId || m.studentName || m.rollNo || '').trim().toLowerCase();
+      if (!stKey) return;
+
+      if (!studentMap.has(stKey)) {
+        studentMap.set(stKey, {
+          studentIdKey: stKey,
+          studentId: m.studentId ? String(m.studentId) : null,
+          studentName: m.studentName ? String(m.studentName).trim().toLowerCase() : '',
+          totalMarksObtained: 0,
+          totalMaxMarks: 0,
+          percentageSum: 0,
+          count: 0,
+          allPassed: true
+        });
+      }
+
+      const stData = studentMap.get(stKey);
+      if (Array.isArray(m.subjectMarks) && m.subjectMarks.length > 0) {
+        m.subjectMarks.forEach(sm => {
+          const obt = Number(sm.marksObtained ?? 0);
+          const max = Number(sm.maxMarks ?? 100);
+          const passM = Number(sm.passingMarks ?? 35);
+          stData.totalMarksObtained += obt;
+          stData.totalMaxMarks += max;
+          if (obt < passM) stData.allPassed = false;
+        });
+      } else {
+        const obt = Number(m.totalMarksObtained ?? m.marksObtained ?? 0);
+        const max = Number(m.totalMaxMarks ?? m.maxMarks ?? 100);
+        const pct = m.percentage !== undefined ? Number(m.percentage) : (max > 0 ? Math.round((obt / max) * 100) : 0);
+        stData.totalMarksObtained += obt;
+        stData.totalMaxMarks += max;
+        stData.percentageSum += pct;
+        stData.count += 1;
+        if (pct < 35) stData.allPassed = false;
+      }
+    });
+
+    const rankMap = new Map();
+
+    classGroups.forEach((studentMap) => {
+      const students = Array.from(studentMap.values()).map(st => {
+        const overallPct = st.totalMaxMarks > 0 
+          ? Math.round((st.totalMarksObtained / st.totalMaxMarks) * 100)
+          : (st.count > 0 ? Math.round(st.percentageSum / st.count) : 0);
+        return { ...st, overallPct };
+      });
+
+      const passed = students.filter(s => s.allPassed).sort((a, b) => b.overallPct - a.overallPct);
+      const failed = students.filter(s => !s.allPassed).sort((a, b) => b.overallPct - a.overallPct);
+
+      passed.forEach((s, idx) => {
+        const r = idx + 1;
+        rankMap.set(s.studentIdKey, r);
+        if (s.studentId) rankMap.set(s.studentId, r);
+        if (s.studentName) rankMap.set(s.studentName, r);
+      });
+      failed.forEach(s => {
+        rankMap.set(s.studentIdKey, null);
+        if (s.studentId) rankMap.set(s.studentId, null);
+        if (s.studentName) rankMap.set(s.studentName, null);
+      });
+    });
+
+    return marksList.map(m => {
+      const obj = typeof m.toObject === 'function' ? m.toObject() : { ...m };
+      const stKey = String(obj.studentId || obj.studentName || obj.rollNo || '').trim().toLowerCase();
+      const stId = obj.studentId ? String(obj.studentId) : null;
+      const stName = obj.studentName ? String(obj.studentName).trim().toLowerCase() : '';
+
+      let rank = rankMap.get(stKey);
+      if (rank === undefined && stId) rank = rankMap.get(stId);
+      if (rank === undefined && stName) rank = rankMap.get(stName);
+
+      obj.classRank = rank !== undefined ? rank : null;
+      return obj;
+    });
+  } catch (err) {
+    console.error('Error in attachClassRanksToMarks:', err);
+    return marksList.map(m => typeof m.toObject === 'function' ? m.toObject() : { ...m });
   }
 };
 

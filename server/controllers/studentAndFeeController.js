@@ -4,23 +4,59 @@ const { Student, FeeStructure, StudentFee, User, AttendanceRecord } = require('.
 const getStudents = async (req, res) => {
   try {
     const { classId, sectionId, search } = req.query;
+    const role = String(req.user?.role || req.user?.designation || '').toUpperCase();
+    const userId = req.user?.id;
+    const userEmail = req.user?.email;
+
     let query = {};
 
-    if (classId) {
-      const cleanCls = String(classId).replace(/^Class\s+/i, '').trim();
-      query.classId = { $regex: new RegExp(`^(${cleanCls}|Class\\s*${cleanCls})$`, 'i') };
-    }
-    if (sectionId && sectionId !== 'ALL') {
-      const cleanSec = String(sectionId).replace(/^Section\s+/i, '').trim();
-      query.sectionId = { $regex: new RegExp(`^(${cleanSec}|Section\\s*${cleanSec})$`, 'i') };
-    }
-    if (search) {
-      query.$or = [
-        { firstName: { $regex: search, $options: 'i' } },
-        { lastName: { $regex: search, $options: 'i' } },
-        { admissionNo: { $regex: search, $options: 'i' } },
-        { rollNo: { $regex: search, $options: 'i' } }
-      ];
+    if (role === 'STUDENT' || role === 'PARENT') {
+      const studentFilters = [];
+      const targetStudentId = req.user?.mappedStudentId || req.user?.studentId || req.user?.linkedStudentId;
+      if (targetStudentId) {
+        studentFilters.push({ _id: targetStudentId });
+      }
+      if (role === 'PARENT') {
+        if (userId) {
+          studentFilters.push({ parentId: userId });
+          studentFilters.push({ parentId: String(userId) });
+        }
+        if (userEmail) {
+          studentFilters.push({ parentEmail: userEmail });
+        }
+      } else if (role === 'STUDENT') {
+        if (userId) {
+          studentFilters.push({ studentUserId: userId });
+          studentFilters.push({ studentUserId: String(userId) });
+        }
+        if (userEmail) {
+          studentFilters.push({ email: userEmail });
+          studentFilters.push({ studentEmail: userEmail });
+        }
+      }
+
+      if (studentFilters.length > 0) {
+        query.$or = studentFilters;
+      } else {
+        return res.json([]);
+      }
+    } else {
+      if (classId) {
+        const cleanCls = String(classId).replace(/^Class\s+/i, '').trim();
+        query.classId = { $regex: new RegExp(`^(${cleanCls}|Class\\s*${cleanCls})$`, 'i') };
+      }
+      if (sectionId && sectionId !== 'ALL') {
+        const cleanSec = String(sectionId).replace(/^Section\s+/i, '').trim();
+        query.sectionId = { $regex: new RegExp(`^(${cleanSec}|Section\\s*${cleanSec})$`, 'i') };
+      }
+      if (search) {
+        query.$or = [
+          { firstName: { $regex: search, $options: 'i' } },
+          { lastName: { $regex: search, $options: 'i' } },
+          { admissionNo: { $regex: search, $options: 'i' } },
+          { rollNo: { $regex: search, $options: 'i' } }
+        ];
+      }
     }
 
     const students = await Student.find(query).sort({ classId: 1, rollNo: 1 });

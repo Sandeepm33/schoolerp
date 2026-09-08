@@ -7,7 +7,7 @@ import {
   LayoutDashboard, GraduationCap, Users, FileText, Calendar, DollarSign,
   BookOpen, Clock, Award, Box, Sparkles, Bell, HelpCircle, Key, CheckSquare,
   Plus, Edit2, Trash2, X, Check, RefreshCw, Search, Filter, Download, Upload,
-  AlertTriangle, Stethoscope, Library, Bus, Home, Megaphone, Ticket,
+  AlertTriangle, AlertCircle, Stethoscope, Library, Bus, Home, Megaphone, Ticket,
   FileBadge2, BarChart3, Settings, ChevronDown, UserCog, TrendingUp,
   Building2, BookMarked, Calculator, Scroll, MapPin, ShieldCheck,
   HeartHandshake, ClipboardList, Eye, XCircle, CheckCircle, Loader2, Printer,
@@ -9230,7 +9230,13 @@ function UsersTab() {
 
 function FullScreenMarksEntryModal({ isOpen, onClose, onRefresh }) {
   const { user } = useAuth();
-  const isTeacher = String(user?.role || user?.designation || '').toUpperCase().includes('TEACHER');
+  const userRole = String(user?.role || user?.designation || '').toUpperCase();
+  const userDesig = String(user?.designation || '').toUpperCase();
+  const isTeacher = userRole.includes('TEACHER') && !userRole.includes('HEADMASTER') && !userRole.includes('PRINCIPAL');
+  const isPrincipal = userRole.includes('PRINCIPAL') || userRole.includes('VICE_PRINCIPAL');
+  const isHeadmaster = userRole.includes('HEADMASTER') || userRole.includes('HEAD_MASTER') || userDesig.includes('HEADMASTER') || userDesig.includes('HEAD_MASTER');
+  const isSchoolAdmin = userRole.includes('SUPER_ADMIN') || userRole.includes('SCHOOL_ADMIN') || userRole === 'ADMIN';
+  const canEditPublished = isHeadmaster || isSchoolAdmin;
 
   const [classes, setClasses] = useState([]);
   const [exams, setExams] = useState([]);
@@ -9438,7 +9444,8 @@ function FullScreenMarksEntryModal({ isOpen, onClose, onRefresh }) {
       });
   }, [selectedClass, selectedSection, selectedExam, selectedSubject, isOpen]);
 
-  const isLockedForTeacher = isTeacher && submissionStatus && submissionStatus !== 'REJECTED';
+  const isPublishedStatus = submissionStatus === 'PUBLISHED';
+  const isLockedForTeacher = (isTeacher && submissionStatus && submissionStatus !== 'REJECTED') || (isPublishedStatus && !canEditPublished);
 
   const sectionOptions = React.useMemo(() => {
     const cls = classes.find(c => String(c.className || c.name || '').replace(/^Class\s+/i, '').trim() === String(selectedClass).trim());
@@ -9594,7 +9601,11 @@ function FullScreenMarksEntryModal({ isOpen, onClose, onRefresh }) {
 
   const handleSaveAll = async () => {
     if (isLockedForTeacher) {
-      alert('Marks for this subject have already been submitted and locked for review.');
+      if (isPublishedStatus && !canEditPublished) {
+        alert('🔒 Permission Denied: Results for this subject have been published. Only the Headmaster or School Administrator can edit published marks.');
+      } else {
+        alert('Marks for this subject have already been submitted and locked for review.');
+      }
       return;
     }
     if (!selectedClass) {
@@ -9652,7 +9663,7 @@ function FullScreenMarksEntryModal({ isOpen, onClose, onRefresh }) {
         type: 'success', 
         text: isTeacher 
           ? `✅ Submitted marks for ${payload.length} students to Principal for approval!`
-          : `✅ Saved and published marks for ${payload.length} students!` 
+          : `✅ Saved marks for ${payload.length} students!` 
       });
       if (onRefresh) onRefresh();
       setTimeout(() => {
@@ -9668,19 +9679,19 @@ function FullScreenMarksEntryModal({ isOpen, onClose, onRefresh }) {
   if (!isOpen || typeof window === 'undefined') return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[999999] bg-slate-950/95 backdrop-blur-xl text-white flex flex-col overflow-hidden animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[999999] bg-slate-100/95 backdrop-blur-xl text-slate-900 flex flex-col overflow-hidden animate-in fade-in duration-200">
       
       {/* FULL SCREEN HEADER */}
-      <div className="px-6 py-4 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between shadow-2xl">
+      <div className="px-6 py-4 bg-white border-b border-slate-200 flex items-center justify-between shadow-xs">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-amber-500/20 rounded-2xl border border-amber-500/30 text-amber-400">
+          <div className="p-2.5 bg-amber-500/10 rounded-2xl border border-amber-500/30 text-amber-600">
             <Award className="w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-lg font-black text-white tracking-tight flex items-center gap-2">
+            <h2 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
               {isTeacher ? `Teacher Marks Entry — ${user?.name || 'Subject Teacher'}` : 'Dynamic Class & Section Marks Entry Matrix'}
             </h2>
-            <p className="text-xs text-slate-400 font-medium">
+            <p className="text-xs text-slate-500 font-medium">
               {isTeacher ? 'Enter subject marks. Submissions route to Principal & Headmaster before release.' : 'Select Class, Section, Exam & Subject to auto-populate enrolled students'}
             </p>
           </div>
@@ -9688,19 +9699,19 @@ function FullScreenMarksEntryModal({ isOpen, onClose, onRefresh }) {
 
         <button
           onClick={onClose}
-          className="p-2 rounded-2xl bg-slate-800 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 border border-slate-700 transition cursor-pointer"
+          className="p-2 rounded-2xl bg-slate-100 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border border-slate-200 transition cursor-pointer"
         >
           <X className="w-5 h-5" />
         </button>
       </div>
 
       {/* SELECTION BAR */}
-      <div className="p-6 bg-slate-900/50 border-b border-slate-800/80 space-y-4">
+      <div className="p-6 bg-white border-b border-slate-200 space-y-4 shadow-xs">
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <div>
-            <label className="block text-[11px] font-black uppercase text-amber-400 mb-1">1. Select Class *</label>
+            <label className="block text-[11px] font-black uppercase text-emerald-800 mb-1">1. Select Class *</label>
             <select
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-amber-500"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
               value={selectedClass}
               onChange={e => setSelectedClass(e.target.value)}
             >
@@ -9712,9 +9723,9 @@ function FullScreenMarksEntryModal({ isOpen, onClose, onRefresh }) {
           </div>
 
           <div>
-            <label className="block text-[11px] font-black uppercase text-amber-400 mb-1">2. Select Section</label>
+            <label className="block text-[11px] font-black uppercase text-emerald-800 mb-1">2. Select Section</label>
             <select
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-amber-500"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
               value={selectedSection}
               onChange={e => setSelectedSection(e.target.value)}
             >
@@ -9726,9 +9737,9 @@ function FullScreenMarksEntryModal({ isOpen, onClose, onRefresh }) {
           </div>
 
           <div>
-            <label className="block text-[11px] font-black uppercase text-amber-400 mb-1">3. Select Exam *</label>
+            <label className="block text-[11px] font-black uppercase text-emerald-800 mb-1">3. Select Exam *</label>
             <select
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-amber-500"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
               value={selectedExam}
               onChange={e => setSelectedExam(e.target.value)}
             >
@@ -9740,11 +9751,11 @@ function FullScreenMarksEntryModal({ isOpen, onClose, onRefresh }) {
           </div>
 
           <div>
-            <label className="block text-[11px] font-black uppercase text-amber-400 mb-1">
+            <label className="block text-[11px] font-black uppercase text-emerald-800 mb-1">
               4. Select Subject {isTeacher ? '(Your Assigned Subject)' : ''}
             </label>
             <select
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-bold text-white focus:outline-none focus:border-amber-500"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
               value={selectedSubject}
               onChange={e => setSelectedSubject(e.target.value)}
             >
@@ -9757,20 +9768,20 @@ function FullScreenMarksEntryModal({ isOpen, onClose, onRefresh }) {
           </div>
 
           <div>
-            <label className="block text-[11px] font-black uppercase text-slate-400 mb-1">Max Marks</label>
+            <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Max Marks</label>
             <input
               type="number"
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white focus:outline-none focus:border-amber-500"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
               value={maxMarks}
               onChange={e => setMaxMarks(Number(e.target.value))}
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-black uppercase text-slate-400 mb-1">Passing Marks</label>
+            <label className="block text-[11px] font-black uppercase text-slate-500 mb-1">Passing Marks</label>
             <input
               type="number"
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs font-mono font-bold text-white focus:outline-none focus:border-amber-500"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30"
               value={passingMarks}
               onChange={e => setPassingMarks(Number(e.target.value))}
             />
@@ -9780,46 +9791,46 @@ function FullScreenMarksEntryModal({ isOpen, onClose, onRefresh }) {
 
       {/* FEEDBACK MSG */}
       {msg && (
-        <div className={`px-6 py-3 font-bold text-xs ${msg.type === 'success' ? 'bg-emerald-500/20 text-emerald-300 border-b border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border-b border-rose-500/30'}`}>
+        <div className={`px-6 py-3 font-bold text-xs ${msg.type === 'success' ? 'bg-emerald-50 text-emerald-900 border-b border-emerald-200' : 'bg-rose-50 text-rose-900 border-b border-rose-200'}`}>
           {msg.text}
         </div>
       )}
 
       {/* MAIN DYNAMIC STUDENTS MATRIX TABLE */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        {/* SUBMISSION STATUS BANNER FOR TEACHER */}
-        {isTeacher && submissionStatus && (
-          <div className={`p-4 rounded-2xl border flex items-center justify-between font-bold text-xs shadow-xl ${
+      <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-100/60">
+        {/* SUBMISSION STATUS BANNER */}
+        {submissionStatus && (
+          <div className={`p-4 rounded-2xl border flex items-center justify-between font-bold text-xs shadow-md ${
             submissionStatus === 'SUBMITTED_BY_TEACHER'
-              ? 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+              ? 'bg-amber-50 border-amber-200 text-amber-900'
               : submissionStatus === 'APPROVED_BY_PRINCIPAL'
-              ? 'bg-blue-500/15 border-blue-500/30 text-blue-300'
+              ? 'bg-blue-50 border-blue-200 text-blue-900'
               : submissionStatus === 'PUBLISHED'
-              ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
-              : 'bg-rose-500/15 border-rose-500/30 text-rose-300'
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+              : 'bg-rose-50 border-rose-200 text-rose-900'
           }`}>
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-slate-900/60 border border-current">
+              <div className="p-2 rounded-xl bg-white border border-current">
                 <Clock className="w-5 h-5" />
               </div>
               <div>
                 <h4 className="text-sm font-black uppercase tracking-wider">
                   {submissionStatus === 'SUBMITTED_BY_TEACHER' && '⏳ Marks Submitted — Pending Principal Approval'}
                   {submissionStatus === 'APPROVED_BY_PRINCIPAL' && '⏳ Approved by Principal — Pending Headmaster Release'}
-                  {submissionStatus === 'PUBLISHED' && '✓ Report Cards Released to Parents & Students'}
+                  {submissionStatus === 'PUBLISHED' && '✓ Report Cards Published to Parents & Students'}
                   {submissionStatus === 'REJECTED' && '✕ Marks Returned for Revision'}
                 </h4>
                 <p className="text-[11px] opacity-90 font-medium mt-0.5">
                   {submissionStatus === 'SUBMITTED_BY_TEACHER' && `Marks for Class ${selectedClass} (${selectedSubject}) have been submitted. Re-submission is disabled while pending review.`}
-                  {submissionStatus === 'APPROVED_BY_PRINCIPAL' && `Principal has approved these marks. Awaiting Headmaster batch release.`}
-                  {submissionStatus === 'PUBLISHED' && `These marks are published as official report cards on Parent & Student portals.`}
+                  {submissionStatus === 'APPROVED_BY_PRINCIPAL' && `Principal has approved these marks. Awaiting Headmaster release.`}
+                  {submissionStatus === 'PUBLISHED' && (canEditPublished ? `Results are published. As Headmaster/School Admin, you have administrative permission to edit.` : `🔒 Results are published. Editing is locked. Only Headmaster and School Admin can modify published results.`)}
                   {submissionStatus === 'REJECTED' && `Submission was returned for revisions. You may update marks below and re-submit.`}
                 </p>
               </div>
             </div>
             {isLockedForTeacher && (
-              <span className="px-3 py-1 rounded-xl text-[11px] font-black uppercase bg-slate-950/90 border border-amber-500/30 text-amber-300 shadow-inner">
-                🔒 Submission Locked
+              <span className="px-3 py-1 rounded-xl text-[11px] font-black uppercase bg-slate-200 border border-slate-300 text-slate-800 shadow-xs">
+                🔒 {isPublishedStatus ? 'Published & Locked' : 'Submission Locked'}
               </span>
             )}
           </div>
@@ -9827,25 +9838,25 @@ function FullScreenMarksEntryModal({ isOpen, onClose, onRefresh }) {
 
         {!selectedClass ? (
           <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 space-y-3">
-            <BookOpen className="w-12 h-12 text-slate-700" />
-            <h3 className="text-base font-bold text-slate-400">Select a Class & Section Above</h3>
+            <BookOpen className="w-12 h-12 text-slate-400" />
+            <h3 className="text-base font-bold text-slate-700">Select a Class & Section Above</h3>
             <p className="text-xs max-w-sm">Students enrolled in that class & section will automatically load in this table below for quick evaluation and marks entry.</p>
           </div>
         ) : studentLoading ? (
           <div className="h-full flex flex-col items-center justify-center space-y-3">
             <Loader2 className="w-8 h-8 text-amber-500 animate-spin" />
-            <p className="text-xs font-bold text-slate-400">Loading enrolled students...</p>
+            <p className="text-xs font-bold text-slate-600">Loading enrolled students...</p>
           </div>
         ) : students.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 space-y-2">
-            <AlertCircle className="w-10 h-10 text-rose-500/50" />
-            <h3 className="text-base font-bold text-slate-400">No Students Found</h3>
+            <AlertCircle className="w-10 h-10 text-rose-500/60" />
+            <h3 className="text-base font-bold text-slate-700">No Students Found</h3>
             <p className="text-xs">No active students registered under Class {selectedClass} {selectedSection ? `Section ${selectedSection}` : ''}.</p>
           </div>
         ) : (
-          <div className="bg-slate-900/60 rounded-2xl border border-slate-800 overflow-hidden shadow-xl">
-            <table className="w-full text-left text-xs text-slate-300">
-              <thead className="bg-slate-950 text-amber-400 font-black uppercase text-[10px] tracking-wider border-b border-slate-800">
+          <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xl">
+            <table className="w-full text-left text-xs text-slate-800">
+              <thead className="bg-slate-900 text-white font-black uppercase text-[10px] tracking-wider border-b border-slate-800">
                 <tr>
                   <th className="px-4 py-3">#</th>
                   <th className="px-4 py-3">Roll No</th>
@@ -9856,7 +9867,7 @@ function FullScreenMarksEntryModal({ isOpen, onClose, onRefresh }) {
                   <th className="px-4 py-3">Remarks</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/60">
+              <tbody className="divide-y divide-slate-100 bg-white">
                 {students.map((s, idx) => {
                   const item = marksGrid[s._id] || {};
                   const obtained = item.marksObtained !== '' ? Number(item.marksObtained) : null;
@@ -9864,11 +9875,11 @@ function FullScreenMarksEntryModal({ isOpen, onClose, onRefresh }) {
                   const isPassed = pct !== null && pct >= passingMarks;
 
                   return (
-                    <tr key={s._id} className="hover:bg-slate-800/40 transition">
-                      <td className="px-4 py-3 text-slate-500 font-mono">{idx + 1}</td>
-                      <td className="px-4 py-3 font-mono font-bold text-slate-400">{s.rollNo || '—'}</td>
-                      <td className="px-4 py-3 font-bold text-white flex items-center gap-2">
-                        <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[10px] font-black text-amber-400">
+                    <tr key={s._id} className="hover:bg-slate-50 transition">
+                      <td className="px-4 py-3 text-slate-400 font-mono">{idx + 1}</td>
+                      <td className="px-4 py-3 font-mono font-bold text-slate-700">{s.rollNo || '—'}</td>
+                      <td className="px-4 py-3 font-bold text-slate-900 flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-full bg-indigo-50 border border-indigo-200 flex items-center justify-center text-[10px] font-black text-indigo-700">
                           {(s.firstName || 'S')[0]}
                         </div>
                         {s.firstName} {s.lastName}
@@ -9881,23 +9892,23 @@ function FullScreenMarksEntryModal({ isOpen, onClose, onRefresh }) {
                           disabled={isLockedForTeacher}
                           readOnly={isLockedForTeacher}
                           placeholder={`0 - ${maxMarks}`}
-                          className={`w-28 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 font-mono font-bold text-white text-xs focus:outline-none focus:border-amber-500 ${isLockedForTeacher ? 'opacity-60 cursor-not-allowed bg-slate-900/80 border-slate-800' : ''}`}
+                          className={`w-28 bg-white border border-slate-300 rounded-xl px-3 py-1.5 font-mono font-bold text-slate-900 text-xs focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30 ${isLockedForTeacher ? 'opacity-60 cursor-not-allowed bg-slate-100 border-slate-200' : ''}`}
                           value={item.marksObtained ?? ''}
                           onChange={e => handleMarkChange(s._id, 'marksObtained', e.target.value)}
                         />
                       </td>
-                      <td className="px-4 py-3 font-mono font-bold text-white">
+                      <td className="px-4 py-3 font-mono font-bold text-slate-900">
                         {pct !== null ? `${pct}%` : '—'}
                       </td>
                       <td className="px-4 py-3">
                         {pct === null ? (
-                          <span className="text-slate-600 font-semibold">—</span>
+                          <span className="text-slate-400 font-semibold">—</span>
                         ) : isPassed ? (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
                             ✓ PASS
                           </span>
                         ) : (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/30">
+                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-800 border border-rose-300">
                             ✕ FAIL
                           </span>
                         )}
@@ -9908,7 +9919,7 @@ function FullScreenMarksEntryModal({ isOpen, onClose, onRefresh }) {
                           disabled={isLockedForTeacher}
                           readOnly={isLockedForTeacher}
                           placeholder="e.g. Good progress"
-                          className={`w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 focus:outline-none focus:border-amber-500 ${isLockedForTeacher ? 'opacity-60 cursor-not-allowed bg-slate-900/80 border-slate-800' : ''}`}
+                          className={`w-full bg-white border border-slate-300 rounded-xl px-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/30 ${isLockedForTeacher ? 'opacity-60 cursor-not-allowed bg-slate-100 border-slate-200' : ''}`}
                           value={item.remarks ?? ''}
                           onChange={e => handleMarkChange(s._id, 'remarks', e.target.value)}
                         />
@@ -9923,8 +9934,8 @@ function FullScreenMarksEntryModal({ isOpen, onClose, onRefresh }) {
       </div>
 
       {/* FOOTER BAR */}
-      <div className="px-6 py-4 bg-slate-900 border-t border-slate-800 flex items-center justify-between">
-        <span className="text-xs font-bold text-slate-400">
+      <div className="px-6 py-4 bg-white border-t border-slate-200 flex items-center justify-between shadow-xs">
+        <span className="text-xs font-bold text-slate-500">
           {isTeacher 
             ? isLockedForTeacher 
               ? '🔒 Submission locked. Marks are pending review by Principal & Headmaster.' 
@@ -9935,7 +9946,7 @@ function FullScreenMarksEntryModal({ isOpen, onClose, onRefresh }) {
         <div className="flex items-center gap-3">
           <button
             onClick={onClose}
-            className="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition cursor-pointer"
+            className="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer border border-slate-200"
           >
             Cancel
           </button>
@@ -10024,10 +10035,28 @@ function MarksTab() {
   }, [isTeacher, user]);
 
   const handleDelete = async (id) => {
-    if (!isSchoolAdmin && !isTeacher) return;
-    if (!confirm('Delete marks record?')) return;
-    await apiFetch(`/admin/marks/${id}`, { method: 'DELETE' });
-    load();
+    const userRole = String(user?.role || '').toUpperCase();
+    const userDesig = String(user?.designation || '').toUpperCase();
+    const isHeadmaster = userRole.includes('HEADMASTER') || userRole.includes('HEAD_MASTER') || userDesig.includes('HEADMASTER') || userDesig.includes('HEAD_MASTER');
+    const isSchoolAdmin = userRole.includes('SUPER_ADMIN') || userRole.includes('SCHOOL_ADMIN') || userRole === 'ADMIN';
+    const canEditPublished = isHeadmaster || isSchoolAdmin;
+
+    const targetMark = rows.find(r => r._id === id);
+    const isRecordPublished = targetMark && (targetMark.isPublished || targetMark.approvalStatus === 'PUBLISHED');
+
+    if (isRecordPublished && !canEditPublished) {
+      alert('🔒 Permission Denied: Results for this mark record have been published. Only the Headmaster or School Administrator can delete published marks.');
+      return;
+    }
+
+    if (!isSchoolAdmin && !isTeacher && !isHeadmaster) return;
+    if (!confirm('Are you sure you want to delete this mark record?')) return;
+    try {
+      await apiFetch(`/admin/marks/${id}`, { method: 'DELETE' });
+      load();
+    } catch (e) {
+      alert(e.message || 'Failed to delete mark record');
+    }
   };
 
   const handleWorkflow = async (idOrIds, action) => {
